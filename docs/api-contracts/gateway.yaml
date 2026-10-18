@@ -1,0 +1,388 @@
+openapi: 3.0.3
+info:
+  title: Legal/Medical QA — Gateway API
+  version: 0.1.0
+  description: >
+    Only service the browser (Next.js BFF route handlers) talks to directly.
+    Authenticates the request, scopes it by tenant/matter/patient, and routes
+    to Retrieval, Generation and Citation Validator. This is the source of
+    truth for the gateway's public contract — services/gateway/app/schemas
+    must match it.
+servers:
+  - url: http://localhost:8000
+    description: local
+
+security:
+  - bearerAuth: []
+
+paths:
+  /healthz:
+    get:
+      summary: Liveness/readiness probe
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /v1/query:
+    post:
+      summary: Ask a question against a tenant's documents (streamed, cited answer)
+      operationId: submitQuery
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QueryRequest"
+      responses:
+        "200":
+          description: >
+            Server-Sent Events stream. Each event is a QueryStreamEvent;
+            the terminal event has type=final and carries the resolved,
+            citation-validated answer.
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/QueryStreamEvent"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /v1/documents:
+    get:
+      summary: List documents in the caller's tenant/matter/patient scope
+      operationId: listDocuments
+      parameters:
+        - in: query
+          name: matter_or_patient_id
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [ingesting, indexed, failed]
+        - in: query
+          name: cursor
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+      responses:
+        "200":
+          description: Paginated document list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documents:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DocumentSummary"
+                  next_cursor:
+                    type: string
+                    nullable: true
+    post:
+      summary: Upload a document (proxies to Ingestion; returns immediately, status via polling/webhook)
+      operationId: uploadDocument
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, matter_or_patient_id, confidentiality_tier]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                matter_or_patient_id:
+                  type: string
+                confidentiality_tier:
+                  type: string
+                  enum: [standard, privileged, phi]
+                effective_date:
+                  type: string
+                  format: date
+      responses:
+        "202":
+          description: Accepted; ingestion enqueued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentSummary"
+
+  /v1/documents/{document_id}:
+    get:
+      summary: Get one document's metadata and ingestion status
+      operationId: getDocument
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentSummary"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/audit:
+    get:
+      summary: Search the audit log for the caller's tenant (compliance review)
+      operationId: searchAuditLog
+      parameters:
+        - in: query
+          name: user_id
+          schema:
+            type: string
+        - in: query
+          name: session_id
+          schema:
+            type: string
+        - in: query
+          name: from
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: to
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: cursor
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Paginated audit events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AuditEvent"
+                  next_cursor:
+                    type: string
+                    nullable: true
+
+  /v1/admin/tenants:
+    get:
+      summary: List tenants (admin role only)
+      operationId: listTenants
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Tenant"
+    post:
+      summary: Create a tenant (admin role only)
+      operationId: createTenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantCreateRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tenant"
+
+  /v1/admin/users/{user_id}/roles:
+    put:
+      summary: Set a user's role scope (tenant × matter/patient × action)
+      operationId: setUserRoles
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleScope"
+      responses:
+        "204":
+          description: No content
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    DocumentId:
+      in: path
+      name: document_id
+      required: true
+      schema:
+        type: string
+
+  responses:
+    Forbidden:
+      description: Caller's role does not cover the requested tenant/matter/patient scope
+    NotFound:
+      description: Resource not found or outside the caller's access grant
+    ValidationError:
+      description: Request failed schema validation
+
+  schemas:
+    QueryRequest:
+      type: object
+      required: [question, matter_or_patient_id]
+      properties:
+        question:
+          type: string
+        matter_or_patient_id:
+          type: string
+        session_id:
+          type: string
+          description: Groups related turns for audit view; server-generated if omitted
+
+    QueryStreamEvent:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [token, final, error]
+        token:
+          type: string
+        final:
+          $ref: "#/components/schemas/CitedAnswer"
+        error:
+          type: string
+
+    CitedAnswer:
+      type: object
+      properties:
+        answer_text:
+          type: string
+        citations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Citation"
+        validation_outcome:
+          type: string
+          enum: [pass, stripped_unverified, regenerated]
+
+    Citation:
+      type: object
+      properties:
+        chunk_id:
+          type: string
+        document_id:
+          type: string
+        page:
+          type: integer
+        section:
+          type: string
+
+    DocumentSummary:
+      type: object
+      properties:
+        document_id:
+          type: string
+        filename:
+          type: string
+        status:
+          type: string
+          enum: [ingesting, indexed, failed]
+        matter_or_patient_id:
+          type: string
+        confidentiality_tier:
+          type: string
+          enum: [standard, privileged, phi]
+        uploaded_at:
+          type: string
+          format: date-time
+
+    AuditEvent:
+      type: object
+      properties:
+        event_id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        user_id:
+          type: string
+        session_id:
+          type: string
+        question:
+          type: string
+        retrieved_chunk_ids:
+          type: array
+          items:
+            type: string
+        answer_text:
+          type: string
+        validation_outcome:
+          type: string
+
+    Tenant:
+      type: object
+      properties:
+        tenant_id:
+          type: string
+        name:
+          type: string
+        industry:
+          type: string
+          enum: [legal, medical]
+
+    TenantCreateRequest:
+      type: object
+      required: [name, industry]
+      properties:
+        name:
+          type: string
+        industry:
+          type: string
+          enum: [legal, medical]
+
+    RoleScope:
+      type: object
+      required: [tenant_id, action]
+      properties:
+        tenant_id:
+          type: string
+        matter_or_patient_id:
+          type: string
+          nullable: true
+          description: null means scoped to all matters/patients in the tenant
+        action:
+          type: string
+          enum: [read, query, export, admin]

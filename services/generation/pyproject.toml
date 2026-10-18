@@ -1,0 +1,45 @@
+[project]
+name = "legalmed-generation"
+version = "0.1.0"
+description = "Generation service — token budget, compression, prompt assembly, LLM call"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "redis>=5.0",
+    "pydantic>=2.6",
+    "structlog>=24.1",
+    "legalmed-common",
+    "legalmed-prompt-registry-client",
+]
+
+[project.optional-dependencies]
+# Real backends — tiktoken (token counting), llmlingua (compression),
+# anthropic (LLM provider SDK). Not required for local unit tests;
+# app/token_budget, app/compression and app/llm_client all have
+# dependency-free fakes used by default and by every test in this service.
+
+real = [
+    "tiktoken>=0.7",
+    "llmlingua>=0.2",
+    "anthropic>=0.34",
+    "google-genai>=0.3",
+]
+
+dev = [
+    "pytest>=8.2",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.5",
+    "mypy>=1.10",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["app", "app.token_budget", "app.compression", "app.prompt_assembly", "app.llm_client", "app.schemas"]
+package-dir = {"app" = "app"}
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
