@@ -1,0 +1,210 @@
+version: "3.9"
+
+# Full local stack: all five services + Postgres + Redis + Qdrant + MinIO + frontend.
+# Service boundaries mirror production exactly; only the infra backing them is local.
+# Local-only tweaks (hot reload, extra debug ports) live in docker-compose.override.yml,
+# which Docker Compose merges automatically — nothing extra to pass on `make up`.
+
+x-fastapi-common: &fastapi-common
+  env_file:
+    - .env
+  networks:
+    - legal-medical-qa
+  restart: unless-stopped
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+  # ---------------------------------------------------------------------
+  # Infra
+  # ---------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-legalmed}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-legalmed}
+      POSTGRES_DB: ${POSTGRES_DB:-legalmed}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-legalmed}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - legal-medical-qa
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - legal-medical-qa
+
+  qdrant:
+    image: qdrant/qdrant:v1.11.3
+    volumes:
+      - qdrant_data:/qdrant/storage
+    ports:
+      - "6333:6333"  # REST
+      - "6334:6334"  # gRPC
+    networks:
+      - legal-medical-qa
+
+  minio:
+    image: minio/minio:RELEASE.2024-10-13T13-34-11Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-legalmed}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-legalmed123}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"  # S3 API
+      - "9001:9001"  # Console
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - legal-medical-qa
+
+  # One-shot: creates the MinIO bucket(s) the app expects, then exits.
+  minio-init:
+    image: minio/mc:RELEASE.2024-10-13T13-34-11Z
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-legalmed} ${MINIO_ROOT_PASSWORD:-legalmed123}; do sleep 1; done;
+      mc mb -p local/${S3_BUCKET:-legalmed-documents};
+      exit 0;
+      "
+    networks:
+      - legal-medical-qa
+
+  # ---------------------------------------------------------------------
+  # Application services
+  # ---------------------------------------------------------------------
+  gateway:
+    <<: *fastapi-common
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      retrieval:
+        condition: service_started
+      generation:
+        condition: service_started
+
+  ingestion:
+    <<: *fastapi-common
+    build:
+      context: .
+      dockerfile: services/ingestion/Dockerfile
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
+
+  ingestion-worker:
+    <<: *fastapi-common
+    build:
+      context: .
+      dockerfile: services/ingestion/Dockerfile.worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
+
+  retrieval:
+    <<: *fastapi-common
+    build:
+      context: .
+      dockerfile: services/retrieval/Dockerfile
+    ports:
+      - "8002:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+
+  generation:
+    <<: *fastapi-common
+    build:
+      context: .
+      dockerfile: services/generation/Dockerfile
+    ports:
+      - "8003:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  citation-validator:
+    <<: *fastapi-common
+    build:
+      context: .
+      dockerfile: services/citation_validator/Dockerfile
+    ports:
+      - "8004:8004"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../services/frontend.Dockerfile
+    env_file:
+      - .env
+    environment:
+      NEXT_PUBLIC_GATEWAY_URL: http://localhost:8000
+      GATEWAY_INTERNAL_URL: http://gateway:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - gateway
+    networks:
+      - legal-medical-qa
+
+networks:
+  legal-medical-qa:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  qdrant_data:
+  minio_data:

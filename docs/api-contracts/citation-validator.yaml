@@ -1,0 +1,131 @@
+openapi: 3.0.3
+info:
+  title: Legal/Medical QA — Citation Validator API
+  version: 0.1.0
+  description: >
+    Internal, deterministic, non-LLM service. Called by the Gateway after
+    Generation returns. Parses every [chunk_N] tag, confirms the chunk was
+    actually in the retrieved set for this request, and runs a lightweight
+    entailment check between the cited sentence and the chunk text. This
+    is the hard gate before any answer reaches the user.
+servers:
+  - url: http://localhost:8004
+    description: local
+
+security:
+  - serviceAuth: []
+
+paths:
+  /healthz:
+    get:
+      summary: Liveness/readiness probe
+      security: []
+      responses:
+        "200":
+          description: OK
+
+  /internal/v1/validate:
+    post:
+      summary: Validate every citation tag in a generated answer
+      operationId: validate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ValidateRequest"
+      responses:
+        "200":
+          description: Validation result; never calls an LLM
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidateResponse"
+        "422":
+          description: Request failed schema validation
+
+components:
+  securitySchemes:
+    serviceAuth:
+      type: apiKey
+      in: header
+      name: X-Internal-Service-Key
+
+  schemas:
+    ValidateRequest:
+      type: object
+      required: [answer_text, retrieved_chunks, tenant_policy]
+      properties:
+        answer_text:
+          type: string
+          description: Raw generation output with inline [chunk_N] tags
+        retrieved_chunks:
+          type: array
+          description: The exact chunk set that was in context for this request — citations outside this set fail
+          items:
+            $ref: "#/components/schemas/ChunkForValidation"
+        tenant_policy:
+          type: string
+          enum: [strip_unverified, regenerate]
+        entailment_support_threshold:
+          type: number
+          default: 0.55
+
+    ChunkForValidation:
+      type: object
+      properties:
+        chunk_id:
+          type: string
+        document_id:
+          type: string
+        text:
+          type: string
+        page:
+          type: integer
+        section:
+          type: string
+
+    ValidateResponse:
+      type: object
+      properties:
+        validation_outcome:
+          type: string
+          enum: [pass, stripped_unverified, regenerate_required]
+        verified_answer_text:
+          type: string
+          description: Answer text with unverified claims stripped/flagged, per tenant_policy
+        resolved_citations:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResolvedCitation"
+        findings:
+          type: array
+          items:
+            $ref: "#/components/schemas/CitationFinding"
+
+    ResolvedCitation:
+      type: object
+      properties:
+        chunk_id:
+          type: string
+        document_id:
+          type: string
+        page:
+          type: integer
+        section:
+          type: string
+
+    CitationFinding:
+      type: object
+      properties:
+        chunk_id_cited:
+          type: string
+        claim_sentence:
+          type: string
+        check:
+          type: string
+          enum: [chunk_not_in_retrieved_set, entailment_below_threshold, ok]
+        entailment_score:
+          type: number
+          nullable: true
+

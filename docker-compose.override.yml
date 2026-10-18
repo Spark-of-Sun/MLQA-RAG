@@ -1,0 +1,98 @@
+version: "3.9"
+
+# Local-only overrides, auto-merged by `docker compose` on top of docker-compose.yml.
+# Nothing here should exist in a production deploy: hot reload, source mounts,
+# and debug ports (remote debuggers, verbose log levels) only.
+#
+# To run WITHOUT these overrides (closer to a prod-shaped build), use:
+#   docker compose -f docker-compose.yml up
+
+services:
+  gateway:
+    build:
+      target: dev
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    volumes:
+      - ./services/gateway/app:/app/app
+      - ./libs:/app/libs
+    environment:
+      LOG_LEVEL: DEBUG
+    ports:
+      - "8000:8000"
+      - "5678:5678"  # debugpy
+
+  ingestion:
+    build:
+      target: dev
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--reload"]
+    volumes:
+      - ./services/ingestion/app:/app/app
+      - ./libs:/app/libs
+    environment:
+      LOG_LEVEL: DEBUG
+    ports:
+      - "8001:8001"
+      - "5679:5678"  # debugpy
+
+  ingestion-worker:
+    build:
+      target: dev
+    command: ["arq", "app.workers.WorkerSettings", "--watch", "app"]
+    volumes:
+      - ./services/ingestion/app:/app/app
+      - ./libs:/app/libs
+    environment:
+      LOG_LEVEL: DEBUG
+
+  retrieval:
+    build:
+      target: dev
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8002", "--reload"]
+    volumes:
+      - ./services/retrieval/app:/app/app
+      - ./libs:/app/libs
+    environment:
+      LOG_LEVEL: DEBUG
+    ports:
+      - "8002:8002"
+      - "5680:5678"  # debugpy
+
+  generation:
+    build:
+      target: dev
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8003", "--reload"]
+    volumes:
+      - ./services/generation/app:/app/app
+      - ./libs:/app/libs
+    environment:
+      LOG_LEVEL: DEBUG
+    ports:
+      - "8003:8003"
+      - "5681:5678"  # debugpy
+
+  citation-validator:
+    build:
+      target: dev
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8004", "--reload"]
+    volumes:
+      - ./services/citation_validator/app:/app/app
+      - ./libs:/app/libs
+    environment:
+      LOG_LEVEL: DEBUG
+    ports:
+      - "8004:8004"
+      - "5682:5678"  # debugpy
+
+  frontend:
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    command: ["npm", "run", "dev"]
+
+  minio:
+    ports:
+      - "9000:9000"
+      - "9001:9001"  # MinIO console — local debugging only

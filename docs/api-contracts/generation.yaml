@@ -1,0 +1,132 @@
+openapi: 3.0.3
+info:
+  title: Legal/Medical QA — Generation API
+  version: 0.1.0
+  description: >
+    Internal service, called only by the Gateway. Owns token-budget
+    enforcement, compression, prompt assembly, and the LLM call. Does not
+    own citation correctness — that's Citation Validator's job, applied
+    after this service returns.
+servers:
+  - url: http://localhost:8003
+    description: local
+
+security:
+  - serviceAuth: []
+
+paths:
+  /healthz:
+    get:
+      summary: Liveness/readiness probe
+      security: []
+      responses:
+        "200":
+          description: OK
+
+  /internal/v1/generate:
+    post:
+      summary: >
+        Assemble a prompt from the retrieved chunk set within the token
+        budget, call the LLM, and stream back the raw (not yet
+        citation-validated) answer with inline [chunk_N] tags.
+      operationId: generate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateRequest"
+      responses:
+        "200":
+          description: Server-Sent Events stream of GenerateStreamEvent
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/GenerateStreamEvent"
+        "422":
+          description: Request failed schema validation
+
+components:
+  securitySchemes:
+    serviceAuth:
+      type: apiKey
+      in: header
+      name: X-Internal-Service-Key
+
+  schemas:
+    GenerateRequest:
+      type: object
+      required: [question, chunks, tenant_id]
+      properties:
+        question:
+          type: string
+        tenant_id:
+          type: string
+        chunks:
+          type: array
+          description: The re-ranked chunk set returned by Retrieval, in rank order
+          items:
+            $ref: "#/components/schemas/InputChunk"
+        max_prompt_tokens:
+          type: integer
+          default: 6000
+        max_completion_tokens:
+          type: integer
+          default: 1024
+        prompt_template_version:
+          type: string
+          description: Pins to a specific version in the prompt registry; defaults to the tenant's promoted version
+
+    InputChunk:
+      type: object
+      properties:
+        chunk_id:
+          type: string
+        document_id:
+          type: string
+        text:
+          type: string
+        page:
+          type: integer
+        section:
+          type: string
+        rerank_score:
+          type: number
+
+    GenerateStreamEvent:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [token, final, error]
+        token:
+          type: string
+        final:
+          $ref: "#/components/schemas/RawGeneration"
+        error:
+          type: string
+
+    RawGeneration:
+      type: object
+      properties:
+        answer_text:
+          type: string
+          description: Raw model output with inline [chunk_N] tags, not yet validated
+        chunk_ids_in_context:
+          type: array
+          items:
+            type: string
+          description: Every chunk_id that was actually sent to the model, for Citation Validator to check against
+        dropped_chunk_ids:
+          type: array
+          items:
+            type: string
+          description: Chunks dropped by the token-budget trim step (below relevance threshold), logged for audit
+        prompt_tokens:
+          type: integer
+        completion_tokens:
+          type: integer
+        cache_hit:
+          type: boolean
+          description: True if served from the semantic cache instead of calling the LLM

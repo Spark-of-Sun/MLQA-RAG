@@ -1,0 +1,17 @@
+[project]
+name = "legalmed-prompt-registry-client"
+version = "0.1.0"
+description = "Client for the versioned prompt templates used by the Generation service"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.6",
+    "httpx>=0.27",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["prompt_registry_client"]
+package-dir = { "prompt_registry_client" = "." }

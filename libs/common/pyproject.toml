@@ -1,0 +1,32 @@
+[project]
+name = "legalmed-common"
+version = "0.1.0"
+description = "Shared models, auth, logging, telemetry, and security helpers for all legal-medical-qa services"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.6",
+    "pyjwt>=2.8",
+    "cryptography>=42.0",
+    "opentelemetry-sdk>=1.24",
+    "opentelemetry-exporter-otlp-proto-http>=1.24",
+    "structlog>=24.1",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+# Package source lives directly in this directory (libs/common/), not in a
+# nested libs/common/common/ folder — package-dir maps the import name
+# "common" onto ".". Every service installs this editable:
+#   pip install -e ../../libs/common
+[tool.setuptools]
+packages = [
+    "common",
+    "common.auth",
+    "common.logging",
+    "common.telemetry",
+    "common.models",
+    "common.security",
+]
+package-dir = { "common" = "." }

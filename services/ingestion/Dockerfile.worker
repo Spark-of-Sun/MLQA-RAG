@@ -1,0 +1,25 @@
+# syntax=docker/dockerfile:1.7
+# Separate image for the ingestion worker pool (Arq), per docs/architecture.md:
+# upload intake must stay responsive even while OCR/embedding jobs queue up
+# behind it — this runs as its own deployable/scaling unit.
+FROM python:3.11-slim AS base
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+WORKDIR /app
+
+FROM base AS deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tesseract-ocr poppler-utils \
+    && rm -rf /var/lib/apt/lists/*
+COPY libs/common /app/libs/common
+COPY services/ingestion /app/services/ingestion
+RUN pip install -e /app/libs/common \
+ && pip install -e "/app/services/ingestion[real]"
+WORKDIR /app/services/ingestion
+
+FROM deps AS dev
+CMD ["arq", "app.workers.settings.WorkerSettings", "--watch", "app"]
+
+FROM deps AS prod
+CMD ["arq", "app.workers.settings.WorkerSettings"]
