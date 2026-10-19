@@ -1,0 +1,54 @@
+name: Citation Evaluation
+
+# Matches docs/architecture.md §9 milestone 7: the eval harness runs in CI
+# on any PR that touches prompt templates or the generation service, since
+# either could silently regress citation-validation pass rate.
+on:
+  pull_request:
+    paths:
+      - "prompts/**"
+      - "services/generation/**"
+      - "services/citation_validator/**"
+
+jobs:
+  citation-eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install shared libs + generation + citation_validator
+        run: |
+          pip install -e libs/common
+          pip install -e libs/prompt_registry_client
+          pip install -e services/generation
+          pip install -e services/citation_validator
+
+      - name: Check eval harness exists
+        id: check
+        run: |
+          if [ ! -f scripts/run_citation_eval.py ]; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          elif [ -z "$(find prompts/eval_sets -type f -name '*.json*' 2>/dev/null)" ]; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run citation eval
+        if: steps.check.outputs.exists == 'true'
+        env:
+          APP_SECRET_KEY: ci-test-secret-value-32-bytes-long
+          FIELD_ENCRYPTION_KEY: ci-test-encryption-key
+          INTERNAL_SERVICE_API_KEY: ci-test-internal-key
+          ENVIRONMENT: local
+          LLM_PROVIDER: fake
+          ENTAILMENT_BACKEND: fake
+        run: python scripts/run_citation_eval.py
+
+      - name: Eval harness not built yet
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          echo "::notice::scripts/run_citation_eval.py or prompts/eval_sets/ doesn't exist yet — skipping citation eval. This workflow will activate automatically once both are built (docs/architecture.md §9, milestone 7)."
