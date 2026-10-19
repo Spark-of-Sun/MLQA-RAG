@@ -9,9 +9,8 @@ os.environ.setdefault("ENVIRONMENT", "local")
 
 import pytest
 import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
-
 from common.models import Chunk, ConfidentialityTier
+from httpx import ASGITransport, AsyncClient
 
 from app.main import app
 from app.state import AppState, InMemoryVectorSearchBackend

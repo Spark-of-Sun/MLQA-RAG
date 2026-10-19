@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import date
 
 import pytest
-
 from common.models import ConfidentialityTier, TenantIndustry
 
 from app.embedding.fake_backend import FakeEmbeddingBackend

@@ -3,11 +3,10 @@ from __future__ import annotations
 import os
 import time
 
+from common.logging import get_logger
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import JSONResponse
-
-from common.logging import get_logger
 
 log = get_logger(__name__)
 
@@ -59,7 +58,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             await client.ping()
             self._redis = client
             return client
-        except Exception:  # any Redis failure falls back silently
+        except Exception:  # noqa: BLE001 - any Redis failure must fall back silently, not crash every request
             return None
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint):

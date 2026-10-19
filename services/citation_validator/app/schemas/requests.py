@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from pydantic import BaseModel
-
 from common.models import CitationCheck, ValidationOutcome
+from pydantic import BaseModel
 
 
 class ChunkForValidation(BaseModel):

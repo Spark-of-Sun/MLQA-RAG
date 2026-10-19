@@ -1,10 +1,9 @@
 
 from __future__ import annotations
 
-from fastapi import HTTPException
-
 from common.auth.jwt import SessionClaims
 from common.models import Action
+from fastapi import HTTPException
 
 
 def enforce_scope(

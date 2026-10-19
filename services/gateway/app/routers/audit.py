@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
-
 from common.auth.jwt import SessionClaims
 from common.models import Action, AuditEvent
+from fastapi import APIRouter, Depends, Request
 
 from app.auth.dependencies import get_current_claims
 from app.middleware.tenant_scope import enforce_scope

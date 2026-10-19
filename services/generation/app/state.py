@@ -26,7 +26,7 @@ class AppState:
         self.registry_client = registry_client
 
     @classmethod
-    async def create(cls) -> "AppState":
+    async def create(cls) -> AppState:
         return cls(
             token_counter=get_token_counter(),
             compressor=get_compressor(),

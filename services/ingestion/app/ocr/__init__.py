@@ -15,4 +15,4 @@ def get_ocr_backend(engine: str | None = None) -> OcrBackend:
     raise ValueError(f"unknown OCR_ENGINE: {engine}")
 
 
-__all__ = ["OcrBackend", "OcrPageResult", "FakeOcrBackend", "get_ocr_backend"]
+__all__ = ["FakeOcrBackend", "OcrBackend", "OcrPageResult", "get_ocr_backend"]

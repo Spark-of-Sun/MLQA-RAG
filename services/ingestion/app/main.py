@@ -3,12 +3,11 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import JSONResponse
-
 from common.auth.service_token import ServiceAuthError, verify_internal_service_key
 from common.logging import configure_logging, get_logger
 from common.models import ConfidentialityTier, TenantIndustry
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import JSONResponse
 
 from app.schemas.requests import DocumentSummary
 from app.state import AppState

@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 from uuid import uuid4
 
 import httpx
-
 from common.models import AuditEvent, Tenant
 
 
@@ -154,7 +153,7 @@ class AppState:
         self.document_repo = InMemoryDocumentRepository()
 
     @classmethod
-    async def create(cls) -> "AppState":
+    async def create(cls) -> AppState:
         clients = ServiceClients(
             retrieval_base_url=os.environ.get("RETRIEVAL_URL", "http://retrieval:8002"),
             generation_base_url=os.environ.get("GENERATION_URL", "http://generation:8003"),

@@ -17,4 +17,4 @@ def get_compressor(backend: str | None = None) -> Compressor:
     raise ValueError(f"unknown COMPRESSION_BACKEND: {backend}")
 
 
-__all__ = ["Compressor", "WhitespaceCompressor", "NoOpCompressor", "get_compressor"]
+__all__ = ["Compressor", "NoOpCompressor", "WhitespaceCompressor", "get_compressor"]

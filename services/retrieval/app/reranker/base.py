@@ -8,8 +8,8 @@ if TYPE_CHECKING:
 
 class Reranker(Protocol):
     def rerank(
-        self, query: str, candidates: list["RankedChunk"], top_k: int
-    ) -> list["RankedChunk"]:
+        self, query: str, candidates: list[RankedChunk], top_k: int
+    ) -> list[RankedChunk]:
         """Scores each candidate's rerank_score in place (returns new
         RankedChunk instances) and returns the top_k, descending by
         rerank_score. This re-ranked, trimmed set is what flows

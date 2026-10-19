@@ -3,11 +3,10 @@ from __future__ import annotations
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-
 from common.logging import configure_logging, get_logger
 from common.telemetry import configure_tracing
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 from app.middleware.auth_middleware import AuthMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware

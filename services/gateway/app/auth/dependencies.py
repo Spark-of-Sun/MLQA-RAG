@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from fastapi import HTTPException, Request
-
 from common.auth.jwt import SessionClaims
+from fastapi import HTTPException, Request
 
 
 def get_current_claims(request: Request) -> SessionClaims:

@@ -3,12 +3,11 @@ from __future__ import annotations
 import json
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import StreamingResponse
-
 from common.auth.jwt import SessionClaims
 from common.logging import get_logger
 from common.models import Action, AuditEvent, Citation, ValidationOutcome
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import StreamingResponse
 
 from app.auth.dependencies import get_current_claims
 from app.middleware.tenant_scope import enforce_scope

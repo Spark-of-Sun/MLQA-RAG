@@ -1,11 +1,10 @@
 from __future__ import annotations
 
+from common.auth.jwt import JWTError, decode_session_jwt
+from common.logging import get_logger
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import JSONResponse
-
-from common.auth.jwt import JWTError, decode_session_jwt
-from common.logging import get_logger
 
 log = get_logger(__name__)
 

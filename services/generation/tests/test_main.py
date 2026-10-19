@@ -38,7 +38,6 @@ async def test_generate_streams_tokens_and_final_event(client, internal_headers)
     assert final["cache_hit"] is False
     assert final["completion_tokens"] > 0
 
-
 @pytest.mark.asyncio
 async def test_generate_second_identical_call_is_a_cache_hit(client, internal_headers):
     payload = {
@@ -53,8 +52,8 @@ async def test_generate_second_identical_call_is_a_cache_hit(client, internal_he
 
     def final_of(response):
         events = [json.loads(line[len("data: "):]) for line in response.text.split("\n\n") if line.startswith("data: ")]
-        return [e for e in events if e["type"] == "final"][0]["final"]
-
+        return next(e for e in events if e["type"] == "final")["final"]
+    
     assert final_of(first)["cache_hit"] is False
     assert final_of(second)["cache_hit"] is True
     assert final_of(second)["answer_text"] == final_of(first)["answer_text"]
@@ -77,6 +76,6 @@ async def test_generate_drops_oversized_chunk_entirely(client, internal_headers)
         headers=internal_headers,
     )
     events = [json.loads(line[len("data: "):]) for line in response.text.split("\n\n") if line.startswith("data: ")]
-    final = [e for e in events if e["type"] == "final"][0]["final"]
+    final = next(e for e in events if e["type"] == "final")["final"]
     assert "huge" in final["dropped_chunk_ids"]
     assert "huge" not in final["chunk_ids_in_context"]
