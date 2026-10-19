@@ -25,3 +25,14 @@ def test_parse_sentence_with_multiple_citations():
 
 def test_parse_no_citation_returns_empty():
     assert parse_citations("This sentence has no citation at all.") == []
+
+
+def test_trailing_citations_block_is_excluded_from_parsing():
+    text = (
+        "Either party may terminate with 30 days notice [c1].\n\n"
+        "Citations:\n[c1] Smith_Contract.pdf, page 12, section 4.2"
+    )
+    results = parse_citations(text)
+    assert len(results) == 1
+    assert results[0].chunk_id == "c1"
+    assert "Citations" not in results[0].sentence

@@ -35,6 +35,9 @@ class InMemoryVectorStore:
     def count(self) -> int:
         return len(self._store)
 
+    def all_chunks(self):
+        return [chunk for chunk, _vector in self._store.values()]
+
 
 class QdrantVectorStore:
     """Real backend — single-node Qdrant container locally, managed
