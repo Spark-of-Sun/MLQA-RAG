@@ -73,6 +73,7 @@ def test_passes_trivially_with_no_citations():
     assert result.findings == []
 
 
+
 def test_numbers_multiple_citations_by_order_of_appearance():
     result = validate_answer(
         answer_text="First claim [c2]. Second claim [c1].",
@@ -86,3 +87,23 @@ def test_numbers_multiple_citations_by_order_of_appearance():
     )
     assert "[1]" in result.verified_answer_text
     assert "[2]" in result.verified_answer_text
+
+
+def test_trailing_citations_list_does_not_downgrade_a_supported_inline_citation():
+    # Regression test for the bug found via live Gemini integration testing:
+    # the structured "Citations:" list the prompt template asks for must
+    # not be treated as a second, unsupported claim that overwrites a
+    # well-supported inline citation's OK result.
+    result = validate_answer(
+        answer_text=(
+            "Either party may terminate with 30 days notice [c1].\n\n"
+            "Citations:\n[c1] Smith_Contract.pdf, page 12, section 4.2"
+        ),
+        retrieved_chunks=[_chunk("c1", "Either party may terminate this agreement with 30 days written notice.")],
+        tenant_policy="strip_unverified",
+        entailment_support_threshold=0.5,
+        entailment_checker=WordOverlapEntailmentChecker(),
+    )
+    assert result.validation_outcome.value == "pass"
+    assert "[unverified]" not in result.verified_answer_text
+    assert "[1]" in result.verified_answer_text

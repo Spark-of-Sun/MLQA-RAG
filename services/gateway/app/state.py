@@ -44,10 +44,16 @@ class ServiceClients:
             async with self._client.stream("POST", url, json=payload) as response:
                 response.raise_for_status()
                 async for line in response.aiter_lines():
-                    if line:
-                        yield line
+                    # Generation's SSE lines are "data: {json}" — strip the
+                    # SSE wire-format prefix before handing back a plain
+                    # JSON string. The blank "\n\n" separator lines between
+                    # events don't start with "data: " and are skipped here
+                    # too, so there's no need for a separate empty-line check.
+                    if line.startswith("data: "):
+                        yield line[len("data: "):]
         except httpx.HTTPError as exc:
             raise ServiceUnavailableError(f"generation service error: {exc}") from exc
+    
 
     async def validate(self, **payload) -> dict:
         return await self._post(f"{self.citation_validator_base_url}/internal/v1/validate", payload)

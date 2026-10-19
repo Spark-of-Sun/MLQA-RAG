@@ -37,15 +37,7 @@ class InMemoryVectorSearchBackend:
         self._chunks.extend(chunks)
 
     def dense_search(self, query_vector, tenant_id, matter_or_patient_id, top_k):
-        candidates = [
-            c for c in self._chunks
-            if c.tenant_id == tenant_id and c.matter_or_patient_id == matter_or_patient_id
-        ]
-        # Fake "dense score": token overlap between query_vector's seed text
-        # (stashed on the fake embedding call site) and chunk text. See
-        # tests for how this is actually exercised — real cosine similarity
-        # is QdrantVectorSearchBackend's job.
-        scored = [(c, 1.0) for c in candidates]
+        scored = [(c, 1.0) for c in self._chunks]
         return scored[:top_k]
 
 
@@ -103,13 +95,31 @@ def build_vector_search_backend() -> VectorSearchBackend:
     raise ValueError(f"unknown VECTOR_SEARCH_BACKEND: {backend}")
 
 
+def load_seed_chunks(path: str) -> list[Chunk]:
+    """Loads a JSON file of chunk dicts into Chunk models, for manual
+    local testing without a real Qdrant instance — set
+    VECTOR_SEARCH_BACKEND=in-memory and SEED_CHUNKS_FILE=/path/to/file.json
+    before starting this service. Never used in the Docker image; the real
+    stack is seeded by Ingestion writing into Qdrant, not this loader.
+    """
+    import json
+
+    with open(path) as f:
+        raw_chunks = json.load(f)
+    return [Chunk(**c) for c in raw_chunks]
+
+
 class AppState:
     def __init__(self, vector_search: VectorSearchBackend):
         self.vector_search = vector_search
 
     @classmethod
     async def create(cls) -> "AppState":
-        return cls(build_vector_search_backend())
+        backend = build_vector_search_backend()
+        seed_file = os.environ.get("SEED_CHUNKS_FILE")
+        if seed_file and isinstance(backend, InMemoryVectorSearchBackend):
+            backend.seed(load_seed_chunks(seed_file))
+        return cls(backend)
 
     async def aclose(self) -> None:
         pass

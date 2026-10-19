@@ -8,9 +8,11 @@ def test_sparse_search_ranks_keyword_match_higher():
     chunks = [
         _make_chunk("c1", "statute 12345 governs this termination clause"),
         _make_chunk("c2", "general confidentiality obligations apply"),
+        _make_chunk("c3", "patient reports mild headache and fatigue"),
     ]
-    scores = sparse_search("statute 12345", chunks, top_k=2)
+    scores = sparse_search("statute 12345", chunks, top_k=3)
     assert scores["c1"] > scores.get("c2", 0.0)
+    assert scores["c1"] > scores.get("c3", 0.0)
 
 
 def test_sparse_search_empty_chunks_returns_empty_dict():

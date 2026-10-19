@@ -1,0 +1,46 @@
+[
+  {
+    "chunk_id": "1fecdd91-c876-49ab-a690-929f5b1c71fd",
+    "document_id": "smith-contract-001",
+    "tenant_id": "t1",
+    "matter_or_patient_id": "matter-1",
+    "text": "4.1 Confidentiality\nBoth parties shall keep the terms of this agreement confidential and shall not disclose them to any third party without prior written consent.",
+    "page": 1,
+    "section": "4.1",
+    "confidentiality_tier": "standard",
+    "effective_date": null
+  },
+  {
+    "chunk_id": "c72e570d-87b1-4631-b70e-550f3bf90a2c",
+    "document_id": "smith-contract-001",
+    "tenant_id": "t1",
+    "matter_or_patient_id": "matter-1",
+    "text": "4.2 Termination\nEither party may terminate this agreement with 30 days written notice delivered to the other party at the address specified in this agreement.",
+    "page": 1,
+    "section": "4.2",
+    "confidentiality_tier": "standard",
+    "effective_date": null
+  },
+  {
+    "chunk_id": "3f37dfc9-1937-4b61-a314-2e1724ea6fa9",
+    "document_id": "smith-contract-001",
+    "tenant_id": "t1",
+    "matter_or_patient_id": "matter-1",
+    "text": "4.3 Governing Law\nThis agreement shall be governed by and construed in accordance with the laws of the State of Delaware.",
+    "page": 1,
+    "section": "4.3",
+    "confidentiality_tier": "standard",
+    "effective_date": null
+  },
+  {
+    "chunk_id": "f60e4dba-40b5-4035-a72f-a740eff0e52e",
+    "document_id": "smith-contract-001",
+    "tenant_id": "t1",
+    "matter_or_patient_id": "matter-1",
+    "text": "4.4 Indemnification\nEach party shall indemnify and hold harmless the other party from any claims arising out of a breach of this agreement.",
+    "page": 1,
+    "section": "4.4",
+    "confidentiality_tier": "standard",
+    "effective_date": null
+  }
+]
