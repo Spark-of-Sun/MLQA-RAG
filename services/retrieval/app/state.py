@@ -114,7 +114,7 @@ class AppState:
         self.vector_search = vector_search
 
     @classmethod
-    async def create(cls) -> "AppState":
+    async def create(cls) -> AppState:
         backend = build_vector_search_backend()
         seed_file = os.environ.get("SEED_CHUNKS_FILE")
         if seed_file and isinstance(backend, InMemoryVectorSearchBackend):

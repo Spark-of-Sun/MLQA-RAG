@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import os
 
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-
 from common.auth.jwt import create_session_jwt
 from common.models import Action, RoleScope
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 dev_router = APIRouter(tags=["dev"])
 

@@ -13,10 +13,9 @@ import json
 
 import pytest
 import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
-
 from common.auth.jwt import create_session_jwt
 from common.models import Action, RoleScope
+from httpx import ASGITransport, AsyncClient
 
 from app.main import app
 from app.state import AppState, ServiceClients

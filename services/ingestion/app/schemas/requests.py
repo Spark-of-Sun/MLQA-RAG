@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel
-
 from common.models import ConfidentialityTier, TenantIndustry
+from pydantic import BaseModel
 
 
 class DocumentSummary(BaseModel):

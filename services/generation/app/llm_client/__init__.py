@@ -19,4 +19,4 @@ def get_llm_client(provider: str | None = None) -> LLMClient:
     raise ValueError(f"unknown LLM_PROVIDER: {provider}")
 
 
-__all__ = ["LLMClient", "LLMCompletion", "FakeLLMClient", "get_llm_client"]
+__all__ = ["FakeLLMClient", "LLMClient", "LLMCompletion", "get_llm_client"]

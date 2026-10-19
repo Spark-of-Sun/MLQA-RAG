@@ -14,4 +14,4 @@ def get_chunker(industry: TenantIndustry) -> Chunker:
     raise ValueError(f"no chunker registered for industry: {industry}")
 
 
-__all__ = ["Chunker", "ChunkCandidate", "LegalClauseChunker", "SoapNoteChunker", "get_chunker"]
+__all__ = ["ChunkCandidate", "Chunker", "LegalClauseChunker", "SoapNoteChunker", "get_chunker"]

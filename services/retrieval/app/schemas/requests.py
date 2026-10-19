@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from datetime import date
 
-from pydantic import BaseModel
-
 from common.models import ConfidentialityTier
+from pydantic import BaseModel
 
 
 class SearchRequest(BaseModel):

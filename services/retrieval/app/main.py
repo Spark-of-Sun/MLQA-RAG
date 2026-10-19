@@ -2,11 +2,10 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
-
 from common.auth.service_token import ServiceAuthError, verify_internal_service_key
 from common.logging import configure_logging, get_logger
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 
 from app.hybrid_search import hybrid_search
 from app.reranker import get_reranker

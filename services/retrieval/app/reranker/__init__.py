@@ -13,5 +13,5 @@ def get_reranker(model: str | None = None) -> Reranker:
     return CrossEncoderReranker(model_name=model)
 
 
-__all__ = ["Reranker", "FakeReranker", "get_reranker"]
+__all__ = ["FakeReranker", "Reranker", "get_reranker"]
 

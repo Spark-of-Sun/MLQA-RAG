@@ -3,11 +3,10 @@ from __future__ import annotations
 import json
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, StreamingResponse
-
 from common.auth.service_token import ServiceAuthError, verify_internal_service_key
 from common.logging import configure_logging, get_logger
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.llm_client.semantic_cache import make_cache_key
 from app.prompt_assembly import assemble_prompt

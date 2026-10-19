@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-
 from common.auth.jwt import SessionClaims
 from common.models import Action, Tenant
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.auth.dependencies import get_current_claims
 from app.schemas.requests import TenantCreateRequest

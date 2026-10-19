@@ -7,9 +7,9 @@ from .requests import (
 )
 
 __all__ = [
+    "ChunkForValidation",
+    "CitationFindingResponse",
+    "ResolvedCitationResponse",
     "ValidateRequest",
     "ValidateResponse",
-    "ChunkForValidation",
-    "ResolvedCitationResponse",
-    "CitationFindingResponse",
 ]

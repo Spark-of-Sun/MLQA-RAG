@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from common.models import ConfidentialityTier, TenantIndustry
@@ -92,7 +92,7 @@ class InMemoryDocumentRepository:
             "industry": industry,
             "object_store_key": object_store_key,
             "effective_date": effective_date,
-            "uploaded_at": datetime.now(timezone.utc),
+            "uploaded_at": datetime.now(UTC),
         }
         self._documents[document_id] = record
         return record
@@ -118,7 +118,7 @@ class AppState:
         self.document_repo = InMemoryDocumentRepository()
 
     @classmethod
-    async def create(cls) -> "AppState":
+    async def create(cls) -> AppState:
         return cls(ObjectStoreClient(), JobQueue())
 
     async def aclose(self) -> None:
