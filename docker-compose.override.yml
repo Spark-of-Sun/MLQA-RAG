@@ -37,7 +37,10 @@ services:
   ingestion-worker:
     build:
       target: dev
-    command: ["arq", "app.workers.WorkerSettings", "--watch", "app"]
+    # FIX: was "app.workers.WorkerSettings" — missing the "settings" module
+    # segment. Must match Dockerfile.worker's CMD exactly (which already
+    # has this right) and app/workers/settings.py's actual module path.
+    command: ["arq", "app.workers.settings.WorkerSettings", "--watch", "app"]
     volumes:
       - ./services/ingestion/app:/app/app
       - ./libs:/app/libs
