@@ -42,7 +42,13 @@ class JobQueue:
     this doesn't touch Redis until the first enqueue call."""
 
     def __init__(self, redis_url: str | None = None):
-        self._redis_url = redis_url or os.environ.get("REDIS_URL", "redis://redis:6379/0")
+        # Ingestion-specific cache/queue first (see .env.local.example),
+        # falls back to the shared REDIS_URL so docker-compose is unaffected.
+        self._redis_url = (
+            redis_url
+            or os.environ.get("INGESTION_REDIS_URL")
+            or os.environ.get("REDIS_URL", "redis://redis:6379/0")
+        )
         self._pool = None
 
     async def _get_pool(self):

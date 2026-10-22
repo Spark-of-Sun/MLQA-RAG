@@ -47,16 +47,20 @@ class RedisSemanticCache:
     def __init__(self, redis_url: str | None = None):
         import redis.asyncio as redis_asyncio
 
-        self._redis = redis_asyncio.from_url(
-            redis_url or os.environ.get("REDIS_URL", "redis://redis:6379/0"), decode_responses=True
+        # Generation-specific cache first (see .env.local.example), falls
+        # back to the shared REDIS_URL so docker-compose is unaffected.
+        resolved_url = (
+            redis_url
+            or os.environ.get("GENERATION_REDIS_URL")
+            or os.environ.get("REDIS_URL", "redis://redis:6379/0")
         )
+        self._redis = redis_asyncio.from_url(resolved_url, decode_responses=True)
 
     async def get(self, cache_key: str) -> str | None:
         return await self._redis.get(cache_key)
 
     async def set(self, cache_key: str, answer_text: str, ttl_seconds: int) -> None:
         await self._redis.set(cache_key, answer_text, ex=ttl_seconds)
-
 
 def build_semantic_cache() -> SemanticCache:
     backend = os.environ.get("SEMANTIC_CACHE_BACKEND", "redis")
