@@ -3,11 +3,10 @@ from __future__ import annotations
 import os
 import time
 
+from common.logging import get_logger
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import JSONResponse
-
-from common.logging import get_logger
 
 log = get_logger(__name__)
 
@@ -49,19 +48,27 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     async def _get_redis(self):
         if self._redis is not None:
             return self._redis
+
         try:
             import redis.asyncio as redis_asyncio
 
-            # Gateway-specific cache first (see .env.local.example), falls
-            # back to the shared REDIS_URL so docker-compose is unaffected.
             url = os.environ.get("GATEWAY_REDIS_URL") or os.environ.get("REDIS_URL")
             if not url:
                 return None
+
             client = redis_asyncio.from_url(url, decode_responses=True)
             await client.ping()
             self._redis = client
             return client
-        except Exception:  # any Redis failure falls back silently
+
+        except ImportError as exc:
+            log.warning("redis_dependency_unavailable", error=str(exc))
+            return None
+        except OSError as exc:
+            log.warning("redis_unavailable", error=str(exc))
+            return None
+        except TimeoutError as exc:
+            log.warning("redis_timeout", error=str(exc))
             return None
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint):
