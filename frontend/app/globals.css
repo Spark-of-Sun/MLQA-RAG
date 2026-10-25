@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+/*
+ * Token system (see frontend-progress.md for the design brief this
+ * implements). Every --color-* value below also becomes a Tailwind
+ * utility automatically (Tailwind v4 CSS-first config): --color-accent
+ * gives bg-accent, text-accent, border-accent, etc.
+ */
+@theme {
+  --color-canvas: #ffffff; /* page background */
+  --color-ink: #0b0f14; /* primary text, near-black with a cool cast */
+  --color-ink-soft: #52606d; /* secondary text, muted slate */
+  --color-line: #e2e5e9; /* hairline borders and dividers */
+  --color-surface: #f7f8fa; /* subtle panel background, off-white */
+  --color-accent: #1d4ed8; /* the one accent — primary actions, links, active state */
+  --color-accent-ink: #1e3a8a; /* accent hover/pressed */
+
+  --font-sans: var(--font-public-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-source-serif), ui-serif, Georgia, serif;
+}
+
+:root {
+  color-scheme: light;
+}
+
+* {
+  border-color: var(--color-line);
+}
+
+body {
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* Visible keyboard focus everywhere, styled with the one accent color
+   instead of the browser default. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
