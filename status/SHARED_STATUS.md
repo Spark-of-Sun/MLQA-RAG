@@ -105,9 +105,9 @@ _(no comments yet)_
 ## Release Pipeline and Automation
 
 ### Pipeline: Latest update
-- [2026-10-26 07:55 UTC] main head: 74a9abc | STAGE: 0 | profile: mvp-a
+- [2026-10-26 09:05 UTC] main head: 23f2a56 | STAGE: 0 | profile: mvp-a
 - Pipeline: CI green on main (run 40275801115), Security green on main (run 40275801114)
-- Recent changes: configured google gemini flash with thinking budget for mvp; updated pipeline ownership and anonymous workflow
+- Patches since last update: applied 1 (maya_20261026_stages_profiles.patch), returned 0, held 0
 - Open comments: DEPENDENCY 0, BLOCKER 0, DEBT 0, QUESTION 0, COORDINATOR 0
 - Environment: Docker, git, gh, python 3.14, uv, node 26, pnpm, opentofu, aws-cli, gitleaks, pre-commit, pip-audit, trivy, cosign configured; .env present
 
