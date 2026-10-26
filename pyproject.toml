@@ -101,10 +101,12 @@ convention = "google"
 "**/tests/**" = ["S101", "PLR2004", "ANN", "D", "S105", "S106"]
 "db/migrations/**" = ["E501", "D"]
 "libs/lmqa_db/**" = ["TID251"]
+"tools/**" = ["T201", "S603", "S607"]
 
 [tool.pytest.ini_options]
 minversion = "9.1"
 addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
+pythonpath = ["."]
 xfail_strict = true
 asyncio_mode = "strict"
 timeout = 180
