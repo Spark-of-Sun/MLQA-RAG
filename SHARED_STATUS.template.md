@@ -1,0 +1,102 @@
+# SHARED STATUS
+
+The only file every developer may write outside their own paths. Each developer edits only their own `### <Name>: Latest update` block. Anyone may append comments under `#### Comments on <Name>'s latest update`. Never edit or delete another developer's text. Commit this file alone, pull with rebase first, push immediately.
+
+Comment format:
+
+```
+- [YYYY-MM-DD HH:MM UTC] <from> -> <to> | TYPE | ref: <commit sha or log date>
+  e.g. daniel -> maya | DEBT | ref: abc1234
+  text (max 6 lines)
+```
+
+TYPE: `INFO`, `QUESTION`, `REVIEW`, `DEPENDENCY`, `BLOCKER`, `DEBT`, `COORDINATOR`, `RESOLVED`.
+
+Current phase: _(coordinator or Maya fills in: P0 to P6, `STAGE` value, date)_
+
+---
+
+## Maya Okafor, Platform and Data Engineer
+
+### Maya: Latest update
+
+- **Date and session:** not started
+- **Phase and gate worked on:** none
+- **Completed:** none
+- **Files changed:** none
+- **Verification:** none run
+- **Blocked by:** none
+- **Next session:** not set
+- **Log:** `logs/maya_progress.md`
+
+#### Comments on Maya's latest update
+
+_(no comments yet)_
+
+## Daniel Reyes, Identity, Gateway and Key Security Engineer
+
+### Daniel: Latest update
+
+- **Date and session:** not started
+- **Phase and gate worked on:** none
+- **Completed:** none
+- **Files changed:** none
+- **Verification:** none run
+- **Blocked by:** none
+- **Next session:** not set
+- **Log:** `logs/daniel_progress.md`
+
+#### Comments on Daniel's latest update
+
+_(no comments yet)_
+
+## Priya Nair, Ingestion and Corpus Engineer
+
+### Priya: Latest update
+
+- **Date and session:** not started
+- **Phase and gate worked on:** none
+- **Completed:** none
+- **Files changed:** none
+- **Verification:** none run
+- **Blocked by:** none
+- **Next session:** not set
+- **Log:** `logs/priya_progress.md`
+
+#### Comments on Priya's latest update
+
+_(no comments yet)_
+
+## Lucas Weber, Retrieval and Validation Engineer
+
+### Lucas: Latest update
+
+- **Date and session:** not started
+- **Phase and gate worked on:** none
+- **Completed:** none
+- **Files changed:** none
+- **Verification:** none run
+- **Blocked by:** none
+- **Next session:** not set
+- **Log:** `logs/lucas_progress.md`
+
+#### Comments on Lucas's latest update
+
+_(no comments yet)_
+
+## Hana Sato, Frontend and Verification Engineer
+
+### Hana: Latest update
+
+- **Date and session:** not started
+- **Phase and gate worked on:** none
+- **Completed:** none
+- **Files changed:** none
+- **Verification:** none run
+- **Blocked by:** none
+- **Next session:** not set
+- **Log:** `logs/hana_progress.md`
+
+#### Comments on Hana's latest update
+
+_(no comments yet)_
