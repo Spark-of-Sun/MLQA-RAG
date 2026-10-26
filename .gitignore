@@ -9,6 +9,11 @@ patches/
 # Corpus data (only manifest is committed)
 corpus/data/
 
+# Secrets and keys (Master §12.10)
+.secrets/
+*.pem
+*.key
+
 # Python
 __pycache__/
 *.py[cod]
@@ -70,5 +75,3 @@ logs/*.log
 # Caches
 .cache/
 .ruff_cache/
-
-AGENTS.md
