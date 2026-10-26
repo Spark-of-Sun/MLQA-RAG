@@ -79,6 +79,9 @@ ignore = [
     "CPY", "FIX", "TD",      # policies handled in review
 ]
 
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = ["pydantic.BaseModel"]
+
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
