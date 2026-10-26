@@ -38,6 +38,9 @@ jobs:
       - name: Check import boundaries
         run: uv run lint-imports
 
+      - name: Verify path ownership
+        run: uv run python -m tools.ownership_check --check-all
+
       - name: Run stage0 tests
         run: uv run pytest -m "stage0"
 
