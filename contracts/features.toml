@@ -1,0 +1,156 @@
+# contracts/features.toml — Feature flags bound to gates
+# Every deferred feature must have a flag here. Disabled endpoints return 404.
+
+[features.medical_domain]
+description = "Medical deployment type, JATS and SPL parsers, medical sets"
+default = false
+profile_mvp_a = false
+profile_mvp = true
+bound_gates = ["G0.8", "G4.4", "G5.3", "G7.3"]
+
+[features.ocr_quarantine]
+description = "OCR, quarantine, ocr_review flow and screen"
+default = false
+profile_mvp_a = false
+profile_mvp = true
+bound_gates = ["G4.5", "G4.6", "G8.3"]
+
+[features.walls_api]
+description = "Wall endpoints"
+default = true
+profile_mvp_a = true
+profile_mvp = true
+bound_gates = ["G5.5"]
+
+[features.ingest_manifest_only]
+description = "Upload allow-list from corpus manifest (turns off only in production)"
+default = true
+profile_mvp_a = true
+profile_mvp = true
+bound_gates = ["MG6"]
+
+[features.walls_ui]
+description = "Walls screens and wall-lift requests"
+default = false
+profile_mvp_a = false
+profile_mvp = false
+bound_gates = ["G5.5", "G8.3", "G2.10"]
+
+[features.governance_requests]
+description = "Governance-request endpoints and two-person kinds"
+default = false
+profile_mvp_a = false
+profile_mvp = false
+bound_gates = ["G2.10", "G9.9"]
+
+[features.co_owner]
+description = "Co-owner invite and accept"
+default = false
+profile_mvp_a = false
+profile_mvp = false
+bound_gates = ["G2.10", "G9.11"]
+
+[features.successor_transfer]
+description = "Successor invites and transfer"
+default = false
+profile_mvp_a = false
+profile_mvp = false
+bound_gates = ["G2.10", "G9.11"]
+
+[features.owner_recovery]
+description = "Super Admin recovery"
+default = false
+profile_mvp_a = false
+profile_mvp = false
+bound_gates = ["G9.7", "G9.11"]
+
+[features.break_glass_private_read]
+description = "Private-read enablement and sessions"
+default = false
+profile_mvp_a = false
+profile_mvp = false
+bound_gates = ["G2.10", "G9.8"]
+
+[features.emergency_access]
+description = "Clinical emergency access"
+default = false
+profile_mvp_a = false
+profile_mvp = false
+bound_gates = ["G5.7", "G9.8"]
+
+[features.operator_plane]
+description = "Ops API, console, JIT access"
+default = false
+profile_mvp_a = false
+profile_mvp = false
+bound_gates = ["G9.7", "G9.12"]
+
+[features.org_deletion_ritual]
+description = "Organization deletion, sealing, workspace destroy"
+default = false
+profile_mvp_a = false
+profile_mvp = false
+bound_gates = ["G9.6", "G9.12"]
+
+[features.legal_hold_retention]
+description = "Retention schedules and legal hold"
+default = false
+profile_mvp_a = false
+profile_mvp = false
+bound_gates = ["G9.5"]
+
+[features.quotas_hierarchical]
+description = "Hierarchical quotas (basic caps on)"
+default = false
+profile_mvp_a = false
+profile_mvp = false
+bound_gates = ["G9.4"]
+
+[features.delivery_regenerate]
+description = "Buffered delivery with the regenerate policy (strip policy default)"
+default = false
+profile_mvp_a = false
+profile_mvp = false
+bound_gates = ["G7.8", "G7.7"]
+
+[features.compression]
+description = "Prompt compression"
+default = false
+profile_mvp_a = false
+profile_mvp = false
+bound_gates = ["G6.3"]
+
+[features.answer_cache]
+description = "Scoped answer cache"
+default = false
+profile_mvp_a = false
+profile_mvp = false
+bound_gates = ["G6.5"]
+
+[features.large_grant_path]
+description = "Over-fetch path for large grant sets (cap 256)"
+default = false
+profile_mvp_a = false
+profile_mvp = false
+bound_gates = ["G5.9"]
+
+[features.docx_ingest]
+description = "DOCX parser"
+default = false
+profile_mvp_a = false
+profile_mvp = false
+bound_gates = ["G0.8", "G4.2"]
+
+[features.collection_per_workspace]
+description = "High-assurance vector tier"
+default = false
+profile_mvp_a = false
+profile_mvp = false
+bound_gates = ["G5.1", "G5.4", "G10.4"]
+
+[features.sso_connections]
+description = "Customer SSO connections"
+default = false
+profile_mvp_a = false
+profile_mvp = false
+bound_gates = ["G2.7", "G8.1"]
