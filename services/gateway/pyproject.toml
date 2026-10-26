@@ -1,0 +1,10 @@
+[project]
+name = "gateway"
+version = "0.1.0"
+description = "gateway package"
+requires-python = ">=3.14"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
