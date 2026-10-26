@@ -1,3 +1,6 @@
+[extend]
+useDefault = true
+
 [allowlist]
 description = "Gitleaks allowlist"
 paths = [
