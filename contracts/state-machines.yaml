@@ -1,0 +1,32 @@
+# contracts/state-machines.yaml
+# Lifecycle State Machines (Owned by Maya Okafor)
+
+document_lifecycle:
+  initial: uploaded
+  states:
+    uploaded:
+      on:
+        scan_passed: scanning
+        scan_failed: rejected
+    scanning:
+      on:
+        parsed: chunking
+        parse_failed: rejected
+    chunking:
+      on:
+        indexed: available
+        index_failed: rejected
+    available:
+      on:
+        archive: archived
+        delete: soft_deleted
+    archived:
+      on:
+        delete: soft_deleted
+    soft_deleted:
+      on:
+        purge: purged
+    rejected:
+      final: true
+    purged:
+      final: true

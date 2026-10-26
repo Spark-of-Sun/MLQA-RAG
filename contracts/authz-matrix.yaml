@@ -1,0 +1,27 @@
+# contracts/authz-matrix.yaml
+# Role × Route × Step-Up Authorization Matrix (Owned by Daniel Reyes)
+
+roles:
+  - super_admin
+  - admin
+  - legal_reviewer
+  - medical_reviewer
+  - member
+  - auditor
+  - operator
+
+routes:
+  - path: /v1/documents
+    methods:
+      GET: [super_admin, admin, legal_reviewer, medical_reviewer, member, auditor]
+      POST: [super_admin, admin]
+  - path: /v1/query
+    methods:
+      POST: [super_admin, admin, legal_reviewer, medical_reviewer, member]
+  - path: /v1/audit
+    methods:
+      GET: [super_admin, auditor]
+  - path: /v1/walls
+    methods:
+      GET: [super_admin, admin]
+      POST: [super_admin]
