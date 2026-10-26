@@ -108,6 +108,12 @@ owns = [
     "eval/**",
     "frontend/**",
     "prompts/**",
+    "libs/lmqa_vectorstore/**",
+    "libs/lmqa_release/**",
+    "services/retrieval/**",
+    "services/generation/**",
+    "services/citation_validator/**",
+    "services/gateway/**",
 ]
 
 [stage.1]
