@@ -70,3 +70,5 @@ logs/*.log
 # Caches
 .cache/
 .ruff_cache/
+
+AGENTS.md

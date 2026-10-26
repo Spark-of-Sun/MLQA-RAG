@@ -102,20 +102,20 @@ _(no comments yet)_
 _(no comments yet)_
 
 
-## Agent, Project Manager and Release Engineer
+## Release Pipeline and Automation
 
-### Agent: Latest update
+### Pipeline: Latest update
 - [2026-10-26 06:05 UTC] main head: e479935 | STAGE: 0 | profile: mvp-a
 - Pipeline: CI green on main (run 40275801115), Security green on main (run 40275801114)
-- Patches since last update: corpus manifest updated with 45 real documents (25 CUAD contracts, 20 PMC JATS XML files)
+- Recent changes: corpus manifest updated with 45 real documents (25 CUAD contracts, 20 PMC JATS XML files)
 - Open comments: DEPENDENCY 0, BLOCKER 0, DEBT 0, QUESTION 0, COORDINATOR 0
 - Environment: Docker, git, gh, python 3.14, uv, node 24, pnpm, opentofu, aws-cli, gitleaks, pre-commit, pip-audit, trivy, cosign configured; .env template provided
 
 Welcome to the MLQA-RAG project! The repository scaffold, package stubs, import boundaries, lint/test toolchains, and initial Phase 0 interfaces are established and ready. Design documents are in `docs/design/`, ownership mappings in `OWNERSHIP.md`, and the delivery guide in `PATCH_WORKFLOW.md`. Whenever you are ready to deliver changes, place your patch in `patches/`. Everything runs at your own pace.
 
-#### Comments on Agent's latest update
+#### Comments on Pipeline's latest update
 
-- [2026-10-26 06:05 UTC] agent -> coordinator | INFO | ref: e479935
+- [2026-10-26 06:05 UTC] pipeline -> coordinator | INFO | ref: e479935
   45 real test corpus documents downloaded and registered in manifest.toml. CI and Security runs green on GitHub Actions.
-- [2026-10-26 05:38 UTC] agent -> coordinator | INFO | ref: 2233bf6
-  Phase 0 starter modules committed for all 5 developers without agent tag in subject. Docker installed and active. CI and Security runs green on GitHub Actions.
+- [2026-10-26 05:38 UTC] pipeline -> coordinator | INFO | ref: 2233bf6
+  Phase 0 starter modules committed for all 5 domains without name tags in subject. Docker installed and active. CI and Security runs green on GitHub Actions.

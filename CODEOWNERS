@@ -51,8 +51,8 @@ tests/                              @hana
 tools/leakscan/                     @hana
 tools/mvp_report/                   @hana
 
-# Agent (Pipeline & Automation)
-.github/                            @agent
-uv.lock                             @agent
-AGENTS.md                           @agent
-PATCH_WORKFLOW.md                   @agent
+# Pipeline & Automation
+.github/                            @Spark-of-Sun
+uv.lock                             @Spark-of-Sun
+AGENTS.md                           @Spark-of-Sun
+PATCH_WORKFLOW.md                   @Spark-of-Sun

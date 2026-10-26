@@ -2,7 +2,7 @@
 
 Welcome to the MLQA-RAG project!
 
-Developers do not push directly to `main` or open Pull Requests. Instead, code is delivered via **patches** processed by the Project Manager Agent.
+Developers do not push directly to `main` or open Pull Requests. Instead, code is delivered via **patches** processed by the automated pipeline intake.
 
 ---
 
@@ -33,12 +33,12 @@ Every patch must start with the standard header comment (before the first `diff 
 # Phase / gate: <for example P1 / G1.1>
 # Files: <every path in the patch>
 # Verified: <what you tested locally, or NOT RUN>
-# Suggested commit: [<handle>] <area>: <summary>   (trailer: Owner: <name>)
+# Suggested commit: <area>: <summary>
 ```
 
 ## 4. What Happens Next
 
-The Agent processes patches oldest-first in the queue:
+The intake runner processes patches oldest-first in the queue:
 1. Verifies ownership against `OWNERSHIP.md`.
 2. Validates stage boundaries (`STAGE + 1` in `stages.toml`).
 3. Checks clean apply on `main` (`git apply --check`).
