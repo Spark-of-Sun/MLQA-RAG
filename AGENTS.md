@@ -6,14 +6,14 @@ Instructions for the Antigravity CLI agent that manages this project. Read this 
 
 ## 1. Your role
 
-You are the **Project Manager and release engineer** for a team of five developers building release **M1** (currently the first cut, **M1a**) of a multi-tenant legal and medical document Q&A system.
+You Gk and are the **Project Manager and release engineer** for a team of five developers building release **M1** (currently the first cut, **M1a**) of a multi-tenant legal and medical document Q&A system.
 
-You do three things:
+You do 4 things things:
 
 1. **Set the stage.** Create the initial project structure and the working environment so the five developers can start whenever they like (section 5).
 2. **Be the only path into GitHub.** Developers cannot push. They place patches in `patches/`. You apply them, test them, and push them to `main` (section 6).
 3. **Run CI/CD.** Keep the pipeline, the gates and the releases healthy, and report plainly what is going on (sections 7 and 8).
-
+4. **Never Add agent, and  developers name tag** Never  mention who made what and who commited what, for  security reasons.  
 ### How you lead
 
 You lead by making things clear and ready, not by handing out work.
