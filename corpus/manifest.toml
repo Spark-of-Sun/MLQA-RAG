@@ -1,34 +1,723 @@
 # corpus/manifest.toml — Single authoritative registry of ingested documents
-# Master System Design Appendix B & SCOPE_CUTS_M1a.md (Profile mvp-a)
+# Master System Design Appendix B & SCOPE_CUTS_M1a.md
 
 [[documents]]
-id = "cuad-master-service-agreement-001"
-title = "CUAD Benchmark Material Contract exhibit MSA"
-source_url = "https://raw.githubusercontent.com/TheAtticusProject/cuad/main/sample.pdf"
+id = "legal-cuad-limeenergyco_09_09_1999-ex-10-distributor_agreemen"
+title = "LIMEENERGYCO_09_09_1999-EX-10-DISTRIBUTOR AGREEMENT"
+source_url = "https://github.com/TheAtticusProject/cuad"
 license = "CC-BY-4.0"
-retrieved_at = "2026-10-26T00:00:00Z"
-sha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-bytes = 1048576
-format = "pdf"
+retrieved_at = "2026-10-26T05:42:24Z"
+sha256 = "95ea6fae5227f2424896bb354e9de452c7f05a85dc0acb72fa6bd72ebe37a236"
+bytes = 54290
+format = "txt"
 domain = "legal"
 kind = "contract"
-pages = 42
+pages = 18
 scanned = false
 allowed_use = "internal_eval_only"
-notes = "CUAD legal contract with text layer for M1a"
+notes = "CUAD contract #1"
 
 [[documents]]
-id = "edgar-10k-exhibit-ex10-1"
-title = "SEC EDGAR Form 10-K Material Exhibit 10.1"
-source_url = "https://www.sec.gov/Archives/edgar/data/sample.htm"
-license = "public_domain"
-retrieved_at = "2026-10-26T00:00:00Z"
-sha256 = "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"
-bytes = 524288
-format = "html"
+id = "legal-cuad-whitesmoke_inc_11_08_2011-ex-10_26-promotion_and_d"
+title = "WHITESMOKE,INC_11_08_2011-EX-10.26-PROMOTION AND DISTRIBUTION AGREEMENT"
+source_url = "https://github.com/TheAtticusProject/cuad"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:24Z"
+sha256 = "8b34af224646d2837b3552c7380dd430403d3665a6141ef0bf5b1088e42fbb9a"
+bytes = 70383
+format = "txt"
 domain = "legal"
-kind = "regulatory"
+kind = "contract"
+pages = 23
+scanned = false
+allowed_use = "internal_eval_only"
+notes = "CUAD contract #2"
+
+[[documents]]
+id = "legal-cuad-lohacompanyltd_20191209_f-1_ex-10_16_11917878_ex-1"
+title = "LohaCompanyltd_20191209_F-1_EX-10.16_11917878_EX-10.16_Supply Agreement"
+source_url = "https://github.com/TheAtticusProject/cuad"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:24Z"
+sha256 = "f9cfca1abe0d53c639a5c9516a499ecd4493dd773dd0a4ddf7d7725e0da810d6"
+bytes = 11475
+format = "txt"
+domain = "legal"
+kind = "contract"
+pages = 3
+scanned = false
+allowed_use = "internal_eval_only"
+notes = "CUAD contract #3"
+
+[[documents]]
+id = "legal-cuad-centrackinternationalinc_10_29_1999-ex-10_3-web_si"
+title = "CENTRACKINTERNATIONALINC_10_29_1999-EX-10.3-WEB SITE HOSTING AGREEMENT"
+source_url = "https://github.com/TheAtticusProject/cuad"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:24Z"
+sha256 = "8532356d811b76bd7ae536cf22910742ba61815dc39741fd9b295d7bc80c99f1"
+bytes = 15176
+format = "txt"
+domain = "legal"
+kind = "contract"
+pages = 5
+scanned = false
+allowed_use = "internal_eval_only"
+notes = "CUAD contract #4"
+
+[[documents]]
+id = "legal-cuad-nelnetinc_04_08_2020-ex-1-joint_filing_agreement"
+title = "NELNETINC_04_08_2020-EX-1-JOINT FILING AGREEMENT"
+source_url = "https://github.com/TheAtticusProject/cuad"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:24Z"
+sha256 = "c2026111e62647e4b40f3f946105ffbdffeb59a79a51f6515f4ff11fc6a0b481"
+bytes = 1081
+format = "txt"
+domain = "legal"
+kind = "contract"
+pages = 1
+scanned = false
+allowed_use = "internal_eval_only"
+notes = "CUAD contract #5"
+
+[[documents]]
+id = "legal-cuad-adamsgolfinc_03_21_2005-ex-10_17-endorsement_agree"
+title = "ADAMSGOLFINC_03_21_2005-EX-10.17-ENDORSEMENT AGREEMENT"
+source_url = "https://github.com/TheAtticusProject/cuad"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:24Z"
+sha256 = "ca9acda7d2710198107402f632ede2a69f365f8dd8417f13e9a2e463d3ecdad8"
+bytes = 24632
+format = "txt"
+domain = "legal"
+kind = "contract"
+pages = 8
+scanned = false
+allowed_use = "internal_eval_only"
+notes = "CUAD contract #6"
+
+[[documents]]
+id = "legal-cuad-kiromicbiopharma_inc_05_11_2020-ex-10_23-consultin"
+title = "KIROMICBIOPHARMA,INC_05_11_2020-EX-10.23-CONSULTING AGREEMENT"
+source_url = "https://github.com/TheAtticusProject/cuad"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:24Z"
+sha256 = "aacd48ab914fdede120150e2da4e222b342fa4f963a830384f8c848e9bf738a9"
+bytes = 18417
+format = "txt"
+domain = "legal"
+kind = "contract"
+pages = 6
+scanned = false
+allowed_use = "internal_eval_only"
+notes = "CUAD contract #7"
+
+[[documents]]
+id = "legal-cuad-veoneer_inc_02_21_2020-ex-10_11-joint_venture_agre"
+title = "VEONEER,INC_02_21_2020-EX-10.11-JOINT VENTURE AGREEMENT"
+source_url = "https://github.com/TheAtticusProject/cuad"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:24Z"
+sha256 = "c9ab266dd8eeb900805cae1c37539145898f8c58dc6ed13c4b76c438e1bac051"
+bytes = 8259
+format = "txt"
+domain = "legal"
+kind = "contract"
+pages = 2
+scanned = false
+allowed_use = "internal_eval_only"
+notes = "CUAD contract #8"
+
+[[documents]]
+id = "legal-cuad-dovapharmaceuticalsinc_20181108_10-q_ex-10_2_11414"
+title = "DovaPharmaceuticalsInc_20181108_10-Q_EX-10.2_11414857_EX-10.2_Promotion Agreement"
+source_url = "https://github.com/TheAtticusProject/cuad"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:24Z"
+sha256 = "7bda458cd689faa8bcde9f8f3e625ecb93b04de3a772d95988aba4f803d04900"
+bytes = 175617
+format = "txt"
+domain = "legal"
+kind = "contract"
+pages = 58
+scanned = false
+allowed_use = "internal_eval_only"
+notes = "CUAD contract #9"
+
+[[documents]]
+id = "legal-cuad-pacira_pharmaceuticals__inc__-_a_r_strategic_licen"
+title = "PACIRA PHARMACEUTICALS, INC. - A_R STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT "
+source_url = "https://github.com/TheAtticusProject/cuad"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:24Z"
+sha256 = "0a0920ff8b1ac696c1c2747491a9cb00e9babe149ccf6a396a943acdc78f1b84"
+bytes = 145181
+format = "txt"
+domain = "legal"
+kind = "contract"
+pages = 48
+scanned = false
+allowed_use = "internal_eval_only"
+notes = "CUAD contract #10"
+
+[[documents]]
+id = "legal-cuad-metlife__inc__-_remarketing_agreement"
+title = "MetLife, Inc. - Remarketing Agreement"
+source_url = "https://github.com/TheAtticusProject/cuad"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:24Z"
+sha256 = "b3c627873c35bf0ca94050cb1ac9f463c31193f81376ea4f3cb921e0bad3a37a"
+bytes = 111249
+format = "txt"
+domain = "legal"
+kind = "contract"
+pages = 37
+scanned = false
+allowed_use = "internal_eval_only"
+notes = "CUAD contract #11"
+
+[[documents]]
+id = "legal-cuad-ftenetworks_inc_02_18_2016-ex-99_4-strategic_allia"
+title = "FTENETWORKS,INC_02_18_2016-EX-99.4-STRATEGIC ALLIANCE AGREEMENT"
+source_url = "https://github.com/TheAtticusProject/cuad"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:24Z"
+sha256 = "f9db7b25f0fd035c70cd0950fb2a2642875b7b5ab09a54e4d24dbfa7597d55e5"
+bytes = 37834
+format = "txt"
+domain = "legal"
+kind = "contract"
+pages = 12
+scanned = false
+allowed_use = "internal_eval_only"
+notes = "CUAD contract #12"
+
+[[documents]]
+id = "legal-cuad-dominiadvisortrust_02_18_2005-ex-99__h__2_-sponsor"
+title = "DOMINIADVISORTRUST_02_18_2005-EX-99.(H)(2)-SPONSORSHIP AGREEMENT"
+source_url = "https://github.com/TheAtticusProject/cuad"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:24Z"
+sha256 = "d0a1da3829ff9e1cd503b5cdcde475c8b3287a3fb9e987337538fd46d6150b7e"
+bytes = 12555
+format = "txt"
+domain = "legal"
+kind = "contract"
+pages = 4
+scanned = false
+allowed_use = "internal_eval_only"
+notes = "CUAD contract #13"
+
+[[documents]]
+id = "legal-cuad-pfhospitalitygroupinc_20150923_10-12g_ex-10_1_9266"
+title = "PfHospitalityGroupInc_20150923_10-12G_EX-10.1_9266710_EX-10.1_Franchise Agreement3"
+source_url = "https://github.com/TheAtticusProject/cuad"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:24Z"
+sha256 = "6a5932ec6cc584c1976b516aae469c6f8f2335db1c65d008e2ab596b35b7a2de"
+bytes = 6772
+format = "txt"
+domain = "legal"
+kind = "contract"
+pages = 2
+scanned = false
+allowed_use = "internal_eval_only"
+notes = "CUAD contract #14"
+
+[[documents]]
+id = "legal-cuad-cerenceinc_20191002_8-k_ex-10_4_11827494_ex-10_4_i"
+title = "CerenceInc_20191002_8-K_EX-10.4_11827494_EX-10.4_Intellectual Property Agreement"
+source_url = "https://github.com/TheAtticusProject/cuad"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:24Z"
+sha256 = "cae1021a576e7472db500d0d43f6a15a43625b0825bece22c1ed18e959dd578f"
+bytes = 62170
+format = "txt"
+domain = "legal"
+kind = "contract"
+pages = 20
+scanned = false
+allowed_use = "internal_eval_only"
+notes = "CUAD contract #15"
+
+[[documents]]
+id = "legal-cuad-thriventvariableinsuranceaccountb_20190701_n-6_ex-"
+title = "ThriventVariableInsuranceAccountB_20190701_N-6_EX-99.D(IV)_11720968_EX-99.D(IV)_Endorsement Agreement"
+source_url = "https://github.com/TheAtticusProject/cuad"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:24Z"
+sha256 = "2a5599674f4e11b15ba23a0a967adf5a0e9a8209f0882d5c7cc01d27a9eb1212"
+bytes = 4871
+format = "txt"
+domain = "legal"
+kind = "contract"
+pages = 1
+scanned = false
+allowed_use = "internal_eval_only"
+notes = "CUAD contract #16"
+
+[[documents]]
+id = "legal-cuad-reynoldsconsumerproductsinc_20191115_s-1_ex-10_18_"
+title = "ReynoldsConsumerProductsInc_20191115_S-1_EX-10.18_11896469_EX-10.18_Supply Agreement"
+source_url = "https://github.com/TheAtticusProject/cuad"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:24Z"
+sha256 = "8c63d9a33c82bdae898b8511f7e476205323844dfee40ce52765fc08e2a5f200"
+bytes = 61710
+format = "txt"
+domain = "legal"
+kind = "contract"
+pages = 20
+scanned = false
+allowed_use = "internal_eval_only"
+notes = "CUAD contract #17"
+
+[[documents]]
+id = "legal-cuad-integrityfunds_20200121_485bpos_ex-99_e_undr_contr"
+title = "IntegrityFunds_20200121_485BPOS_EX-99.E UNDR CONTR_11948727_EX-99.E UNDR CONTR_Service Agreement"
+source_url = "https://github.com/TheAtticusProject/cuad"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:24Z"
+sha256 = "2135a565bb91e5f7a162f64ff162e18cb9e1235993c1874be87ccdf5060e0f04"
+bytes = 23845
+format = "txt"
+domain = "legal"
+kind = "contract"
+pages = 7
+scanned = false
+allowed_use = "internal_eval_only"
+notes = "CUAD contract #18"
+
+[[documents]]
+id = "legal-cuad-premierbiomedicalinc_05_14_2020-ex-10_2-intellectu"
+title = "PREMIERBIOMEDICALINC_05_14_2020-EX-10.2-INTELLECTUAL PROPERTY AGREEMENT"
+source_url = "https://github.com/TheAtticusProject/cuad"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:24Z"
+sha256 = "e821a32fe4b1f36af17b4a8ad1079b3fe7a6ed1cc2f950bda202bdb5012db13b"
+bytes = 23282
+format = "txt"
+domain = "legal"
+kind = "contract"
+pages = 7
+scanned = false
+allowed_use = "internal_eval_only"
+notes = "CUAD contract #19"
+
+[[documents]]
+id = "legal-cuad-sibannac_inc_12_04_2017-ex-2_1-strategic_alliance_"
+title = "SIBANNAC,INC_12_04_2017-EX-2.1-Strategic Alliance Agreement"
+source_url = "https://github.com/TheAtticusProject/cuad"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:24Z"
+sha256 = "c0b6b7a59795c666d653f5bc73bddba2d852fc59c63b93b97d648a8c593c921f"
+bytes = 8380
+format = "txt"
+domain = "legal"
+kind = "contract"
+pages = 2
+scanned = false
+allowed_use = "internal_eval_only"
+notes = "CUAD contract #20"
+
+[[documents]]
+id = "legal-cuad-intriconcorp_03_10_2009-ex-10_22-strategic_allianc"
+title = "INTRICONCORP_03_10_2009-EX-10.22-Strategic Alliance Agreement"
+source_url = "https://github.com/TheAtticusProject/cuad"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:24Z"
+sha256 = "9ffe697eb66dc8b81ad3fc70e31d6d857c6d53eb2cafaa933acb78858ff46c5a"
+bytes = 52977
+format = "txt"
+domain = "legal"
+kind = "contract"
+pages = 17
+scanned = false
+allowed_use = "internal_eval_only"
+notes = "CUAD contract #21"
+
+[[documents]]
+id = "legal-cuad-bontonstoresinc_04_20_2018-ex-99_3-agency_agreemen"
+title = "BONTONSTORESINC_04_20_2018-EX-99.3-AGENCY AGREEMENT"
+source_url = "https://github.com/TheAtticusProject/cuad"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:24Z"
+sha256 = "ff5ba383789fab50f4a3675805093940457d856495dd6786d630e7018bb2c511"
+bytes = 161630
+format = "txt"
+domain = "legal"
+kind = "contract"
+pages = 53
+scanned = false
+allowed_use = "internal_eval_only"
+notes = "CUAD contract #22"
+
+[[documents]]
+id = "legal-cuad-on2technologies_inc_11_17_2006-ex-10_3-support_and"
+title = "ON2TECHNOLOGIES,INC_11_17_2006-EX-10.3-SUPPORT AND MAINTENANCE AGREEMENT"
+source_url = "https://github.com/TheAtticusProject/cuad"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:24Z"
+sha256 = "9cb2a35f78070d574ac202873457b91f572981c78916cc28df9377424083f6da"
+bytes = 61392
+format = "txt"
+domain = "legal"
+kind = "contract"
+pages = 20
+scanned = false
+allowed_use = "internal_eval_only"
+notes = "CUAD contract #23"
+
+[[documents]]
+id = "legal-cuad-freecook_20180605_s-1_ex-10_3_11233807_ex-10_3_hos"
+title = "Freecook_20180605_S-1_EX-10.3_11233807_EX-10.3_Hosting Agreement"
+source_url = "https://github.com/TheAtticusProject/cuad"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:24Z"
+sha256 = "2f6b37b85a74830fdfa7d9aaa4aee2b4806242404fbd8baa5730d15f20fd4933"
+bytes = 6341
+format = "txt"
+domain = "legal"
+kind = "contract"
+pages = 2
+scanned = false
+allowed_use = "internal_eval_only"
+notes = "CUAD contract #24"
+
+[[documents]]
+id = "legal-cuad-operaltd_04_30_2020-ex-4_14-service_agreement"
+title = "OPERALTD_04_30_2020-EX-4.14-SERVICE AGREEMENT"
+source_url = "https://github.com/TheAtticusProject/cuad"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:24Z"
+sha256 = "579818d20eb50a9cb9893ff4dea109b70d2e74094c06489a994506b2079414fa"
+bytes = 20983
+format = "txt"
+domain = "legal"
+kind = "contract"
+pages = 6
+scanned = false
+allowed_use = "internal_eval_only"
+notes = "CUAD contract #25"
+
+[[documents]]
+id = "med-pmc-13695533"
+title = "State Policies and Clinicians’ Perspectives on the Inclusion of Medical Cannabis in the Prescription Drug Monitoring Pro"
+source_url = "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC13695533/"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:25Z"
+sha256 = "a411fbeb9a3240f18f68d3ae0db13945d9b1916fef28bc31e70fd928d5b0c39f"
+bytes = 95524
+format = "jats_xml"
+domain = "medical"
+kind = "case_report"
+pages = 23
+scanned = false
+allowed_use = "commercial"
+notes = "PMC Open Access JATS XML #13695533"
+
+[[documents]]
+id = "med-pmc-13695542"
+title = "Retrospective Analysis of Real-World Elacestrant Use in Two Large Austrian Cancer Centers"
+source_url = "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC13695542/"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:26Z"
+sha256 = "547fb2a8d9e94604e10531aeb0bd2c390a625359a9643755e000ccb3afd68619"
+bytes = 74182
+format = "jats_xml"
+domain = "medical"
+kind = "case_report"
+pages = 18
+scanned = false
+allowed_use = "commercial"
+notes = "PMC Open Access JATS XML #13695542"
+
+[[documents]]
+id = "med-pmc-13695417"
+title = "Effectiveness and safety of atorvastatin/ ezetimibe fixed-dose combination in hypercholesterolemia: a systematic review "
+source_url = "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC13695417/"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:27Z"
+sha256 = "98efcd7427bbc28bcb6c9aa8d957571cfd2bba6a659416e25316d6f0705a145c"
+bytes = 199378
+format = "jats_xml"
+domain = "medical"
+kind = "case_report"
+pages = 49
+scanned = false
+allowed_use = "commercial"
+notes = "PMC Open Access JATS XML #13695417"
+
+[[documents]]
+id = "med-pmc-13695414"
+title = "Expert Consensus Recommendations for Clinical Use of the AYON Body Contouring System in Ultrasound-Assisted Liposuction:"
+source_url = "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC13695414/"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:29Z"
+sha256 = "396478542ac1e5bcd006017b705911430fa5e62610bde8baa54488815bbec361"
+bytes = 86871
+format = "jats_xml"
+domain = "medical"
+kind = "case_report"
+pages = 21
+scanned = false
+allowed_use = "commercial"
+notes = "PMC Open Access JATS XML #13695414"
+
+[[documents]]
+id = "med-pmc-13695429"
+title = "Inflammatory Eye Disease and Immunosuppressive Therapy: A Rheumatologist’s Perspective"
+source_url = "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC13695429/"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:30Z"
+sha256 = "872a1c245d73ef9a5c435c27c5adcab66c5ba50048c517fd711153e5446e61b5"
+bytes = 69091
+format = "jats_xml"
+domain = "medical"
+kind = "case_report"
+pages = 17
+scanned = false
+allowed_use = "commercial"
+notes = "PMC Open Access JATS XML #13695429"
+
+[[documents]]
+id = "med-pmc-13695493"
+title = "Network Neuroanatomy of Self-Awareness: A Narrative Review of Self-Referential Processing, Metacognition, and Embodiment"
+source_url = "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC13695493/"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:32Z"
+sha256 = "87cc8abc53e183fb421414480beca8c6130aa85aa3463073cddc784618af12ab"
+bytes = 100131
+format = "jats_xml"
+domain = "medical"
+kind = "case_report"
+pages = 25
+scanned = false
+allowed_use = "commercial"
+notes = "PMC Open Access JATS XML #13695493"
+
+[[documents]]
+id = "med-pmc-13695371"
+title = "Association of calcium phosphate crystals with pain and inflammation among individuals with advanced knee osteoarthritis"
+source_url = "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC13695371/"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:33Z"
+sha256 = "d40af9eea4ea2ce4ea835c3f0cf0f11fcd9aa3191c95db2dbe338dd21baf269d"
+bytes = 113076
+format = "jats_xml"
+domain = "medical"
+kind = "case_report"
 pages = 28
 scanned = false
 allowed_use = "commercial"
-notes = "SEC EDGAR sanitized material exhibit"
+notes = "PMC Open Access JATS XML #13695371"
+
+[[documents]]
+id = "med-pmc-13695320"
+title = "Infliximab Monotherapy as First-Line Treatment for Hepatic, Splenic, and Pulmonary Sarcoidosis in a Patient With High Ca"
+source_url = "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC13695320/"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:34Z"
+sha256 = "531094fe74e1261c6c29b229905fb4c446498c051ae26a5813a65e7daaee0483"
+bytes = 32812
+format = "jats_xml"
+domain = "medical"
+kind = "case_report"
+pages = 8
+scanned = false
+allowed_use = "commercial"
+notes = "PMC Open Access JATS XML #13695320"
+
+[[documents]]
+id = "med-pmc-13695316"
+title = "Apoptosis-inducing potential of the hexane fraction of Cassia fistula L. against MCF-7 cells via apoptosis signaling pat"
+source_url = "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC13695316/"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:35Z"
+sha256 = "5c9d623c60c15ce571531617611b99a25516a13bbf6b454ff8e340ff36792acd"
+bytes = 126768
+format = "jats_xml"
+domain = "medical"
+kind = "case_report"
+pages = 31
+scanned = false
+allowed_use = "commercial"
+notes = "PMC Open Access JATS XML #13695316"
+
+[[documents]]
+id = "med-pmc-13695367"
+title = "Generation of hypoimmunogenic cardiomyocytes from human induced pluripotent stem cells with TAPBP knockout"
+source_url = "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC13695367/"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:36Z"
+sha256 = "79a35028b758637a52116c194747b2b342b3076c297f0c0fff3d7cb3e8a05981"
+bytes = 173079
+format = "jats_xml"
+domain = "medical"
+kind = "case_report"
+pages = 43
+scanned = false
+allowed_use = "commercial"
+notes = "PMC Open Access JATS XML #13695367"
+
+[[documents]]
+id = "med-pmc-11300001"
+title = "Sex differences in glioblastoma based on tumor subtypes"
+source_url = "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11300001/"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:37Z"
+sha256 = "53abe3d0c321a60bda8cf5c52f89d09f76d9d414450bb594df8d51ec103ad15b"
+bytes = 9690
+format = "jats_xml"
+domain = "medical"
+kind = "case_report"
+pages = 2
+scanned = false
+allowed_use = "commercial"
+notes = "PMC Open Access JATS XML #11300001"
+
+[[documents]]
+id = "med-pmc-11300002"
+title = "Description of census-tract–level social determinants of health in cancer surveillance data"
+source_url = "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11300002/"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:37Z"
+sha256 = "882a65892121919776e2cab3f22f2fe6bd4e26bb3ddaf655ccd8673b5c225097"
+bytes = 14272
+format = "jats_xml"
+domain = "medical"
+kind = "case_report"
+pages = 3
+scanned = false
+allowed_use = "commercial"
+notes = "PMC Open Access JATS XML #11300002"
+
+[[documents]]
+id = "med-pmc-11300003"
+title = "The SEER Program’s evolution: supporting clinically meaningful population-level research"
+source_url = "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11300003/"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:38Z"
+sha256 = "092b8bd16b7c02d95e39e529fd6346f37981250c3390e9a46d367393d9b4ac4e"
+bytes = 10746
+format = "jats_xml"
+domain = "medical"
+kind = "case_report"
+pages = 2
+scanned = false
+allowed_use = "commercial"
+notes = "PMC Open Access JATS XML #11300003"
+
+[[documents]]
+id = "med-pmc-11300004"
+title = "[Ga68] DOTATATE PET/MRI-guided radiosurgical treatment planning and response assessment in meningiomas"
+source_url = "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11300004/"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:39Z"
+sha256 = "c04763f4da9ac97bebfa52ee0379bb10c7a83ae824741cc6e8a9f96771730db3"
+bytes = 15596
+format = "jats_xml"
+domain = "medical"
+kind = "case_report"
+pages = 3
+scanned = false
+allowed_use = "commercial"
+notes = "PMC Open Access JATS XML #11300004"
+
+[[documents]]
+id = "med-pmc-11300005"
+title = "Predicting the risk of neurocognitive decline after brain irradiation in adult patients with a primary brain tumor"
+source_url = "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11300005/"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:40Z"
+sha256 = "f8a5f7b80fd3ba095575d1078a0ba0300a2cc821c0d9ed036adf2c4f26e99f49"
+bytes = 114410
+format = "jats_xml"
+domain = "medical"
+kind = "case_report"
+pages = 28
+scanned = false
+allowed_use = "commercial"
+notes = "PMC Open Access JATS XML #11300005"
+
+[[documents]]
+id = "med-pmc-11300006"
+title = "NCI SEER-Linked Virtual Tissue Repository Pilot"
+source_url = "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11300006/"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:41Z"
+sha256 = "fe9f436d5138cdbea653cc98f3d912eda71740ec6958d4a607e88cbe1125d9d4"
+bytes = 25488
+format = "jats_xml"
+domain = "medical"
+kind = "case_report"
+pages = 6
+scanned = false
+allowed_use = "commercial"
+notes = "PMC Open Access JATS XML #11300006"
+
+[[documents]]
+id = "med-pmc-11300007"
+title = "Ongoing expansion of journal activities to meet the needs of stakeholders"
+source_url = "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11300007/"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:42Z"
+sha256 = "845e95df6257cea0fd68bd77b748a40091dd9020331dec020f4aff6ed4625340"
+bytes = 6396
+format = "jats_xml"
+domain = "medical"
+kind = "case_report"
+pages = 1
+scanned = false
+allowed_use = "commercial"
+notes = "PMC Open Access JATS XML #11300007"
+
+[[documents]]
+id = "med-pmc-11300008"
+title = "Diffuse midline (H3 K27M-mutant) glioma in adults—When resection fails to matter"
+source_url = "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11300008/"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:42Z"
+sha256 = "63044c95eef0872a38caee3588639f85cada7eaa18163186572f251bf03ef246"
+bytes = 7601
+format = "jats_xml"
+domain = "medical"
+kind = "case_report"
+pages = 1
+scanned = false
+allowed_use = "commercial"
+notes = "PMC Open Access JATS XML #11300008"
+
+[[documents]]
+id = "med-pmc-11300009"
+title = "Immunotherapy drives mesenchymal tumor cell state shift and TME immune response in glioblastoma patients"
+source_url = "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11300009/"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:43Z"
+sha256 = "7a6d1a508adf06a15c02de408e8574ab36bcd95208200eb43bc326589616b593"
+bytes = 16702
+format = "jats_xml"
+domain = "medical"
+kind = "case_report"
+pages = 4
+scanned = false
+allowed_use = "commercial"
+notes = "PMC Open Access JATS XML #11300009"
+
+[[documents]]
+id = "med-pmc-11300010"
+title = "The Sybil prophecy: Searching for predictors of response to bevacizumab in glioblastoma"
+source_url = "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11300010/"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T05:42:44Z"
+sha256 = "eda9ee01af5da99302c2c07fd7ba4b2695d3bb18705e8a0f556bdadd77f43a8c"
+bytes = 10303
+format = "jats_xml"
+domain = "medical"
+kind = "case_report"
+pages = 2
+scanned = false
+allowed_use = "commercial"
+notes = "PMC Open Access JATS XML #11300010"
+
