@@ -1,0 +1,13 @@
+# eval/floors.toml — Quality & Validation Floors
+# Master System Design §19.5 & MVP Report §8.1
+
+[floors]
+validator_precision = 0.99
+revocation_latency_p99_seconds = 2.0
+time_to_first_verified_sentence_p95_seconds = 8.0
+cross_scope_leaks_allowed = 0
+unverified_sentences_allowed = 0
+
+[calibration]
+sample_pairs_per_domain = 100
+min_agreement_kappa = 0.85
