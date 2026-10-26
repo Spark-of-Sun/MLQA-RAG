@@ -1,0 +1,93 @@
+[project]
+name = "legal-medical-qa"
+version = "0.1.0"
+description = "Multi-tenant legal and medical document Q&A system"
+requires-python = ">=3.14"
+dependencies = []
+
+[tool.uv.workspace]
+members = [
+    "libs/*",
+    "services/*",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-randomly>=3.16.0",
+    "pytest-timeout>=2.3.1",
+    "ruff>=0.16.0",
+    "pyright>=1.1.390",
+    "import-linter>=2.2",
+    "pip-audit>=2.8.0",
+]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+extend-exclude = ["db/migrations/versions", "corpus/data"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812", "ISC001",      # conflict with the formatter
+    "D203", "D213",          # conflicting docstring styles
+    "CPY", "FIX", "TD",      # policies handled in review
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"unittest.mock".msg = "R2: use real systems"
+"pytest_mock".msg = "R2: use real systems"
+"respx".msg = "R2: use real systems"
+"responses".msg = "R2: use real systems"
+"faker".msg = "R1: no fake data"
+"factory".msg = "R1: no fake data"
+"freezegun".msg = "R7: time acceleration through configuration only"
+"pydantic.v1".msg = "Pydantic v2 only"
+"sqlalchemy.create_engine".msg = "use lmqa_db scoped session"
+"psycopg.connect".msg = "use lmqa_db scoped session"
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S101", "PLR2004", "ANN", "D", "S105", "S106"]
+"db/migrations/**" = ["E501", "D"]
+"libs/lmqa_db/**" = ["TID251"]
+
+[tool.pytest.ini_options]
+minversion = "9.1"
+addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
+xfail_strict = true
+asyncio_mode = "strict"
+timeout = 180
+filterwarnings = ["error"]
+markers = [
+    "unit", "integration", "contract", "e2e", "isolation", "perf", "chaos",
+    "live_auth0", "live_kms", "live_llm", "control",
+    "stage0", "stage1", "stage2", "stage3", "stage4", "stage5", "stage6",
+    "stage7", "stage8", "stage9", "stage10", "stage11",
+]
+
+[tool.pyright]
+pythonVersion = "3.14"
+typeCheckingMode = "standard"
+include = ["libs", "services", "tools", "tests"]
+strict = [
+    "libs/lmqa_models",
+    "libs/lmqa_auth",
+    "libs/lmqa_db",
+    "libs/lmqa_keys",
+    "libs/lmqa_security",
+    "libs/lmqa_vectorstore",
+    "libs/lmqa_objectstore",
+    "libs/lmqa_audit",
+    "libs/lmqa_logging",
+    "libs/lmqa_telemetry",
+    "libs/lmqa_testing",
+    "libs/lmqa_release",
+    "services/gateway",
+    "services/identity",
+    "services/citation_validator",
+]

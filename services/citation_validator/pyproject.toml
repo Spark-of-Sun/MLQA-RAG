@@ -1,0 +1,10 @@
+[project]
+name = "citation_validator"
+version = "0.1.0"
+description = "citation_validator package"
+requires-python = ">=3.14"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
