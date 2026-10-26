@@ -1,0 +1,34 @@
+# corpus/manifest.toml — Single authoritative registry of ingested documents
+# Master System Design Appendix B & SCOPE_CUTS_M1a.md (Profile mvp-a)
+
+[[documents]]
+id = "cuad-master-service-agreement-001"
+title = "CUAD Benchmark Material Contract exhibit MSA"
+source_url = "https://raw.githubusercontent.com/TheAtticusProject/cuad/main/sample.pdf"
+license = "CC-BY-4.0"
+retrieved_at = "2026-10-26T00:00:00Z"
+sha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+bytes = 1048576
+format = "pdf"
+domain = "legal"
+kind = "contract"
+pages = 42
+scanned = false
+allowed_use = "internal_eval_only"
+notes = "CUAD legal contract with text layer for M1a"
+
+[[documents]]
+id = "edgar-10k-exhibit-ex10-1"
+title = "SEC EDGAR Form 10-K Material Exhibit 10.1"
+source_url = "https://www.sec.gov/Archives/edgar/data/sample.htm"
+license = "public_domain"
+retrieved_at = "2026-10-26T00:00:00Z"
+sha256 = "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"
+bytes = 524288
+format = "html"
+domain = "legal"
+kind = "regulatory"
+pages = 28
+scanned = false
+allowed_use = "commercial"
+notes = "SEC EDGAR sanitized material exhibit"
