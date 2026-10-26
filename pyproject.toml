@@ -3,13 +3,56 @@ name = "legal-medical-qa"
 version = "0.1.0"
 description = "Multi-tenant legal and medical document Q&A system"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "lmqa-models",
+    "lmqa-auth",
+    "lmqa-db",
+    "lmqa-keys",
+    "lmqa-security",
+    "lmqa-vectorstore",
+    "lmqa-objectstore",
+    "lmqa-audit",
+    "lmqa-logging",
+    "lmqa-telemetry",
+    "lmqa-testing",
+    "lmqa-release",
+    "gateway",
+    "identity",
+    "ingestion",
+    "retrieval",
+    "generation",
+    "citation-validator",
+    "audit",
+    "ops",
+]
 
 [tool.uv.workspace]
 members = [
     "libs/*",
     "services/*",
 ]
+
+[tool.uv.sources]
+lmqa-models = { workspace = true }
+lmqa-auth = { workspace = true }
+lmqa-db = { workspace = true }
+lmqa-keys = { workspace = true }
+lmqa-security = { workspace = true }
+lmqa-vectorstore = { workspace = true }
+lmqa-objectstore = { workspace = true }
+lmqa-audit = { workspace = true }
+lmqa-logging = { workspace = true }
+lmqa-telemetry = { workspace = true }
+lmqa-testing = { workspace = true }
+lmqa-release = { workspace = true }
+gateway = { workspace = true }
+identity = { workspace = true }
+ingestion = { workspace = true }
+retrieval = { workspace = true }
+generation = { workspace = true }
+citation-validator = { workspace = true }
+audit = { workspace = true }
+ops = { workspace = true }
 
 [dependency-groups]
 dev = [
