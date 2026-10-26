@@ -325,6 +325,28 @@ wheels = [
 name = "legal-medical-qa"
 version = "0.1.0"
 source = { virtual = "." }
+dependencies = [
+    { name = "audit" },
+    { name = "citation-validator" },
+    { name = "gateway" },
+    { name = "generation" },
+    { name = "identity" },
+    { name = "ingestion" },
+    { name = "lmqa-audit" },
+    { name = "lmqa-auth" },
+    { name = "lmqa-db" },
+    { name = "lmqa-keys" },
+    { name = "lmqa-logging" },
+    { name = "lmqa-models" },
+    { name = "lmqa-objectstore" },
+    { name = "lmqa-release" },
+    { name = "lmqa-security" },
+    { name = "lmqa-telemetry" },
+    { name = "lmqa-testing" },
+    { name = "lmqa-vectorstore" },
+    { name = "ops" },
+    { name = "retrieval" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -339,6 +361,28 @@ dev = [
 ]
 
 [package.metadata]
+requires-dist = [
+    { name = "audit", editable = "services/audit" },
+    { name = "citation-validator", editable = "services/citation_validator" },
+    { name = "gateway", editable = "services/gateway" },
+    { name = "generation", editable = "services/generation" },
+    { name = "identity", editable = "services/identity" },
+    { name = "ingestion", editable = "services/ingestion" },
+    { name = "lmqa-audit", editable = "libs/lmqa_audit" },
+    { name = "lmqa-auth", editable = "libs/lmqa_auth" },
+    { name = "lmqa-db", editable = "libs/lmqa_db" },
+    { name = "lmqa-keys", editable = "libs/lmqa_keys" },
+    { name = "lmqa-logging", editable = "libs/lmqa_logging" },
+    { name = "lmqa-models", editable = "libs/lmqa_models" },
+    { name = "lmqa-objectstore", editable = "libs/lmqa_objectstore" },
+    { name = "lmqa-release", editable = "libs/lmqa_release" },
+    { name = "lmqa-security", editable = "libs/lmqa_security" },
+    { name = "lmqa-telemetry", editable = "libs/lmqa_telemetry" },
+    { name = "lmqa-testing", editable = "libs/lmqa_testing" },
+    { name = "lmqa-vectorstore", editable = "libs/lmqa_vectorstore" },
+    { name = "ops", editable = "services/ops" },
+    { name = "retrieval", editable = "services/retrieval" },
+]
 
 [package.metadata.requires-dev]
 dev = [
