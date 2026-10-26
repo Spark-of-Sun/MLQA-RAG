@@ -1,0 +1,113 @@
+# stages.toml — path-to-stage ownership map and gate profiles
+
+[profiles]
+names = ["mvp-a", "mvp", "full"]
+default = "mvp-a"
+
+[stage.0]
+owns = [
+    "pyproject.toml",
+    "uv.lock",
+    ".python-version",
+    ".gitignore",
+    ".gitattributes",
+    ".editorconfig",
+    ".gitleaks.toml",
+    ".pre-commit-config.yaml",
+    ".importlinter",
+    "Makefile",
+    "stages.toml",
+    "STAGE",
+    "README.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "CODEOWNERS",
+    "OWNERSHIP.md",
+    "PATCH_WORKFLOW.md",
+    "AGENTS.md",
+    "compose.yaml",
+    "compose.override.yaml",
+    "compose.test.yaml",
+    ".env.example",
+    "tools/**",
+    "infra/compose/**",
+    "infra/auth0/**",
+    "corpus/**",
+    "contracts/**",
+    ".github/**",
+    "status/**",
+    "logs/**",
+    "docs/**",
+]
+
+[stage.1]
+owns = [
+    "db/**",
+    "libs/lmqa_db/**",
+    "libs/lmqa_keys/**",
+    "libs/lmqa_security/**",
+    "libs/lmqa_audit/**",
+    "infra/keyguard/**",
+    "infra/aws/**",
+]
+
+[stage.2]
+owns = [
+    "services/identity/**",
+    "libs/lmqa_models/**",
+]
+
+[stage.3]
+owns = [
+    "services/gateway/**",
+    "libs/lmqa_auth/**",
+    "libs/lmqa_release/**",
+]
+
+[stage.4]
+owns = [
+    "services/ingestion/**",
+    "libs/lmqa_objectstore/**",
+]
+
+[stage.5]
+owns = [
+    "services/retrieval/**",
+    "libs/lmqa_vectorstore/**",
+    "prompts/**",
+    "eval/**",
+]
+
+[stage.6]
+owns = [
+    "services/generation/**",
+]
+
+[stage.7]
+owns = [
+    "services/citation_validator/**",
+]
+
+[stage.8]
+owns = [
+    "frontend/**",
+    "libs/lmqa_testing/**",
+    "tests/**",
+]
+
+[stage.9]
+owns = [
+    "services/audit/**",
+    "services/ops/**",
+    "libs/lmqa_logging/**",
+    "libs/lmqa_telemetry/**",
+]
+
+[stage.10]
+owns = [
+    "gates/**",
+    "infra/k8s/**",
+]
+
+[stage.11]
+owns = []

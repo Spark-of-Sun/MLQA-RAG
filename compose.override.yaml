@@ -1,0 +1,17 @@
+# Local development overrides
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"
+  pgbouncer:
+    ports:
+      - "127.0.0.1:6432:6432"
+  valkey:
+    ports:
+      - "127.0.0.1:6379:6379"
+  qdrant:
+    ports:
+      - "127.0.0.1:6333:6333"
+  openbao:
+    ports:
+      - "127.0.0.1:8200:8200"
