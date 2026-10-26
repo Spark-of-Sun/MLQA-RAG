@@ -105,11 +105,11 @@ _(no comments yet)_
 ## Release Pipeline and Automation
 
 ### Pipeline: Latest update
-- [2026-10-26 06:05 UTC] main head: e479935 | STAGE: 0 | profile: mvp-a
+- [2026-10-26 07:55 UTC] main head: 74a9abc | STAGE: 0 | profile: mvp-a
 - Pipeline: CI green on main (run 40275801115), Security green on main (run 40275801114)
-- Recent changes: corpus manifest updated with 45 real documents (25 CUAD contracts, 20 PMC JATS XML files)
+- Recent changes: configured google gemini flash with thinking budget for mvp; updated pipeline ownership and anonymous workflow
 - Open comments: DEPENDENCY 0, BLOCKER 0, DEBT 0, QUESTION 0, COORDINATOR 0
-- Environment: Docker, git, gh, python 3.14, uv, node 24, pnpm, opentofu, aws-cli, gitleaks, pre-commit, pip-audit, trivy, cosign configured; .env template provided
+- Environment: Docker, git, gh, python 3.14, uv, node 26, pnpm, opentofu, aws-cli, gitleaks, pre-commit, pip-audit, trivy, cosign configured; .env present
 
 Welcome to the MLQA-RAG project! The repository scaffold, package stubs, import boundaries, lint/test toolchains, and initial Phase 0 interfaces are established and ready. Design documents are in `docs/design/`, ownership mappings in `OWNERSHIP.md`, and the delivery guide in `PATCH_WORKFLOW.md`. Whenever you are ready to deliver changes, place your patch in `patches/`. Everything runs at your own pace.
 
