@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Auth0ContextClaims",
+  "description": "Custom JWT claims injected by Auth0 Actions per Master §8.3",
+  "type": "object",
+  "required": [
+    "https://lmqa.local/claims/org_id",
+    "https://lmqa.local/claims/workspace_id",
+    "https://lmqa.local/claims/user_role",
+    "https://lmqa.local/claims/amr"
+  ],
+  "properties": {
+    "https://lmqa.local/claims/org_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Organization isolation identifier"
+    },
+    "https://lmqa.local/claims/workspace_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Workspace isolation boundary"
+    },
+    "https://lmqa.local/claims/user_role": {
+      "type": "string",
+      "enum": ["super_admin", "admin", "legal_reviewer", "medical_reviewer", "member", "auditor", "operator"]
+    },
+    "https://lmqa.local/claims/step_up_loa": {
+      "type": "string",
+      "enum": ["loa2", "loa3"],
+      "description": "Level of assurance for step-up actions"
+    },
+    "https://lmqa.local/claims/amr": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Authentication methods references (e.g. mfa, webauthn)"
+    }
+  }
+}
