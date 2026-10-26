@@ -1,0 +1,7 @@
+# Test environment overrides for isolation and CI
+services:
+  postgres:
+    tmpfs:
+      - /var/lib/postgresql/data
+  valkey:
+    command: ["valkey-server", "--save", ""]

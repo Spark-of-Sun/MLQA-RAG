@@ -1,0 +1,72 @@
+# Patches (local, never committed)
+patches/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Corpus data (only manifest is committed)
+corpus/data/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+*.whl
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# uv
+.uv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Type checking
+.pyright/
+
+# Node / Frontend
+node_modules/
+.next/
+.nuxt/
+.turbo/
+.output/
+
+# Docker
+*.pid
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build output
+*.so
+*.dylib
+
+# Logs (keep the directory, not log files)
+logs/*.log
+
+# Caches
+.cache/
+.ruff_cache/

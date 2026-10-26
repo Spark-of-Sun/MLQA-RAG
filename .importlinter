@@ -1,0 +1,61 @@
+[importlinter]
+root_packages =
+    lmqa_models
+    lmqa_auth
+    lmqa_db
+    lmqa_keys
+    lmqa_security
+    lmqa_vectorstore
+    lmqa_objectstore
+    lmqa_audit
+    lmqa_logging
+    lmqa_telemetry
+    lmqa_testing
+    lmqa_release
+    gateway
+    identity
+    ingestion
+    retrieval
+    generation
+    citation_validator
+    audit
+    ops
+
+[importlinter:contract:1]
+name = Services must not import other services
+type = independence
+modules =
+    gateway
+    identity
+    ingestion
+    retrieval
+    generation
+    citation_validator
+    audit
+    ops
+
+[importlinter:contract:2]
+name = Gateway import restrictions
+type = forbidden
+source_modules =
+    gateway
+forbidden_modules =
+    lmqa_vectorstore
+    lmqa_objectstore
+
+[importlinter:contract:3]
+name = Retrieval import restrictions
+type = forbidden
+source_modules =
+    retrieval
+forbidden_modules =
+    lmqa_objectstore
+
+[importlinter:contract:4]
+name = Citation validator import restrictions
+type = forbidden
+source_modules =
+    citation_validator
+forbidden_modules =
+    lmqa_vectorstore
+    lmqa_objectstore

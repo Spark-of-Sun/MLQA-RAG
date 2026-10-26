@@ -1,0 +1,7 @@
+[allowlist]
+description = "Gitleaks allowlist"
+paths = [
+    '''.gitattributes''',
+    '''docs/design/.*''',
+    '''tests/controls.md''',
+]
