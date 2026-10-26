@@ -1,0 +1,20 @@
+# prompts/registry.toml — Prompt template definitions
+# Master System Design §11.3
+
+[prompts.qa_generation]
+version = "1.0.0"
+max_context_tokens = 4000
+template = """
+You are a legal document assistant. Answer the user query using ONLY the provided verified context chunks.
+Every factual assertion must cite the exact chunk ID in brackets [chunk_id].
+If the provided chunks do not contain enough information, state clearly that the answer is not supported.
+"""
+
+[prompts.sentence_validation]
+version = "1.0.0"
+model = "deberta-v3-nli"
+template = """
+Premise: {context_chunk}
+Hypothesis: {claimed_sentence}
+Evaluate whether the Premise entails the Hypothesis (ENTAILMENT, CONTRADICTION, NEUTRAL).
+"""
