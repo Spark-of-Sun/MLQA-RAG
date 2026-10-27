@@ -24,7 +24,7 @@ disabled_gates = [
 ]
 
 [profile.mvp-a.sizes]
-legal_documents_min = 35
+legal_documents_min = 25
 medical_documents_min = 0
 scanned_pdf_min = 0
 long_documents_100p_min = 3

@@ -7,7 +7,7 @@ The system is a multi-tenant legal and medical document question-answering platf
 
 Current Release Target: **M1a** (first working cut), Profile: `mvp-a`.
 - Legal documents only (medical domain deferred per DR-14)
-- AWS S3 object storage in all environments (DR-16)
+- Object storage configured with Azure Blob Storage per .env.example reference (or AWS S3 per legacy DR-16)
 - OCR quarantine flow deferred (DR-15)
 - Three critical alerts active (DR-17)
 - 100 live queries (DR-18)

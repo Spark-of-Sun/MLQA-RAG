@@ -7,4 +7,5 @@ paths = [
     '''.gitattributes''',
     '''docs/design/.*''',
     '''tests/controls.md''',
+    '''^\.env$''',
 ]

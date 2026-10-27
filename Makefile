@@ -44,7 +44,7 @@ gate:
 		echo "ERROR: tools/gatekeeper is not yet implemented"; \
 		exit 1; \
 	fi
-	@echo "Running gate check for STAGE=$(STAGE) PROFILE=$(PROFILE)..."
+	uv run python -m tools.gatekeeper.main --stage $(STAGE) --profile $(PROFILE)
 
 isolation:
 	@if [ ! -d "tests/isolation" ]; then \
