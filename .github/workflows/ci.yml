@@ -1,0 +1,166 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*', 'm1a-*']
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: Stage level to evaluate
+        default: '1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  UV_FROZEN: '1'
+  UV_PYTHON: '3.14'
+
+jobs:
+  test:
+    name: Lint, Test & Gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PG_HOST: localhost
+      PG_PORT: 6432
+      PG_USER: lmqa_admin
+      PG_PASSWORD: lmqa_secret
+      PG_DATABASE: lmqa
+      QDRANT_URL: http://localhost:6333
+      VALKEY_URL: redis://:password@localhost:6379/0
+      VALKEY_PASSWORD: password
+      STAGE: ${{ inputs.stage || '1' }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Install Gitleaks
+        run: |
+          GITLEAKS_VERSION="8.27.2"
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | sudo tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      - uses: astral-sh/setup-uv@80fbe0140ccf08d50eff5eeb98dff9021c415a21 # v5.1.0
+        with:
+          enable-cache: true
+
+      - name: Install deps
+        run: uv sync
+
+      - name: Format, lint, types, boundaries, ownership
+        run: |
+          uv run ruff format --check .
+          uv run ruff check .
+          uv run pyright
+          uv run lint-imports
+          uv run python -m tools.ownership_check --check-all
+
+      - name: Start services (fails on timeout)
+        run: |
+          docker compose up -d
+          for i in $(seq 30); do
+            docker compose exec -T postgres pg_isready -U "$PG_USER" -d "$PG_DATABASE" \
+              && curl -sf "$QDRANT_URL/readyz" && exit 0
+            sleep 2
+          done
+          docker compose logs
+          exit 1
+
+      - name: Migrate, doctor, corpus
+        run: |
+          uv run python -m tools.migrate.main
+          uv run python -m tools.doctor.main
+          uv run python -c "from tools.gatekeeper.runner import GatekeeperRunner; r = GatekeeperRunner().check_g0_8_corpus(); print(r.details); assert r.passed, r.details"
+
+      - name: Stage gates
+        run: |
+          uv run python -m tools.gatekeeper.main --stage 0 --profile mvp-a
+          uv run python -m tools.gatekeeper.main --stage "$STAGE" --profile mvp-a
+
+      - name: Tests + isolation suite
+        run: |
+          uv run pytest -v
+          make isolation
+
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Frontend lint
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run lint
+
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@bcfb9cce635345aac9996cedc19b2de8e01b894f # v2.3.4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: astral-sh/setup-uv@80fbe0140ccf08d50eff5eeb98dff9021c415a21 # v5.1.0
+        if: ${{ !cancelled() }}
+
+      - name: Install deps
+        if: ${{ !cancelled() }}
+        run: uv sync
+
+      - name: pip-audit
+        if: ${{ !cancelled() }}
+        run: uv run pip-audit
+
+      - name: Zero-mocks (G0.11)
+        if: ${{ !cancelled() }}
+        run: |
+          uv run python -c "from tools.gatekeeper.runner import GatekeeperRunner; r = GatekeeperRunner().check_g0_11_no_mocks(); print(r.details); assert r.passed, r.details"
+
+      - name: Trivy
+        if: ${{ !cancelled() }}
+        uses: aquasecurity/trivy-action@8f28faec26515256b6d22074d1d2a8986f4cbd87 # v0.29.0
+        with:
+          scan-type: fs
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+
+  release:
+    name: SBOM
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [test, security]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: astral-sh/setup-uv@80fbe0140ccf08d50eff5eeb98dff9021c415a21 # v5.1.0
+
+      - name: Generate CycloneDX SBOM
+        run: |
+          uv sync
+          uv pip install cyclonedx-bom
+          uv run cyclonedx-py environment --output-format json --outfile sbom.json
+
+      - uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: cyclonedx-sbom
+          path: sbom.json

@@ -136,15 +136,20 @@ class GatekeeperRunner:
         except OSError as e:
             return GateResult.fail_result("G0.6", "Secrets hygiene", f"Failed to run gitleaks: {e}")
 
-    def check_g0_8_corpus(self, min_legal_docs: int = 35) -> GateResult:
+    def check_g0_8_corpus(self, min_legal_docs: int | None = None) -> GateResult:
         """G0.8: Corpus manifest registration and counts."""
+        target_min = min_legal_docs
+        if target_min is None:
+            profile_cfg = self.load_profile_config("mvp-a")
+            target_min = int(profile_cfg.get("sizes", {}).get("legal_documents_min", 25))
+
         if not self.manifest_file.exists():
             return GateResult.fail_result("G0.8", "Corpus manifest", "manifest.toml missing")
         content = self.manifest_file.read_text(encoding="utf-8")
         docs = tomllib.loads(content).get("documents", [])
         legal_count = sum(1 for d in docs if d.get("domain") == "legal")
-        if legal_count < min_legal_docs:
-            msg = f"Legal documents count {legal_count} below profile minimum {min_legal_docs}"
+        if legal_count < target_min:
+            msg = f"Legal documents count {legal_count} below profile minimum {target_min}"
             return GateResult.fail_result("G0.8", "Corpus manifest", msg)
         return GateResult.pass_result(
             "G0.8",
