@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import httpx
@@ -39,7 +40,7 @@ class GenerationClient:
             return RAGResponse(
                 request_id=record.request_id,
                 query=record.query,
-                answer="No relevant documents found within access scope.",
+                answer="The provided documents do not address this.",
                 citations=[],
                 refusal=True,
             )
@@ -92,9 +93,12 @@ class GenerationClient:
 
         # Deterministic offline synthesis for offline tests and Stage 0 verification
         first_chunk = active_aliases[0]
-        answer = (
-            f"Based on {first_chunk.doc_name}, {first_chunk.text.strip()} [{first_chunk.alias}]"
-        )
+        clean_text = re.sub(r"\s+", " ", first_chunk.text.strip())
+        raw_segs = re.split(r"(?<=[.!?])\s+", clean_text)
+        single_sentence = raw_segs[0].strip() if raw_segs else clean_text[:120].strip()
+        single_sentence = single_sentence.rstrip(".")
+
+        answer = f"According to {first_chunk.doc_name}, {single_sentence} [{first_chunk.alias}]."
         citations = [
             CitationItem(
                 alias=first_chunk.alias,

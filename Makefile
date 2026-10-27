@@ -41,14 +41,16 @@ load-corpus:
 		echo "ERROR: tools/load_corpus is not yet implemented"; \
 		exit 1; \
 	fi
-	@echo "Loading corpus..."
+	@echo "Loading legal corpus into PostgreSQL and Qdrant..."
+	uv run python -m tools.load_corpus.main
 
 eval:
 	@if [ ! -d "eval" ] || [ ! -f "eval/run.py" ]; then \
 		echo "ERROR: eval harness is not yet implemented"; \
 		exit 1; \
 	fi
-	@echo "Running evaluation..."
+	@echo "Running M1a Evaluation Harness across 100 live queries..."
+	uv run python -m eval.run
 
 precheck:
 	@if [ -n "$(OWNER)" ]; then \

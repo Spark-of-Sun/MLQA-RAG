@@ -4,6 +4,8 @@ version = "0.1.0"
 description = "retrieval package"
 requires-python = ">=3.14"
 dependencies = [
+    "asyncpg>=0.30.0",
+    "lmqa-db",
     "lmqa-models",
     "lmqa-vectorstore",
     "pydantic>=2.12.0",
