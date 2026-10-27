@@ -1,0 +1,133 @@
+openapi: 3.1.0
+info:
+  title: LMQA Identity & Control Plane API
+  description: Onboarding, organization codes, governance, and workspace administration. Master §15.
+  version: 1.0.0
+
+servers:
+  - url: https://api.lmqa.local/v1
+    description: Production control plane
+
+paths:
+  /onboarding/join-tenant:
+    post:
+      summary: Submit Admin Code to join workspace
+      operationId: joinTenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - code
+              properties:
+                code:
+                  type: string
+      responses:
+        '200':
+          description: Code accepted, status pending or admitted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  membership_id:
+                    type: string
+                    format: uuid
+                  state:
+                    type: string
+
+  /workspace/tenants:
+    get:
+      summary: List workspace members
+      operationId: listWorkspaceTenants
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of tenants
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TenantSummary'
+
+  /governance-requests:
+    post:
+      summary: Create governance request (e.g. wall lift)
+      operationId: createGovernanceRequest
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GovernanceRequestPayload'
+      responses:
+        '201':
+          description: Request created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GovernanceRequestDetails'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    TenantSummary:
+      type: object
+      required:
+        - id
+        - user_id
+        - role
+        - state
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+        role:
+          type: string
+        state:
+          type: string
+
+    GovernanceRequestPayload:
+      type: object
+      required:
+        - kind
+        - reason
+      properties:
+        kind:
+          type: string
+        reason:
+          type: string
+        target_id:
+          type: string
+          format: uuid
+
+    GovernanceRequestDetails:
+      type: object
+      required:
+        - id
+        - kind
+        - state
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+        state:
+          type: string
+        created_at:
+          type: string
+          format: date-time

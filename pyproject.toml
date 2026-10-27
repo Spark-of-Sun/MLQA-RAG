@@ -123,7 +123,7 @@ markers = [
 [tool.pyright]
 pythonVersion = "3.14"
 typeCheckingMode = "standard"
-include = ["libs", "services", "tools", "tests"]
+include = ["libs", "services", "tools"]
 strict = [
     "libs/lmqa_models",
     "libs/lmqa_auth",

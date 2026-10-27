@@ -1,0 +1,295 @@
+openapi: 3.1.0
+info:
+  title: LMQA Gateway API
+  description: Data plane, streaming Q&A, and document management API. Master §15.
+  version: 1.0.0
+
+servers:
+  - url: https://api.lmqa.local/v1
+    description: Production gateway
+
+paths:
+  /health:
+    get:
+      summary: Service liveness probe
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /me:
+    get:
+      summary: Active principal and capabilities
+      operationId: getMe
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Resolved principal context
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrincipalResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /query:
+    post:
+      summary: Execute streamed citation-verified Q&A query
+      operationId: queryStream
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+      responses:
+        '200':
+          description: Server-Sent Events stream of verified propositions
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /documents:
+    get:
+      summary: List authorized workspace documents
+      operationId: listDocuments
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DocumentSummary'
+
+  /documents/uploads:
+    post:
+      summary: Initialize two-step document upload
+      operationId: initUpload
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadInitRequest'
+      responses:
+        '201':
+          description: Upload session initialized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadInitResponse'
+
+  /documents/{id}:
+    get:
+      summary: Get document metadata
+      operationId: getDocument
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Document details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentSummary'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      summary: Delete and cryptographically erase document
+      operationId: deleteDocument
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Document erased
+
+  /citations/{request_id}/{alias}:
+    get:
+      summary: Get source chunk provenance for citation tag
+      operationId: getCitation
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: request_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: alias
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Verified chunk evidence
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CitationProvenance'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    BadRequest:
+      description: Invalid query parameters or body
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    Unauthorized:
+      description: Authentication required
+    NotFound:
+      description: Resource not found or outside caller scope
+
+  schemas:
+    ProblemDetails:
+      type: object
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+
+    PrincipalResponse:
+      type: object
+      required:
+        - user_id
+        - role
+        - capabilities
+      properties:
+        user_id:
+          type: string
+        role:
+          type: string
+        capabilities:
+          type: array
+          items:
+            type: string
+
+    QueryRequest:
+      type: object
+      required:
+        - question
+      properties:
+        question:
+          type: string
+        matter_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    DocumentSummary:
+      type: object
+      required:
+        - id
+        - title
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        status:
+          type: string
+        confidentiality_tier:
+          type: string
+        chunks_count:
+          type: integer
+
+    UploadInitRequest:
+      type: object
+      required:
+        - title
+        - content_type
+      properties:
+        title:
+          type: string
+        content_type:
+          type: string
+        size_bytes:
+          type: integer
+
+    UploadInitResponse:
+      type: object
+      required:
+        - document_id
+        - upload_url
+      properties:
+        document_id:
+          type: string
+          format: uuid
+        upload_url:
+          type: string
+
+    CitationProvenance:
+      type: object
+      required:
+        - chunk_id
+        - doc_id
+        - confidence
+      properties:
+        chunk_id:
+          type: string
+          format: uuid
+        doc_id:
+          type: string
+          format: uuid
+        section_title:
+          type: string
+        page_range:
+          type: string
+        confidence:
+          type: number
+        highlight_span:
+          type: string

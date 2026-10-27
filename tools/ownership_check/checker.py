@@ -162,8 +162,8 @@ class OwnershipChecker:
         if not patch_path.exists():
             return False, [f"Patch file not found: {patch_path}"]
 
-        content = patch_path.read_text(encoding="utf-8", errors="replace")
-        if "\r\n" in content:
+        raw_bytes = patch_path.read_bytes()
+        if b"\r\n" in raw_bytes:
             return False, ["Patch contains CRLF line endings; LF required."]
 
         cmd = ["git", "apply", "--numstat", str(patch_path)]

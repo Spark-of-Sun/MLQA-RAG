@@ -57,6 +57,7 @@ node_modules/
 .nuxt/
 .turbo/
 .output/
+*.tsbuildinfo
 
 # Docker
 *.pid
