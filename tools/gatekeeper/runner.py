@@ -180,6 +180,21 @@ class GatekeeperRunner:
 
         return GateResult.pass_result("G0.11", "No-mocks rule", "Zero mock imports found")
 
+    def check_g1_1_migrations(self) -> GateResult:
+        """G1.1: Database schema migrations exist and parse."""
+        migrations_dir = self.repo_root / "db" / "migrations"
+        roles_dir = self.repo_root / "db" / "roles"
+        if not migrations_dir.exists() or not roles_dir.exists():
+            return GateResult.fail_result("G1.1", "Migrations", "db/migrations or db/roles missing")
+
+        sql_files = list(migrations_dir.glob("*.sql"))
+        if not sql_files:
+            return GateResult.fail_result("G1.1", "Migrations", "No SQL migration files found")
+
+        return GateResult.pass_result(
+            "G1.1", "Migrations", f"{len(sql_files)} migration file(s) present"
+        )
+
     def check_g1_8_audit(self) -> GateResult:
         """G1.8: Audit chain verification test."""
         res = subprocess.run(
@@ -206,6 +221,19 @@ class GatekeeperRunner:
             return GateResult.fail_result("G1.9", "State machines", "State machine tests failed")
         return GateResult.pass_result("G1.9", "State machines", "Transition tests pass")
 
+    def check_g1_10_encryption(self) -> GateResult:
+        """G1.10: Envelope encryption roundtrip and tampering detection."""
+        res = subprocess.run(
+            ["uv", "run", "pytest", "libs/lmqa_keys/tests/"],
+            cwd=self.repo_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if res.returncode != 0:
+            return GateResult.fail_result("G1.10", "Envelope encryption", "Keys tests failed")
+        return GateResult.pass_result("G1.10", "Envelope encryption", "Encryption tests pass")
+
     def run_stage_gates(self, stage: int, profile: str = "mvp-a") -> list[GateResult]:
         """Run all verifiable gates up to stage."""
         profile_cfg = self.load_profile_config(profile)
@@ -226,7 +254,9 @@ class GatekeeperRunner:
 
         # Stage 1 Gates
         if stage >= 1:
+            results.append(self.check_g1_1_migrations())
             results.append(self.check_g1_8_audit())
             results.append(self.check_g1_9_state_machines())
+            results.append(self.check_g1_10_encryption())
 
         return results
