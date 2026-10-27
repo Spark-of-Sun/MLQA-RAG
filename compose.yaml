@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:18.0-alpine@sha256:d9426f8ea9db278ffbc4b5b5c907a4a9a0ea6fbc6256f1846b4122e2a222383c
+    image: postgres:18.0-alpine@sha256:48c8ad3a7284b82be4482a52076d47d879fd6fb084a1cbfccbd551f9331b0e40
     environment:
       POSTGRES_DB: lmqa
       POSTGRES_USER: ${PG_USER:-lmqa_admin}
@@ -14,7 +14,7 @@ services:
       retries: 5
 
   pgbouncer:
-    image: edoburu/pgbouncer:v1.23.1@sha256:8b472e3a1f9a2e3199c0b115456cbbcfef6b940a44f9c0667e651bc724c96ad6
+    image: edoburu/pgbouncer:latest@sha256:8638aa563607256d3c7440437534195f1066a92b68015d89ae9d6b935b444a6d
     environment:
       DB_USER: ${PG_USER:-lmqa_admin}
       DB_PASSWORD: ${PG_PASSWORD:-lmqa_secret}
@@ -33,7 +33,7 @@ services:
       retries: 5
 
   valkey:
-    image: valkey/valkey:9.1.0-alpine@sha256:e0498b58a14ec13e9a5d3148ca5439cefa5c276b6d51c723f95b58ca4ce9450a
+    image: valkey/valkey:9.1.0-alpine@sha256:c9b77919daeba2c02ad954d0c844cc4e7142069d177b89c5fd771f405daf9e02
     command: ["valkey-server", "--requirepass", "${VALKEY_PASSWORD:-password}"]
     healthcheck:
       test: ["CMD-SHELL", "valkey-cli -a $${VALKEY_PASSWORD:-password} ping 2>/dev/null || valkey-cli ping"]
@@ -42,7 +42,7 @@ services:
       retries: 5
 
   qdrant:
-    image: qdrant/qdrant:v1.19.0@sha256:1f185ef345091a13e8d2e8b0e774591a26b2aa61a0b5cbe83995f5dfd2d79d95
+    image: qdrant/qdrant:v1.19.0@sha256:057ee3a8da769fe7310dd3537b4dc7583bf87a95ce8ac43c0af5a46bc580d1fc
     volumes:
       - qdrant_data:/qdrant/storage
     healthcheck:
@@ -52,7 +52,7 @@ services:
       retries: 5
 
   openbao:
-    image: openbao/openbao:2.1.0@sha256:c18b76df47e85c1387d8537b01851e44f7ba9c71ea00d80cbece2cbdf8f3e5b3
+    image: openbao/openbao:2.1.0@sha256:7de07aa6df3937d44c96c2d65c188b2d4a70546f2a764ad4510301305af6a223
     environment:
       BAO_DEV_ROOT_TOKEN_ID: ${OPENBAO_DEV_ROOT_TOKEN:-root}
       BAO_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
@@ -65,7 +65,7 @@ services:
       retries: 5
 
   clamav:
-    image: clamav/clamav:latest@sha256:0d6945a0b73c2a1188cf864388e2c0e819e917d2948bbca9574cf30e55724219
+    image: clamav/clamav:latest@sha256:bda39705e291105049c3936e2803ac90b955172af8030f94f05dce1252df6c6d
     healthcheck:
       test: ["CMD-SHELL", "clamdscan /dev/null || exit 1"]
       interval: 10s
