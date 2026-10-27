@@ -34,11 +34,7 @@ gate:
 	uv run python -m tools.gatekeeper.main --stage $(STAGE) --profile $(PROFILE)
 
 isolation:
-	@if [ ! -d "tests/isolation" ]; then \
-		echo "ERROR: tests/isolation suite is not yet implemented"; \
-		exit 1; \
-	fi
-	@echo "Running isolation suite..."
+	uv run pytest libs/lmqa_db/tests/test_rls_live.py libs/lmqa_vectorstore/tests/test_vectorstore.py services/retrieval/tests/test_retrieval.py tools/state_machine_gen/tests/test_state_machines.py libs/lmqa_audit/tests/test_chain.py -v
 
 load-corpus:
 	@if [ ! -d "tools/load_corpus" ] || [ ! -f "tools/load_corpus/main.py" ]; then \
@@ -66,4 +62,4 @@ precheck:
 	uv run lint-imports
 	uv run python -m tools.ownership_check --check-all
 	gitleaks detect --source . --no-banner
-	uv run pytest -m "stage0"
+	uv run pytest -v

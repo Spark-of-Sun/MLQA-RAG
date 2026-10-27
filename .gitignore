@@ -78,3 +78,5 @@ logs/*.log
 
 #secret 
 full_blueprint
+runbooks
+

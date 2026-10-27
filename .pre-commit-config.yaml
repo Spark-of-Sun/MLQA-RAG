@@ -3,3 +3,20 @@ repos:
     rev: v8.27.2
     hooks:
       - id: gitleaks
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: Ruff format check
+        entry: uv run ruff format --check .
+        language: system
+        pass_filenames: false
+      - id: ruff-lint
+        name: Ruff lint check
+        entry: uv run ruff check .
+        language: system
+        pass_filenames: false
+      - id: ownership-check
+        name: Ownership check
+        entry: uv run python -m tools.ownership_check --check-all
+        language: system
+        pass_filenames: false
