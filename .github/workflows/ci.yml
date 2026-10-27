@@ -51,6 +51,12 @@ jobs:
       - name: Sync dependencies
         run: uv sync --frozen
 
+      - name: Setup environment configuration
+        run: cp .env.example .env
+
+      - name: Apply database migrations
+        run: uv run python -m tools.migrate.main
+
       - name: Run environment doctor
         run: uv run python -m tools.doctor.main
 

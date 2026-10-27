@@ -111,9 +111,8 @@ class EnvironmentDoctor:
                     "File missing, copy from .env.example",
                 )
             )
-            return results
-
-        results.append(CheckResult("Configuration", ".env", "CONFIGURED", "Present"))
+        else:
+            results.append(CheckResult("Configuration", ".env", "CONFIGURED", "Present"))
 
         # Auth0
         auth0_domain = self._get_val("AUTH0_DOMAIN", "")
