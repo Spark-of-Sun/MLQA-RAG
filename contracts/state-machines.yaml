@@ -1,5 +1,5 @@
 # contracts/state-machines.yaml
-# Lifecycle State Machines
+# Lifecycle State Machines for MLQA-RAG System (Master System Design §6)
 
 document_lifecycle:
   initial: uploaded
@@ -29,4 +29,156 @@ document_lifecycle:
     rejected:
       final: true
     purged:
+      final: true
+
+membership_lifecycle:
+  initial: pending_approval
+  states:
+    pending_approval:
+      on:
+        approve: active
+        reject: rejected
+    active:
+      on:
+        suspend: suspended
+        remove: removed
+    suspended:
+      on:
+        reactivate: active
+        remove: removed
+    rejected:
+      final: true
+    removed:
+      final: true
+
+workspace_lifecycle:
+  initial: pending
+  states:
+    pending:
+      on:
+        approve: provisioning
+        reject: rejected
+    provisioning:
+      on:
+        provisioned: active
+    active:
+      on:
+        freeze: frozen
+    frozen:
+      on:
+        reactivate: active
+        seal: sealed
+    sealed:
+      on:
+        unseal: frozen
+        destroy: destroyed
+    rejected:
+      final: true
+    destroyed:
+      final: true
+
+organization_lifecycle:
+  initial: pending
+  states:
+    pending:
+      on:
+        approve: active
+        reject: rejected
+    active:
+      on:
+        freeze: frozen
+        request_delete: deletion_pending
+    frozen:
+      on:
+        release: active
+        request_delete: deletion_pending
+    deletion_pending:
+      on:
+        cancel: active
+        seal: sealed
+    sealed:
+      on:
+        restore: frozen
+        destroy: destroyed
+    rejected:
+      final: true
+    destroyed:
+      final: true
+
+join_code_lifecycle:
+  initial: active
+  states:
+    active:
+      on:
+        rotate: rotated
+        expire: expired
+        exhaust: exhausted
+        disable: disabled
+        revoke: revoked
+    rotated:
+      final: true
+    expired:
+      final: true
+    exhausted:
+      final: true
+    disabled:
+      on:
+        enable: active
+    revoked:
+      final: true
+
+governance_request_lifecycle:
+  initial: requested
+  states:
+    requested:
+      on:
+        approve: approved
+        reject: rejected
+        cancel: cancelled
+        expire: expired
+    approved:
+      on:
+        wait_started: waiting
+        cancel: cancelled
+        expire: expired
+    waiting:
+      on:
+        wait_elapsed: executable
+        cancel: cancelled
+    executable:
+      on:
+        execute: executed
+        fail: failed
+        expire: expired
+    executed:
+      final: true
+    rejected:
+      final: true
+    cancelled:
+      final: true
+    expired:
+      final: true
+    failed:
+      final: true
+
+access_session_lifecycle:
+  initial: requested
+  states:
+    requested:
+      on:
+        approve: active
+        deny: denied
+    active:
+      on:
+        expire: expired
+        revoke: revoked
+    expired:
+      on:
+        review: reviewed
+    revoked:
+      on:
+        review: reviewed
+    denied:
+      final: true
+    reviewed:
       final: true

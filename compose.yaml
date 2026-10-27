@@ -34,8 +34,9 @@ services:
 
   valkey:
     image: valkey/valkey:9.1.0-alpine@sha256:e0498b58a14ec13e9a5d3148ca5439cefa5c276b6d51c723f95b58ca4ce9450a
+    command: ["valkey-server", "--requirepass", "${VALKEY_PASSWORD:-password}"]
     healthcheck:
-      test: ["CMD", "valkey-cli", "ping"]
+      test: ["CMD-SHELL", "valkey-cli -a $${VALKEY_PASSWORD:-password} ping 2>/dev/null || valkey-cli ping"]
       interval: 5s
       timeout: 5s
       retries: 5
