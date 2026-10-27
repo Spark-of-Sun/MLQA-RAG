@@ -52,6 +52,12 @@ jobs:
       - name: Sync dependencies
         run: uv sync --frozen
 
+      - name: Setup environment configuration
+        run: cp .env.example .env
+
+      - name: Apply database migrations
+        run: uv run python -m tools.migrate.main
+
       - name: Evaluate Stage 0 Gates
         run: uv run python -m tools.gatekeeper.main --stage 0 --profile mvp-a
 
