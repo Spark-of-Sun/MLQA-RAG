@@ -3,12 +3,12 @@ services:
     image: postgres:18.0-alpine@sha256:48c8ad3a7284b82be4482a52076d47d879fd6fb084a1cbfccbd551f9331b0e40
     environment:
       POSTGRES_DB: lmqa
-      POSTGRES_USER: ${PG_USER:-lmqa_admin}
-      POSTGRES_PASSWORD: ${PG_PASSWORD:-lmqa_secret}
+      POSTGRES_USER: lmqa_admin
+      POSTGRES_PASSWORD: lmqa_secret
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-lmqa_admin}"]
+      test: ["CMD-SHELL", "pg_isready -U lmqa_admin"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -16,8 +16,8 @@ services:
   pgbouncer:
     image: edoburu/pgbouncer:latest@sha256:8638aa563607256d3c7440437534195f1066a92b68015d89ae9d6b935b444a6d
     environment:
-      DB_USER: ${PG_USER:-lmqa_admin}
-      DB_PASSWORD: ${PG_PASSWORD:-lmqa_secret}
+      DB_USER: lmqa_admin
+      DB_PASSWORD: lmqa_secret
       DB_HOST: postgres
       DB_NAME: lmqa
       LISTEN_PORT: 6432
