@@ -12,6 +12,13 @@ jobs:
   nightly-verification:
     name: Nightly Live Verification
     runs-on: ubuntu-latest
+    env:
+      PG_HOST: localhost
+      PG_PORT: 6432
+      PG_USER: lmqa_app
+      PG_DATABASE: lmqa
+      QDRANT_URL: http://localhost:6333
+      VALKEY_URL: redis://localhost:6379
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -45,9 +52,6 @@ jobs:
 
       - name: Sync dependencies
         run: uv sync --frozen
-
-      - name: Setup environment configuration
-        run: cp .env.example .env
 
       - name: Apply database migrations
         run: uv run python -m tools.migrate.main
