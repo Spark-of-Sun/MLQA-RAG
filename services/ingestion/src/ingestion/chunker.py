@@ -65,7 +65,7 @@ class StructuralChunker:
                     kind="preamble",
                 )
                 chunk = Chunk.create(
-                    chunk_id=uuid.uuid4(),
+                    chunk_id=uuid.uuid5(target.doc_id, f"chunk_{ordinal}"),
                     org_id=target.org_id,
                     workspace_id=target.workspace_id,
                     metadata=meta,
@@ -92,7 +92,7 @@ class StructuralChunker:
                 )
                 chunks.append(
                     Chunk.create(
-                        chunk_id=uuid.uuid4(),
+                        chunk_id=uuid.uuid5(target.doc_id, f"chunk_{ordinal}"),
                         org_id=target.org_id,
                         workspace_id=target.workspace_id,
                         metadata=meta,
@@ -113,7 +113,7 @@ class StructuralChunker:
             )
             chunks.append(
                 Chunk.create(
-                    chunk_id=uuid.uuid4(),
+                    chunk_id=uuid.uuid5(target.doc_id, f"chunk_{ordinal}"),
                     org_id=target.org_id,
                     workspace_id=target.workspace_id,
                     metadata=meta,
@@ -146,7 +146,7 @@ class StructuralChunker:
                 )
                 chunks.append(
                     Chunk.create(
-                        chunk_id=uuid.uuid4(),
+                        chunk_id=uuid.uuid5(target.doc_id, f"chunk_{ordinal}"),
                         org_id=target.org_id,
                         workspace_id=target.workspace_id,
                         metadata=meta,

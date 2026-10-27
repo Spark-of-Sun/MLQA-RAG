@@ -99,10 +99,11 @@ convention = "google"
 "psycopg.connect".msg = "use lmqa_db scoped session"
 
 [tool.ruff.lint.per-file-ignores]
-"**/tests/**" = ["S101", "PLR2004", "ANN", "D", "S105", "S106"]
+"**/tests/**" = ["S101", "PLR2004", "ANN", "D", "S105", "S106", "ASYNC240"]
 "db/migrations/**" = ["E501", "D"]
 "libs/lmqa_db/**" = ["TID251"]
-"tools/**" = ["T201", "S603", "S607"]
+"tools/**" = ["T201", "S603", "S607", "ASYNC240"]
+"eval/**" = ["T201", "S603", "S607", "ASYNC240", "PLR0912", "PLR0915", "C901", "PLR2004"]
 
 [tool.pytest.ini_options]
 minversion = "9.1"

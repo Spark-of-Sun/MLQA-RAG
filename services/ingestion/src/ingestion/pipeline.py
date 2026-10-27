@@ -144,13 +144,16 @@ class IngestionPipeline:
                 """
                 INSERT INTO documents (id, org_id, workspace_id, title, status)
                 VALUES ($1, $2, $3, $4, 'chunking')
-                ON CONFLICT (id) DO UPDATE SET status = 'chunking'
+                ON CONFLICT (id) DO UPDATE SET status = 'chunking', title = EXCLUDED.title
                 """,
                 target.doc_id,
                 target.org_id,
                 target.workspace_id,
                 target.title,
             )
+
+            # Clear any existing chunks for this document for idempotent re-processing
+            await conn.execute("DELETE FROM document_chunks WHERE doc_id = $1", target.doc_id)
 
             # Insert chunks
             for ch in chunks:
@@ -181,6 +184,13 @@ class IngestionPipeline:
 
         # 7. Vector indexation
         await self.vector_store.ensure_collection(self.config.qdrant_collection, vector_size=384)
+        await self.vector_store.delete_document(
+            self.config.qdrant_collection,
+            org_id=target.org_id,
+            workspace_id=target.workspace_id,
+            doc_id=target.doc_id,
+        )
+
         vector_points: list[VectorPoint] = []
         for ch in chunks:
             embedding = compute_deterministic_embedding(ch.text, dim=384)
@@ -197,6 +207,8 @@ class IngestionPipeline:
                     "title": ch.metadata.title,
                     "page": ch.metadata.page,
                     "section": ch.metadata.section,
+                    "content_hash": ch.content_hash,
+                    "text": ch.text,
                 },
             )
             vector_points.append(pt)

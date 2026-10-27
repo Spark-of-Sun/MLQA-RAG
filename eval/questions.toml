@@ -1,0 +1,357 @@
+# eval/questions.toml — 50 Legal Evaluation Questions per SCOPE_CUTS_M1a.md (Profile mvp-a)
+# 40 Answerable Questions targeting the 25 legal contracts
+# 10 Unanswerable Questions evaluating canonical refusal behavior
+
+# --- 40 Answerable Questions ---
+
+[[questions]]
+id = "Q01"
+type = "answerable"
+domain = "legal"
+query = "What is the distributor agreement scope in Lime Energy?"
+keywords = ["distributor", "agreement", "scope", "Lime Energy"]
+
+[[questions]]
+id = "Q02"
+type = "answerable"
+domain = "legal"
+query = "What are the promotional and distribution commitments in WhiteSmoke?"
+keywords = ["promotion", "distribution", "WhiteSmoke"]
+
+[[questions]]
+id = "Q03"
+type = "answerable"
+domain = "legal"
+query = "What are the supply and purchase obligations in Loha Company agreement?"
+keywords = ["supply", "purchase", "Loha"]
+
+[[questions]]
+id = "Q04"
+type = "answerable"
+domain = "legal"
+query = "What website hosting and linking terms are defined in Centrack International?"
+keywords = ["website", "linking", "Centrack"]
+
+[[questions]]
+id = "Q05"
+type = "answerable"
+domain = "legal"
+query = "What is the joint filing arrangement in Nelnet Inc?"
+keywords = ["joint", "filing", "Nelnet"]
+
+[[questions]]
+id = "Q06"
+type = "answerable"
+domain = "legal"
+query = "What endorsement and sponsorship obligations exist in Adams Golf?"
+keywords = ["endorsement", "Adams Golf", "sponsorship"]
+
+[[questions]]
+id = "Q07"
+type = "answerable"
+domain = "legal"
+query = "What consulting services and advisory duties are outlined in Kiromic Biopharma?"
+keywords = ["consulting", "services", "Kiromic"]
+
+[[questions]]
+id = "Q08"
+type = "answerable"
+domain = "legal"
+query = "What are the governance and equity terms in Veoneer joint venture?"
+keywords = ["joint venture", "governance", "Veoneer"]
+
+[[questions]]
+id = "Q09"
+type = "answerable"
+domain = "legal"
+query = "What commercialization terms are established in Dova Pharmaceuticals agreement?"
+keywords = ["commercialization", "Dova Pharmaceuticals"]
+
+[[questions]]
+id = "Q10"
+type = "answerable"
+domain = "legal"
+query = "What strategic license grants and intellectual property rights exist in Pacira?"
+keywords = ["license", "grant", "Pacira", "intellectual property"]
+
+[[questions]]
+id = "Q11"
+type = "answerable"
+domain = "legal"
+query = "What remarketing rights and marketing fees are defined in MetLife?"
+keywords = ["remarketing", "MetLife", "marketing fees"]
+
+[[questions]]
+id = "Q12"
+type = "answerable"
+domain = "legal"
+query = "What strategic alliance objectives are stated in FTE Networks?"
+keywords = ["strategic alliance", "FTE Networks"]
+
+[[questions]]
+id = "Q13"
+type = "answerable"
+domain = "legal"
+query = "What sponsorship commitments exist in Domini Advisor Trust?"
+keywords = ["sponsorship", "Domini Advisor Trust"]
+
+[[questions]]
+id = "Q14"
+type = "answerable"
+domain = "legal"
+query = "What hospitality and restaurant management duties are in PF Hospitality Group?"
+keywords = ["hospitality", "management", "PF Hospitality"]
+
+[[questions]]
+id = "Q15"
+type = "answerable"
+domain = "legal"
+query = "What intellectual property assignments and patent licenses exist in Cerence?"
+keywords = ["intellectual property", "patent", "Cerence"]
+
+[[questions]]
+id = "Q16"
+type = "answerable"
+domain = "legal"
+query = "What insurance distribution requirements are in Thrivent Variable Insurance?"
+keywords = ["insurance", "distribution", "Thrivent"]
+
+[[questions]]
+id = "Q17"
+type = "answerable"
+domain = "legal"
+query = "What consumer product manufacturing covenants exist in Reynolds Consumer Products?"
+keywords = ["manufacturing", "covenants", "Reynolds Consumer Products"]
+
+[[questions]]
+id = "Q18"
+type = "answerable"
+domain = "legal"
+query = "What underwriting and distribution terms are outlined in Integrity Funds?"
+keywords = ["underwriting", "Integrity Funds"]
+
+[[questions]]
+id = "Q19"
+type = "answerable"
+domain = "legal"
+query = "What technology licensing provisions are established in Premier Biomedical?"
+keywords = ["technology", "licensing", "Premier Biomedical"]
+
+[[questions]]
+id = "Q20"
+type = "answerable"
+domain = "legal"
+query = "What strategic alliance terms are agreed in Sibannac Inc?"
+keywords = ["alliance", "Sibannac"]
+
+[[questions]]
+id = "Q21"
+type = "answerable"
+domain = "legal"
+query = "What hearing health technology alliance terms are in IntriCon Corp?"
+keywords = ["technology", "alliance", "IntriCon"]
+
+[[questions]]
+id = "Q22"
+type = "answerable"
+domain = "legal"
+query = "What agency agreement terms and retail responsibilities exist in Bon-Ton Stores?"
+keywords = ["agency", "retail", "Bon-Ton Stores"]
+
+[[questions]]
+id = "Q23"
+type = "answerable"
+domain = "legal"
+query = "What software support and maintenance levels are defined in On2 Technologies?"
+keywords = ["support", "maintenance", "On2 Technologies"]
+
+[[questions]]
+id = "Q24"
+type = "answerable"
+domain = "legal"
+query = "What hosting and service covenants are established in FreeCook?"
+keywords = ["hosting", "service", "FreeCook"]
+
+[[questions]]
+id = "Q25"
+type = "answerable"
+domain = "legal"
+query = "What browser service agreement provisions are set in Opera Ltd?"
+keywords = ["browser", "service", "Opera Ltd"]
+
+[[questions]]
+id = "Q26"
+type = "answerable"
+domain = "legal"
+query = "What confidentiality and non-disclosure protections are included across contracts?"
+keywords = ["confidentiality", "non-disclosure"]
+
+[[questions]]
+id = "Q27"
+type = "answerable"
+domain = "legal"
+query = "What governing law and choice of forum provisions govern dispute resolution?"
+keywords = ["governing law", "jurisdiction", "dispute"]
+
+[[questions]]
+id = "Q28"
+type = "answerable"
+domain = "legal"
+query = "What termination for cause and default remedies are provided in commercial agreements?"
+keywords = ["termination", "cause", "default", "remedies"]
+
+[[questions]]
+id = "Q29"
+type = "answerable"
+domain = "legal"
+query = "What assignment restrictions and change of control consents are required?"
+keywords = ["assignment", "consent", "change of control"]
+
+[[questions]]
+id = "Q30"
+type = "answerable"
+domain = "legal"
+query = "What indemnification covenants protect parties against third-party claims?"
+keywords = ["indemnification", "third-party", "claims"]
+
+[[questions]]
+id = "Q31"
+type = "answerable"
+domain = "legal"
+query = "What limitation of liability and consequential damage waivers apply?"
+keywords = ["limitation of liability", "consequential damages"]
+
+[[questions]]
+id = "Q32"
+type = "answerable"
+domain = "legal"
+query = "What audit rights and financial record inspection procedures are mandated?"
+keywords = ["audit", "inspection", "records"]
+
+[[questions]]
+id = "Q33"
+type = "answerable"
+domain = "legal"
+query = "What force majeure events excuse performance obligations?"
+keywords = ["force majeure", "excuse", "performance"]
+
+[[questions]]
+id = "Q34"
+type = "answerable"
+domain = "legal"
+query = "What payment terms and invoicing schedules are required for service fees?"
+keywords = ["payment", "invoicing", "fees"]
+
+[[questions]]
+id = "Q35"
+type = "answerable"
+domain = "legal"
+query = "What representations and warranties regarding corporate authority are made?"
+keywords = ["representations", "warranties", "authority"]
+
+[[questions]]
+id = "Q36"
+type = "answerable"
+domain = "legal"
+query = "What notice delivery methods and address requirements are specified?"
+keywords = ["notice", "delivery", "address"]
+
+[[questions]]
+id = "Q37"
+type = "answerable"
+domain = "legal"
+query = "What severability rules apply if a contractual provision is held invalid?"
+keywords = ["severability", "invalid"]
+
+[[questions]]
+id = "Q38"
+type = "answerable"
+domain = "legal"
+query = "What entire agreement and integration clauses prevent prior oral agreements?"
+keywords = ["entire agreement", "integration"]
+
+[[questions]]
+id = "Q39"
+type = "answerable"
+domain = "legal"
+query = "What waiver rules state that failure to enforce does not waive future rights?"
+keywords = ["waiver", "enforce", "rights"]
+
+[[questions]]
+id = "Q40"
+type = "answerable"
+domain = "legal"
+query = "What execution in counterparts terms permit separate signed signature pages?"
+keywords = ["counterparts", "signatures"]
+
+# --- 10 Unanswerable Questions (Mandatory Canonical Refusal) ---
+
+[[questions]]
+id = "Q41"
+type = "unanswerable"
+domain = "legal"
+query = "What is the recommended dosage of amoxicillin for pediatric bacterial infections?"
+keywords = ["amoxicillin", "dosage", "pediatric"]
+
+[[questions]]
+id = "Q42"
+type = "unanswerable"
+domain = "legal"
+query = "What are the postoperative recovery protocols following coronary artery bypass graft surgery?"
+keywords = ["postoperative", "coronary", "bypass"]
+
+[[questions]]
+id = "Q43"
+type = "unanswerable"
+domain = "legal"
+query = "What are the clinical staging criteria for non-small cell lung carcinoma?"
+keywords = ["staging", "carcinoma", "lung"]
+
+[[questions]]
+id = "Q44"
+type = "unanswerable"
+domain = "legal"
+query = "What is the capital city of Australia?"
+keywords = ["capital", "Australia"]
+
+[[questions]]
+id = "Q45"
+type = "unanswerable"
+domain = "legal"
+query = "How do quantum entanglement effects manifest in superconducting qubits?"
+keywords = ["quantum", "entanglement", "qubits"]
+
+[[questions]]
+id = "Q46"
+type = "unanswerable"
+domain = "legal"
+query = "What are the dietary guidelines for managing Type 2 diabetes mellitus?"
+keywords = ["dietary", "diabetes", "insulin"]
+
+[[questions]]
+id = "Q47"
+type = "unanswerable"
+domain = "legal"
+query = "What is the average surface temperature of Jupiter's moon Europa?"
+keywords = ["temperature", "Jupiter", "Europa"]
+
+[[questions]]
+id = "Q48"
+type = "unanswerable"
+domain = "legal"
+query = "What are the standard emergency guidelines for adult cardiopulmonary resuscitation?"
+keywords = ["CPR", "resuscitation", "cardiopulmonary"]
+
+[[questions]]
+id = "Q49"
+type = "unanswerable"
+domain = "legal"
+query = "What was the final score of the 1998 FIFA World Cup final?"
+keywords = ["score", "World Cup", "1998"]
+
+[[questions]]
+id = "Q50"
+type = "unanswerable"
+domain = "legal"
+query = "How does mRNA vaccine technology elicit spike protein antigen presentation?"
+keywords = ["mRNA", "vaccine", "antigen"]
