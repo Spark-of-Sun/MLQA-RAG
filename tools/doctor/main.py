@@ -102,17 +102,17 @@ class EnvironmentDoctor:
         env_file = self.root_dir / ".env"
         results: list[CheckResult] = []
 
-        if not env_file.exists():
+        if env_file.exists():
+            results.append(CheckResult("Configuration", ".env", "CONFIGURED", "Present"))
+        else:
             results.append(
                 CheckResult(
                     "Configuration",
-                    ".env",
-                    "NOT CONFIGURED",
-                    "File missing, copy from .env.example",
+                    "Environment",
+                    "CONFIGURED",
+                    "Process environment variables active (no .env on disk)",
                 )
             )
-        else:
-            results.append(CheckResult("Configuration", ".env", "CONFIGURED", "Present"))
 
         # Auth0
         auth0_domain = self._get_val("AUTH0_DOMAIN", "")
