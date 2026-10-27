@@ -3,7 +3,10 @@ name = "lmqa_keys"
 version = "0.1.0"
 description = "lmqa_keys package"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "httpx>=0.28.1",
+    "azure-identity>=1.27.0",
+]
 
 [build-system]
 requires = ["hatchling"]

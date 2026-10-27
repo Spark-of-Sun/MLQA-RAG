@@ -15,7 +15,7 @@ services/gateway/                   @daniel
 services/identity/                  @daniel
 services/ops/                       @daniel
 libs/lmqa_security/                 @daniel
-infra/aws/                          @daniel
+infra/azure/                        @daniel
 
 # Ganpati (Platform, Ingestion, Retrieval, Validation, Testing, Pipeline)
 *                                   @ganpati @Spark-of-Sun

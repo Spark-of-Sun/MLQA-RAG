@@ -3,7 +3,7 @@
 ## Non-Negotiables
 
 - PostgreSQL Row-Level Security (RLS) is the final authority.
-- Every tenant and document key is protected via AWS KMS / OpenBao envelope encryption.
+- Every tenant and document key is protected via Azure Key Vault / OpenBao envelope encryption.
 - Sentence-gated release: answers require citation verification by `citation_validator` before delivery.
 - Secret scanning via `gitleaks` is enforced on every commit.
 

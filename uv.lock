@@ -493,11 +493,29 @@ wheels = [
 name = "gateway"
 version = "0.1.0"
 source = { editable = "services/gateway" }
+dependencies = [
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pydantic", specifier = ">=2.12.0" }]
 
 [[package]]
 name = "generation"
 version = "0.1.0"
 source = { editable = "services/generation" }
+dependencies = [
+    { name = "httpx" },
+    { name = "lmqa-models" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "lmqa-models", editable = "libs/lmqa_models" },
+    { name = "pydantic", specifier = ">=2.12.0" },
+]
 
 [[package]]
 name = "greenlet"
@@ -637,6 +655,12 @@ wheels = [
 name = "identity"
 version = "0.1.0"
 source = { editable = "services/identity" }
+dependencies = [
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pydantic", specifier = ">=2.12.0" }]
 
 [[package]]
 name = "idna"
@@ -823,6 +847,16 @@ requires-dist = [
 name = "lmqa-keys"
 version = "0.1.0"
 source = { editable = "libs/lmqa_keys" }
+dependencies = [
+    { name = "azure-identity" },
+    { name = "httpx" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "azure-identity", specifier = ">=1.27.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
+]
 
 [[package]]
 name = "lmqa-logging"
@@ -1342,6 +1376,18 @@ wheels = [
 name = "retrieval"
 version = "0.1.0"
 source = { editable = "services/retrieval" }
+dependencies = [
+    { name = "lmqa-models" },
+    { name = "lmqa-vectorstore" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "lmqa-models", editable = "libs/lmqa_models" },
+    { name = "lmqa-vectorstore", editable = "libs/lmqa_vectorstore" },
+    { name = "pydantic", specifier = ">=2.12.0" },
+]
 
 [[package]]
 name = "rich"

@@ -10,7 +10,7 @@
 | Node.js | 26.12.1 | Active Node LTS / environment |
 | pnpm | 12.15.0 | Pinned frontend package manager |
 | OpenTofu | 1.9.0 | Infrastructure as code |
-| AWS CLI | 2.38.5 | Official AWS CLI v2 |
+| Azure CLI | 2.60.0+ | Official Azure CLI (`az`) |
 | gitleaks | 8.27.2 | Secret scanner |
 | pre-commit | 4.7.0 | Hook runner |
 | pip-audit | 2.10.1 | Python dependency vulnerability scanner |
@@ -39,4 +39,4 @@ Pinned minimal container images with sha256 digests:
 | OpenBao | `openbao/openbao:2.1.0` | `sha256:7de07aa6df3937d44c96c2d65c188b2d4a70546f2a764ad4510301305af6a223` |
 | ClamAV | `clamav/clamav:latest` | `sha256:bda39705e291105049c3936e2803ac90b955172af8030f94f05dce1252df6c6d` |
 
-Note: SeaweedFS is omitted in profile `mvp-a` per cut C4 (DR-16); Object Storage is configured with Azure Blob Storage per .env.example (or real AWS S3 per legacy DR-16).
+Note: SeaweedFS is omitted in profile `mvp-a` per cut C4 (DR-16); Object Storage is configured with Azure Blob Storage per .env.example. Key Management utilizes Azure Key Vault for cloud master key envelope encryption and OpenBao locally for immediate shredding drills.

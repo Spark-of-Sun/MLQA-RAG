@@ -7,7 +7,7 @@ The system is a multi-tenant legal and medical document question-answering platf
 
 Current Release Target: **M1a** (first working cut), Profile: `mvp-a`.
 - Legal documents only (medical domain deferred per DR-14)
-- Object storage configured with Azure Blob Storage per .env.example reference (or AWS S3 per legacy DR-16)
+- Object storage configured with Azure Blob Storage per .env.example reference
 - OCR quarantine flow deferred (DR-15)
 - Three critical alerts active (DR-17)
 - 100 live queries (DR-18)
@@ -16,7 +16,7 @@ Current Release Target: **M1a** (first working cut), Profile: `mvp-a`.
 ## Architecture Principles & Non-Negotiables
 
 1. **PostgreSQL Row-Level Security (RLS)** is the ultimate data isolation barrier.
-2. **Key Hierarchy**: Envelope encryption with tenant-level and document-level keys managed via AWS KMS / OpenBao.
+2. **Key Hierarchy**: Envelope encryption with tenant-level and document-level keys managed via Azure Key Vault / OpenBao.
 3. **Sentence-Gated Release**: Answers pass through `citation_validator` with strict NLI entailment before any sentence is displayed to users.
 4. **Append-Only Audit**: Cryptographically hash-chained audit trail with periodic external anchors.
 5. **Real Systems Only**: No mocks or fake data in test or execution paths. Negative controls are labeled instruments.

@@ -5,7 +5,7 @@ from __future__ import annotations
 import httpx
 import pytest
 from ops.api import app
-from ops.probes import check_database, check_storage
+from ops.probes import check_database, check_qdrant, check_storage, check_valkey
 
 
 @pytest.mark.stage0
@@ -54,3 +54,23 @@ async def test_database_probe_live() -> None:
     ok, msg = await check_database()
     assert ok is True
     assert "healthy" in msg
+
+
+@pytest.mark.stage0
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_valkey_probe_live() -> None:
+    """Test Valkey probe with password authentication against running container."""
+    ok, msg = await check_valkey()
+    assert ok is True
+    assert "healthy" in msg
+
+
+@pytest.mark.stage0
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_qdrant_probe_live() -> None:
+    """Test Qdrant probe against running vector database container."""
+    ok, msg = await check_qdrant()
+    assert ok is True
+    assert "Qdrant" in msg
