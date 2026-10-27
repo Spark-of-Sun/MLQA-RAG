@@ -3,7 +3,10 @@ name = "lmqa_db"
 version = "0.1.0"
 description = "lmqa_db package"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "asyncpg>=0.30.0",
+    "sqlalchemy[asyncio]>=2.0.36",
+]
 
 [build-system]
 requires = ["hatchling"]

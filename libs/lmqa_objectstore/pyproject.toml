@@ -3,7 +3,10 @@ name = "lmqa_objectstore"
 version = "0.1.0"
 description = "lmqa_objectstore package"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "azure-identity>=1.27.0",
+    "azure-storage-blob>=12.31.0",
+]
 
 [build-system]
 requires = ["hatchling"]

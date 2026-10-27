@@ -12,9 +12,6 @@ Status: **RESTRUCTURED (Daniel Reyes + Ganpati).** The project has transitioned 
 
 Also acts as: security lead hat (reviews high-risk paths with REVIEW comments).
 
-- `services/gateway/`
-- `services/identity/`
-- `services/ops/`
 - `libs/lmqa_auth/`
 - `libs/lmqa_keys/`
 - `libs/lmqa_security/`
@@ -22,9 +19,6 @@ Also acts as: security lead hat (reviews high-risk paths with REVIEW comments).
 - `infra/aws/`
 - `infra/keyguard/`
 - `tools/auth_harness/`
-- `contracts/openapi/gateway.yaml`
-- `contracts/openapi/identity.yaml`
-- `contracts/openapi/ops.yaml`
 - `contracts/authz-matrix.yaml`
 - `contracts/claims/`
 - `contracts/events/token_*`  (files starting with this prefix)
@@ -32,7 +26,14 @@ Also acts as: security lead hat (reviews high-risk paths with REVIEW comments).
 
 ## Ganpati, Project Lead and Platform Engineer
 
-Also acts as: tech lead, data steward, QA lead, and release manager (driving M1a MVP delivery across platform, ingestion, retrieval, validation, testing, and pipeline).
+Also acts as: tech lead, data steward, QA lead, and release manager (driving M1a MVP delivery across platform, gateway, identity, ops, ingestion, retrieval, validation, testing, and pipeline per coordinator directive).
+
+- `services/gateway/`
+- `services/identity/`
+- `services/ops/`
+- `contracts/openapi/gateway.yaml`
+- `contracts/openapi/identity.yaml`
+- `contracts/openapi/ops.yaml`
 
 - `pyproject.toml`
 - `uv.lock`

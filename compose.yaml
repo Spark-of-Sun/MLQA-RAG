@@ -20,6 +20,8 @@ services:
       DB_PASSWORD: ${PG_PASSWORD:-lmqa_secret}
       DB_HOST: postgres
       DB_NAME: lmqa
+      LISTEN_PORT: 6432
+      AUTH_TYPE: scram-sha-256
       POOL_MODE: transaction
       MAX_CLIENT_CONN: 1000
       DEFAULT_POOL_SIZE: 20

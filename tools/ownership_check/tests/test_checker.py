@@ -22,7 +22,7 @@ def test_find_owner_core_paths() -> None:
     checker = OwnershipChecker()
     assert checker.find_owner("stages.toml") == "ganpati"
     assert checker.find_owner("db/migrations/env.py") == "ganpati"
-    assert checker.find_owner("services/gateway/main.py") == "daniel"
+    assert checker.find_owner("contracts/authz-matrix.yaml") == "daniel"
     assert checker.find_owner("corpus/manifest.toml") == "ganpati"
     assert checker.find_owner("eval/floors.toml") == "ganpati"
     assert checker.find_owner("frontend/package.json") == "ganpati"
@@ -36,8 +36,8 @@ def test_find_owner_core_paths() -> None:
 def test_check_file_ownership() -> None:
     checker = OwnershipChecker()
     assert checker.check_file_ownership("stages.toml", "ganpati")
-    assert not checker.check_file_ownership("services/gateway/main.py", "ganpati")
-    assert checker.check_file_ownership("services/gateway/main.py", "daniel")
+    assert not checker.check_file_ownership("contracts/authz-matrix.yaml", "ganpati")
+    assert checker.check_file_ownership("contracts/authz-matrix.yaml", "daniel")
     assert checker.check_file_ownership("logs/daniel_progress.md", "daniel")
     assert checker.check_file_ownership("status/SHARED_STATUS.md", "daniel")
     assert checker.check_file_ownership("status/SHARED_STATUS.md", "ganpati")
