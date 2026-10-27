@@ -7,6 +7,7 @@ Evaluates stage gates for specified profile (mvp-a) and stage level.
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
 import tomllib
 from dataclasses import dataclass
@@ -115,16 +116,25 @@ class GatekeeperRunner:
 
     def check_g0_6_secrets(self) -> GateResult:
         """G0.6: Gitleaks secrets hygiene."""
-        res = subprocess.run(
-            ["gitleaks", "detect", "--source", ".", "--no-banner"],
-            cwd=self.repo_root,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if res.returncode != 0:
-            return GateResult.fail_result("G0.6", "Secrets hygiene", "Leaks detected")
-        return GateResult.pass_result("G0.6", "Secrets hygiene", "No secrets detected")
+        gitleaks_bin = shutil.which("gitleaks")
+        if not gitleaks_bin:
+            return GateResult.fail_result(
+                "G0.6", "Secrets hygiene", "gitleaks binary not found in PATH"
+            )
+
+        try:
+            res = subprocess.run(
+                [gitleaks_bin, "detect", "--source", ".", "--no-banner"],
+                cwd=self.repo_root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if res.returncode != 0:
+                return GateResult.fail_result("G0.6", "Secrets hygiene", "Leaks detected")
+            return GateResult.pass_result("G0.6", "Secrets hygiene", "No secrets detected")
+        except OSError as e:
+            return GateResult.fail_result("G0.6", "Secrets hygiene", f"Failed to run gitleaks: {e}")
 
     def check_g0_8_corpus(self, min_legal_docs: int = 35) -> GateResult:
         """G0.8: Corpus manifest registration and counts."""
