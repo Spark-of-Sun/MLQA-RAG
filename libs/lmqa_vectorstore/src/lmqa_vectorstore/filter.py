@@ -1,4 +1,4 @@
-"""Vector filtering and payload isolation (Owned by Lucas Weber)."""
+"""Vector filtering and payload isolation."""
 
 from __future__ import annotations
 

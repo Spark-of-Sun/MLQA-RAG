@@ -32,11 +32,8 @@ class OwnershipChecker:
     """Parses and validates file ownership per OWNERSHIP.md."""
 
     TEAM_HANDLES: ClassVar[dict[str, str]] = {
-        "maya": "Maya Okafor",
         "daniel": "Daniel Reyes",
-        "priya": "Priya Nair",
-        "lucas": "Lucas Weber",
-        "hana": "Hana Sato",
+        "ganpati": "Ganpati",
         "coordinator": "Coordinator",
     }
 
@@ -121,11 +118,11 @@ class OwnershipChecker:
         if norm_path == f"logs/{owner}_progress.md" or norm_path in self.SHARED_ALLOWED:
             return True
 
-        if owner == "pipeline":
+        if owner in ("pipeline", "agent", "ganpati"):
             return any(
                 norm_path.startswith(p) if p.endswith("/") else norm_path == p
                 for p in self.PIPELINE_PATHS
-            )
+            ) or any(self.matches_rule(norm_path, rule) for rule in self.owners.get("ganpati", []))
 
         rules = self.owners.get(owner, [])
         return any(self.matches_rule(norm_path, rule) for rule in rules)
@@ -142,15 +139,14 @@ class OwnershipChecker:
         norm_path = path_str.replace("\\", "/").lstrip("/")
         if norm_path in self.SHARED_ALLOWED:
             return "shared"
+        for owner, rules in self.owners.items():
+            if any(self.matches_rule(norm_path, rule) for rule in rules):
+                return owner
         if any(
             norm_path.startswith(p) if p.endswith("/") else norm_path == p
             for p in self.PIPELINE_PATHS
         ):
-            return "pipeline"
-
-        for owner, rules in self.owners.items():
-            if any(self.matches_rule(norm_path, rule) for rule in rules):
-                return owner
+            return "ganpati"
         return None
 
     def check_patch(self, patch_path: Path, expected_owner: str) -> tuple[bool, list[str]]:

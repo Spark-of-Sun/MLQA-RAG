@@ -1,37 +1,21 @@
 # SHARED STATUS
 
-The only file every developer may write outside their own paths. Each developer edits only their own `### <Name>: Latest update` block. Anyone may append comments under `#### Comments on <Name>'s latest update`. Never edit or delete another developer's text. Commit this file alone, pull with rebase first, push immediately.
+Shared collaboration and status tracking file for Daniel Reyes and Ganpati.
+Each collaborator edits only their own `### <Name>: Latest update` block. Anyone may append comments under `#### Comments on <Name>'s latest update`. Never edit or delete another collaborator's text.
 
 Comment format:
 
 ```
 - [YYYY-MM-DD HH:MM UTC] <from> -> <to> | TYPE | ref: <commit sha or log date>
-  e.g. daniel -> maya | DEBT | ref: abc1234
+  e.g. daniel -> ganpati | DEBT | ref: abc1234
   text (max 6 lines)
 ```
 
 TYPE: `INFO`, `QUESTION`, `REVIEW`, `DEPENDENCY`, `BLOCKER`, `DEBT`, `COORDINATOR`, `RESOLVED`.
 
-Current phase: _(coordinator or Maya fills in: P0 to P6, `STAGE` value, date)_
+Current phase: P0 Foundation, `STAGE` value: 0, profile: `mvp-a`
 
 ---
-
-## Maya Okafor, Platform and Data Engineer
-
-### Maya: Latest update
-
-- **Date and session:** not started
-- **Phase and gate worked on:** none
-- **Completed:** none
-- **Files changed:** none
-- **Verification:** none run
-- **Blocked by:** none
-- **Next session:** not set
-- **Log:** `logs/maya_progress.md`
-
-#### Comments on Maya's latest update
-
-_(no comments yet)_
 
 ## Daniel Reyes, Identity, Gateway and Key Security Engineer
 
@@ -50,72 +34,24 @@ _(no comments yet)_
 
 _(no comments yet)_
 
-## Priya Nair, Ingestion and Corpus Engineer
+---
 
-### Priya: Latest update
+## Release Pipeline and Engineering (Ganpati)
 
-- **Date and session:** not started
-- **Phase and gate worked on:** none
-- **Completed:** none
-- **Files changed:** none
-- **Verification:** none run
-- **Blocked by:** none
-- **Next session:** not set
-- **Log:** `logs/priya_progress.md`
-
-#### Comments on Priya's latest update
-
-_(no comments yet)_
-
-## Lucas Weber, Retrieval and Validation Engineer
-
-### Lucas: Latest update
-
-- **Date and session:** not started
-- **Phase and gate worked on:** none
-- **Completed:** none
-- **Files changed:** none
-- **Verification:** none run
-- **Blocked by:** none
-- **Next session:** not set
-- **Log:** `logs/lucas_progress.md`
-
-#### Comments on Lucas's latest update
-
-_(no comments yet)_
-
-## Hana Sato, Frontend and Verification Engineer
-
-### Hana: Latest update
-
-- **Date and session:** not started
-- **Phase and gate worked on:** none
-- **Completed:** none
-- **Files changed:** none
-- **Verification:** none run
-- **Blocked by:** none
-- **Next session:** not set
-- **Log:** `logs/hana_progress.md`
-
-#### Comments on Hana's latest update
-
-_(no comments yet)_
-
-
-## Release Pipeline and Automation
-
-### Pipeline: Latest update
-- [2026-10-26 09:45 UTC] main head: 7ba9f90 | STAGE: 0 | profile: mvp-a
+### Ganpati: Latest update
+- [2026-10-27 03:37 UTC] main head: 0772671 | STAGE: 0 | profile: mvp-a
 - Pipeline: CI green on main (run 40275801115), Security green on main (run 40275801114)
-- Patches since last update: applied 6 (stages_profiles, hygiene, compose_ports_healthchecks, pydantic_runtime_fix, ownership_check_tool, rag_stages, rag_models), returned 0, held 0
+- Team status: Team restructured to Daniel Reyes (Security Lead) and Ganpati (Lead Developer & Release Engineer).
 - Open comments: DEPENDENCY 0, BLOCKER 0, DEBT 0, QUESTION 0, COORDINATOR 0
 - Environment: Docker, git, gh, python 3.14, uv, node 26, pnpm, opentofu, aws-cli, gitleaks, pre-commit, pip-audit, trivy, cosign configured; .env present
 
-Welcome to the MLQA-RAG project! The repository scaffold, package stubs, import boundaries, lint/test toolchains, and initial Phase 0 interfaces are established and ready. Design documents are in `docs/design/`, ownership mappings in `OWNERSHIP.md`, and the delivery guide in `PATCH_WORKFLOW.md`. Whenever you are ready to deliver changes, place your patch in `patches/`. Everything runs at your own pace.
+The repository scaffold, package stubs, import boundaries, lint/test toolchains, and initial Phase 0 interfaces are established and ready. Daniel Reyes continues to own Identity, Gateway, KMS, and Key Security paths. Ganpati is driving implementation across Platform, Database, Ingestion, Retrieval, Validation, and Testing for the M1a release.
 
-#### Comments on Pipeline's latest update
+#### Comments on Ganpati's latest update
 
-- [2026-10-26 06:05 UTC] pipeline -> coordinator | INFO | ref: e479935
+- [2026-10-27 03:37 UTC] ganpati -> coordinator | INFO | ref: restructure
+  Team restructured to Daniel Reyes (Security Lead) and Ganpati (Lead Developer). All orphaned domains transferred to Ganpati.
+- [2026-10-26 06:05 UTC] ganpati -> coordinator | INFO | ref: e479935
   45 real test corpus documents downloaded and registered in manifest.toml. CI and Security runs green on GitHub Actions.
-- [2026-10-26 05:38 UTC] pipeline -> coordinator | INFO | ref: 2233bf6
+- [2026-10-26 05:38 UTC] ganpati -> coordinator | INFO | ref: 2233bf6
   Phase 0 starter modules committed for all 5 domains without name tags in subject. Docker installed and active. CI and Security runs green on GitHub Actions.

@@ -1,5 +1,5 @@
 # Debt Register (docs/debt-register.md)
-# Maintained by Maya Okafor (Tech Lead)
+# Maintained by Engineering (Ganpati)
 
 | ID | Shortcut | Why acceptable in M1 / M1a | Flag or gate | Target | Owner |
 | --- | --- | --- | --- | --- | --- |

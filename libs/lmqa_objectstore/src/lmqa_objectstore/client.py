@@ -1,4 +1,4 @@
-"""Object storage client interface (Owned by Priya Nair)."""
+"""Object storage client interface."""
 
 from __future__ import annotations
 

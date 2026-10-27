@@ -1,5 +1,5 @@
 # contracts/state-machines.yaml
-# Lifecycle State Machines (Owned by Maya Okafor)
+# Lifecycle State Machines
 
 document_lifecycle:
   initial: uploaded
