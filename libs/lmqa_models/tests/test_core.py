@@ -3,7 +3,7 @@
 from uuid import uuid4
 
 import pytest
-from lmqa_models.core import DocumentLifecycleState, TenantContext, UserRole
+from lmqa_models.core import DocumentLifecycleState, LLMConfig, TenantContext, UserRole
 
 
 @pytest.mark.stage0
@@ -31,3 +31,15 @@ def test_document_lifecycle_state_values() -> None:
     """Verify DocumentLifecycleState enum values."""
     assert DocumentLifecycleState.AVAILABLE == "available"
     assert DocumentLifecycleState.SCANNING == "scanning"
+
+
+@pytest.mark.stage0
+@pytest.mark.unit
+def test_llm_config_defaults() -> None:
+    """Verify LLMConfig model reflects .env.example Google Gemini settings."""
+    cfg = LLMConfig.from_env()
+    assert cfg.provider == "google"
+    assert cfg.model == "gemini-3.8-flash"
+    assert cfg.thinking_budget == "high"
+    assert cfg.embedding_model == "bge-m3"
+    assert cfg.rerank_model == "bge-reranker-v2-m3"

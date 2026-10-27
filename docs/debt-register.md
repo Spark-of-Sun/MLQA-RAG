@@ -18,7 +18,7 @@
 | DR-13 | Corpus of about 38 legal documents, below M1 profile minimums | Enough to prove workflow and isolation on real contracts | G0.8 (`mvp-a`) | M1 | Data steward |
 | DR-14 | Legal organizations only; medical domain off | Halves corpus, labels and reviewer work for first cut | `medical_domain`; G0.8, G4.4, G5.3, G7.3 | M1 | Tech lead |
 | DR-15 | No OCR, quarantine or review screen; scanned pages fail with `ocr_disabled` | Fails safe: nothing low-confidence is ever embedded | `ocr_quarantine`; G4.5, G4.6, G8.3 | M1 | Data steward |
-| DR-16 | AWS S3 in every environment; no SeaweedFS | Developers already use AWS; removes probe and a container | G0.4 | ADR at M1 | Tech lead |
+| DR-16 | Azure Blob Storage in every environment; no SeaweedFS | Native cloud object storage via Azure Blob Storage; removes probe and a container | G0.4 | ADR at M1 | Tech lead |
 | DR-17 | Three of five critical alerts | Other two need extra jobs | G9.3 full | M1 | Security lead |
 | DR-18 | 100 live queries, not 320 | Zero-leak and zero-unverified criteria are unchanged | G7.7, AC4 | M1 | QA lead |
 | DR-19 | One passing acceptance run, not three consecutive | M1a is not the release | MG4, AC1 | M1 | QA lead |

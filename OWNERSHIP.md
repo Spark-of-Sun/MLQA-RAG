@@ -16,7 +16,7 @@ Also acts as: security lead hat (reviews high-risk paths with REVIEW comments).
 - `libs/lmqa_keys/`
 - `libs/lmqa_security/`
 - `infra/auth0/`
-- `infra/aws/`
+- `infra/azure/`
 - `infra/keyguard/`
 - `tools/auth_harness/`
 - `contracts/authz-matrix.yaml`
@@ -139,7 +139,7 @@ A role gives responsibility and a duty to answer questions. It never gives autho
 
 | Phase | Primary owner | Contributing |
 | --- | --- | --- |
-| P0 Foundation | Ganpati | Daniel (Auth0, AWS, harness) |
+| P0 Foundation | Ganpati | Daniel (Auth0, Azure, harness) |
 | P1 Data layer and keys | Ganpati (schema, RLS, audit chain), Daniel (keys, KeyGuard) | Ganpati (fixtures) |
 | P2 Identity and gateway | Daniel | Ganpati (state-machine tests, support, e2e) |
 | P3 Ingestion | Ganpati | Daniel (keys) |
@@ -162,4 +162,4 @@ A role gives responsibility and a duty to answer questions. It never gives autho
 | CD-9 | Team-process files | `logs/` and `status/` allowed |
 | CD-10 | Observability stack | Structured redacted logging |
 | CD-12 | Scope cuts | M1a cut list approved |
-| CD-13 | Object store | Real AWS S3 in all environments |
+| CD-13 | Object store | Real Azure Blob Storage in all environments |

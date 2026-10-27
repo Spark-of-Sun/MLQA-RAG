@@ -1,6 +1,6 @@
 """lmqa_models package."""
 
-from lmqa_models.core import DocumentLifecycleState, TenantContext, UserRole
+from lmqa_models.core import DocumentLifecycleState, LLMConfig, TenantContext, UserRole
 from lmqa_models.rag import (
     Chunk,
     ChunkMetadata,
@@ -16,6 +16,7 @@ __all__ = [
     "ChunkMetadata",
     "CitationItem",
     "DocumentLifecycleState",
+    "LLMConfig",
     "RAGResponse",
     "RetrievalAlias",
     "RetrievalRecord",

@@ -8,8 +8,11 @@ import socket
 from urllib.parse import urlparse
 
 import asyncpg
+import httpx
 from lmqa_db import DatabaseConfig
 from lmqa_objectstore import ObjectStoreError, get_storage_client
+
+HTTP_OK = 200
 
 
 async def check_database() -> tuple[bool, str]:
@@ -43,32 +46,65 @@ def check_tcp_port(host: str, port: int, timeout_sec: float = 2.0) -> bool:
         return False
 
 
+def check_valkey_ping(
+    host: str, port: int, password: str | None = None, timeout_sec: float = 2.0
+) -> tuple[bool, str]:
+    """Test Valkey reachability and optional password authentication via PING."""
+    try:
+        with socket.create_connection((host, port), timeout=timeout_sec) as sock:
+            sock.settimeout(timeout_sec)
+            if password:
+                sock.sendall(f"AUTH {password}\r\n".encode())
+                auth_resp = sock.recv(1024).decode("utf-8", errors="replace")
+                if not auth_resp.startswith("+OK"):
+                    return False, f"Valkey authentication failed: {auth_resp.strip()}"
+            sock.sendall(b"PING\r\n")
+            ping_resp = sock.recv(1024).decode("utf-8", errors="replace")
+            if "+PONG" in ping_resp:
+                return True, f"Valkey healthy at {host}:{port}"
+            return False, f"Valkey unexpected response: {ping_resp.strip()}"
+    except OSError as e:
+        return False, f"Valkey connection failed: {e}"
+
+
 async def check_valkey() -> tuple[bool, str]:
-    """Verify Valkey cache reachability."""
-    raw_url = os.environ.get("VALKEY_URL", "redis://localhost:6379/0")
+    """Verify Valkey cache reachability and authentication."""
+    raw_url = os.environ.get("VALKEY_URL", "redis://:password@localhost:6379/0")
     parsed = urlparse(raw_url)
     host = parsed.hostname or "localhost"
     port = parsed.port or 6379
+    password = parsed.password or os.environ.get("VALKEY_PASSWORD")
 
     loop = asyncio.get_running_loop()
-    is_open = await loop.run_in_executor(None, check_tcp_port, host, port, 2.0)
-    if is_open:
-        return True, f"Valkey reachable at {host}:{port}"
-    return False, f"Valkey not reachable at {host}:{port}"
+    return await loop.run_in_executor(None, check_valkey_ping, host, port, password, 2.0)
 
 
 async def check_qdrant() -> tuple[bool, str]:
-    """Verify Qdrant vector database reachability."""
-    raw_url = os.environ.get("QDRANT_URL", "http://localhost:6333")
-    parsed = urlparse(raw_url)
-    host = parsed.hostname or "localhost"
-    port = parsed.port or 6333
+    """Verify Qdrant vector database reachability and readiness."""
+    raw_url = os.environ.get("QDRANT_URL", "http://localhost:6333").rstrip("/")
+    api_key = (
+        os.environ.get("QDRANT_KEY_RO")
+        or os.environ.get("QDRANT_KEY_RW")
+        or os.environ.get("QDRANT_API_KEY", "")
+    )
+    if api_key.startswith("python3 -c"):
+        api_key = ""
 
-    loop = asyncio.get_running_loop()
-    is_open = await loop.run_in_executor(None, check_tcp_port, host, port, 2.0)
-    if is_open:
-        return True, f"Qdrant reachable at {host}:{port}"
-    return False, f"Qdrant not reachable at {host}:{port}"
+    headers: dict[str, str] = {}
+    if api_key:
+        headers["api-key"] = api_key
+
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            resp = await client.get(f"{raw_url}/readyz", headers=headers)
+            if resp.status_code == HTTP_OK:
+                return True, f"Qdrant healthy and ready at {raw_url}"
+            coll_resp = await client.get(f"{raw_url}/collections", headers=headers)
+            if coll_resp.status_code == HTTP_OK:
+                return True, f"Qdrant reachable at {raw_url}"
+            return False, f"Qdrant returned HTTP {resp.status_code}"
+    except (httpx.HTTPError, OSError) as e:
+        return False, f"Qdrant probe failed: {e}"
 
 
 def check_storage() -> tuple[bool, str]:

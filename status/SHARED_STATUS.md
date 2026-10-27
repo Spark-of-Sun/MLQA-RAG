@@ -43,7 +43,7 @@ _(no comments yet)_
 - Pipeline: CI green on main (run 40275801115), Security green on main (run 40275801114)
 - Team status: Team restructured to Daniel Reyes (Security Lead) and Ganpati (Lead Developer & Release Engineer).
 - Open comments: DEPENDENCY 0, BLOCKER 0, DEBT 0, QUESTION 0, COORDINATOR 0
-- Environment: Docker, git, gh, python 3.14, uv, node 26, pnpm, opentofu, aws-cli, gitleaks, pre-commit, pip-audit, trivy, cosign configured; .env present
+- Environment: Docker, git, gh, python 3.14, uv, node 26, pnpm, opentofu, azure-cli, gitleaks, pre-commit, pip-audit, trivy, cosign configured; .env present
 
 The repository scaffold, package stubs, import boundaries, lint/test toolchains, and initial Phase 0 interfaces are established and ready. Daniel Reyes continues to own Identity, Gateway, KMS, and Key Security paths. Ganpati is driving implementation across Platform, Database, Ingestion, Retrieval, Validation, and Testing for the M1a release.
 

@@ -75,3 +75,6 @@ logs/*.log
 # Caches
 .cache/
 .ruff_cache/
+
+#secret 
+full_blueprint

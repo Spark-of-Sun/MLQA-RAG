@@ -21,23 +21,7 @@ down:
 	fi
 
 doctor:
-	@echo "=== MLQA-RAG Environment Doctor ==="
-	@echo -n "git: " && (command -v git >/dev/null 2>&1 && git --version || echo "NOT CONFIGURED")
-	@echo -n "gh: " && (command -v gh >/dev/null 2>&1 && gh --version | head -n1 || echo "NOT CONFIGURED")
-	@echo -n "python: " && (command -v python3.14 >/dev/null 2>&1 && python3.14 --version || (python3 --version 2>&1 | grep "3.14") || echo "NOT CONFIGURED")
-	@echo -n "uv: " && (command -v uv >/dev/null 2>&1 && uv --version || echo "NOT CONFIGURED")
-	@echo -n "node: " && (command -v node >/dev/null 2>&1 && node --version || echo "NOT CONFIGURED")
-	@echo -n "pnpm: " && (command -v pnpm >/dev/null 2>&1 && pnpm --version || echo "NOT CONFIGURED")
-	@echo -n "docker: " && (command -v docker >/dev/null 2>&1 && docker --version || echo "NOT CONFIGURED")
-	@echo -n "opentofu: " && (command -v tofu >/dev/null 2>&1 && tofu --version | head -n1 || echo "NOT CONFIGURED")
-	@echo -n "aws-cli: " && (command -v aws >/dev/null 2>&1 && aws --version || echo "NOT CONFIGURED")
-	@echo -n "gitleaks: " && (command -v gitleaks >/dev/null 2>&1 && gitleaks version || echo "NOT CONFIGURED")
-	@echo -n "pre-commit: " && (command -v pre-commit >/dev/null 2>&1 && pre-commit --version || echo "NOT CONFIGURED")
-	@echo -n "pip-audit: " && (command -v pip-audit >/dev/null 2>&1 && pip-audit --version || echo "NOT CONFIGURED")
-	@echo -n "trivy: " && (command -v trivy >/dev/null 2>&1 && trivy --version | head -n1 || echo "NOT CONFIGURED")
-	@echo -n "cosign: " && (command -v cosign >/dev/null 2>&1 && cosign version 2>&1 | grep "GitVersion" || echo "NOT CONFIGURED")
-	@echo "--- Configuration ---"
-	@if [ -f .env ]; then echo ".env: present"; else echo ".env: NOT CONFIGURED (missing)"; fi
+	uv run python -m tools.doctor.main
 
 migrate:
 	uv run python -m tools.migrate.main

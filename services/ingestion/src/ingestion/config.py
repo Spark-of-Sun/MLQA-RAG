@@ -27,6 +27,9 @@ class IngestionConfig(BaseModel):
     qdrant_url: str = Field(
         default_factory=lambda: os.getenv("QDRANT_URL", "http://127.0.0.1:6333")
     )
+    qdrant_api_key: str = Field(
+        default_factory=lambda: os.getenv("QDRANT_KEY_RW", os.getenv("QDRANT_API_KEY", ""))
+    )
     qdrant_collection: str = Field(default="document_chunks")
     ocr_enabled: bool = Field(
         default_factory=lambda: (

@@ -19,10 +19,26 @@ HTTP_OK = 200
 class QdrantVectorStoreClient:
     """Client for Qdrant vector database via standard REST API."""
 
-    def __init__(self, base_url: str | None = None, api_key: str | None = None) -> None:
-        """Initialize client settings and headers."""
+    def __init__(
+        self,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        mode: str = "rw",
+    ) -> None:
+        """Initialize client settings and headers supporting RO and RW API keys."""
         self.base_url = (base_url or os.getenv("QDRANT_URL", "http://127.0.0.1:6333")).rstrip("/")
-        self.api_key = api_key or os.getenv("QDRANT_API_KEY", "")
+        if api_key:
+            resolved_key = api_key
+        elif mode.lower() == "ro":
+            resolved_key = os.getenv("QDRANT_KEY_RO") or os.getenv("QDRANT_API_KEY", "")
+        else:
+            resolved_key = os.getenv("QDRANT_KEY_RW") or os.getenv("QDRANT_API_KEY", "")
+
+        # Ignore example placeholder command string if copied verbatim from .env.example
+        if resolved_key.startswith("python3 -c"):
+            resolved_key = ""
+
+        self.api_key = resolved_key.strip()
         self.headers: dict[str, str] = {"Content-Type": "application/json"}
         if self.api_key:
             self.headers["api-key"] = self.api_key

@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import os
-import tempfile
 import uuid
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import asyncpg
 from lmqa_db import DatabaseConfig, TenantContext, build_set_local_statements
-from lmqa_objectstore import LocalObjectStoreClient, ObjectStoreClient
+from lmqa_objectstore import ObjectStoreClient, get_storage_client
 from lmqa_vectorstore import (
     LocalVectorStoreClient,
     QdrantVectorStoreClient,
@@ -52,14 +50,15 @@ class IngestionPipeline:
             target_max=self.config.target_chunk_tokens_max,
             max_tokens=self.config.max_chunk_tokens,
         )
-        default_storage = str(Path(tempfile.gettempdir()) / "lmqa_storage")
-        self.storage = storage_client or LocalObjectStoreClient(
-            base_dir=os.getenv("LOCAL_STORAGE_DIR", default_storage)
-        )
+        self.storage = storage_client or get_storage_client()
         if vector_client is not None:
             self.vector_store = vector_client
         elif os.getenv("USE_REAL_QDRANT", "1") == "1":
-            self.vector_store = QdrantVectorStoreClient(base_url=self.config.qdrant_url)
+            self.vector_store = QdrantVectorStoreClient(
+                base_url=self.config.qdrant_url,
+                api_key=self.config.qdrant_api_key,
+                mode="rw",
+            )
         else:
             self.vector_store = LocalVectorStoreClient()
 
