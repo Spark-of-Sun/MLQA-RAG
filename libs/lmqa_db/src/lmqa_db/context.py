@@ -16,10 +16,10 @@ if TYPE_CHECKING:
     from uuid import UUID
 
 # Configuration parameter keys
-PARAM_ORG_ID = "app.current_org_id"
-PARAM_WORKSPACE_ID = "app.current_workspace_id"
-PARAM_USER_ID = "app.current_user_id"
-PARAM_ROLE = "app.current_role"
+PARAM_ORG_ID = "lmqa.current_tenant_id"
+PARAM_WORKSPACE_ID = "lmqa.current_workspace_id"
+PARAM_USER_ID = "lmqa.current_user_id"
+PARAM_ROLE = "lmqa.current_user_role"
 
 
 @runtime_checkable

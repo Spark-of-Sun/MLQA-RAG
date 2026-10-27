@@ -39,6 +39,9 @@ doctor:
 	@echo "--- Configuration ---"
 	@if [ -f .env ]; then echo ".env: present"; else echo ".env: NOT CONFIGURED (missing)"; fi
 
+migrate:
+	uv run python -m tools.migrate.main
+
 gate:
 	@if [ ! -d "tools/gatekeeper" ] || [ ! -f "tools/gatekeeper/main.py" ]; then \
 		echo "ERROR: tools/gatekeeper is not yet implemented"; \
