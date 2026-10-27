@@ -59,8 +59,8 @@ GRANT USAGE ON SCHEMA public TO
 -- Identity owns tenant onboarding and workspace creation
 GRANT SELECT, INSERT, UPDATE ON orgs, workspaces TO lmqa_identity;
 
--- Ingestion owns document processing and chunking
-GRANT SELECT, INSERT, UPDATE ON documents, document_chunks TO lmqa_ingestion;
+-- Ingestion owns document processing, chunking, and deletion/crypto-erasure
+GRANT SELECT, INSERT, UPDATE, DELETE ON documents, document_chunks TO lmqa_ingestion;
 
 -- Retrieval, Generation, and Validator need to read chunks under RLS
 GRANT SELECT ON documents, document_chunks TO lmqa_retrieval;

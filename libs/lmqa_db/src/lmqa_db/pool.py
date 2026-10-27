@@ -41,6 +41,8 @@ class DatabaseConfig:
             key = f"PG_DSN_{s.upper()}"
             if val := os.environ.get(key):
                 dsns[s] = val
+            else:
+                dsns[s] = f"postgresql+asyncpg://lmqa_{s}:secret@localhost:6432/lmqa"
 
         return cls(
             host=os.environ.get("PG_HOST", "localhost"),
@@ -57,6 +59,11 @@ class DatabaseConfig:
             return dsn
         auth = f"{self.user}:{self.password}@" if self.password else f"{self.user}@"
         return f"postgresql+asyncpg://{auth}{self.host}:{self.port}/{self.database}"
+
+    def get_asyncpg_dsn(self, service_name: str) -> str:
+        """Resolve DSN stripped of SQLAlchemy driver prefix for raw asyncpg connections."""
+        dsn = self.get_service_dsn(service_name)
+        return dsn.replace("postgresql+asyncpg://", "postgresql://")
 
     def get_admin_dsn(self) -> str:
         """Return admin asyncpg DSN for migrations and administration."""
