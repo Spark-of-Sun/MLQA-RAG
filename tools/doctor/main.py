@@ -42,9 +42,13 @@ class EnvironmentDoctor:
         self.root_dir = root_dir or Path.cwd()
         self.env_vars = load_env_file(self.root_dir / ".env")
 
-    def _get_val(self, key: str, default: str = "") -> str:
+    def get_config_value(self, key: str, default: str = "") -> str:
         """Resolve config value preferring active environment, then parsed .env."""
         return os.getenv(key) or self.env_vars.get(key, default)
+
+    def _get_val(self, key: str, default: str = "") -> str:
+        """Internal alias for resolving configuration values."""
+        return self.get_config_value(key, default)
 
     def check_cli_tool(self, cmd_name: str, check_cmd: list[str]) -> CheckResult:
         """Verify presence and executable version of a system CLI tool."""

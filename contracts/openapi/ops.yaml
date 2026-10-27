@@ -1,0 +1,86 @@
+openapi: 3.1.0
+info:
+  title: LMQA Ops Service API
+  description: Health, deep dependency readiness probes, and operational metrics. Master §15.8.
+  version: 1.0.0
+
+servers:
+  - url: https://ops.lmqa.local
+    description: Operational plane
+
+paths:
+  /health/live:
+    get:
+      summary: Fast liveness probe
+      operationId: healthLive
+      responses:
+        '200':
+          description: Process is running
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: live
+
+  /health/ready:
+    get:
+      summary: Deep readiness probe verifying Postgres, PgBouncer, Valkey, Qdrant, Storage
+      operationId: healthReady
+      responses:
+        '200':
+          description: All critical backend dependencies are healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessReport'
+        '503':
+          description: One or more dependencies failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessReport'
+
+  /metrics:
+    get:
+      summary: Prometheus / telemetry metrics endpoint
+      operationId: getMetrics
+      responses:
+        '200':
+          description: Service metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  service:
+                    type: string
+                  status:
+                    type: string
+
+components:
+  schemas:
+    ReadinessReport:
+      type: object
+      required:
+        - status
+        - checks
+      properties:
+        status:
+          type: string
+          enum: [ready, degraded]
+        checks:
+          type: object
+          properties:
+            database:
+              type: object
+            pgbouncer:
+              type: object
+            valkey:
+              type: object
+            qdrant:
+              type: object
+            storage:
+              type: object
