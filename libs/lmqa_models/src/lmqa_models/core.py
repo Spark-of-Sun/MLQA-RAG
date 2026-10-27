@@ -1,4 +1,4 @@
-"""Core domain models for LMQA system (Owned by Maya Okafor)."""
+"""Core domain models for LMQA system."""
 
 from __future__ import annotations
 

@@ -41,41 +41,42 @@ doctor:
 
 gate:
 	@if [ ! -d "tools/gatekeeper" ] || [ ! -f "tools/gatekeeper/main.py" ]; then \
-		echo "ERROR: tools/gatekeeper is not yet implemented (owned by Maya Okafor)"; \
+		echo "ERROR: tools/gatekeeper is not yet implemented"; \
 		exit 1; \
 	fi
 	@echo "Running gate check for STAGE=$(STAGE) PROFILE=$(PROFILE)..."
 
 isolation:
 	@if [ ! -d "tests/isolation" ]; then \
-		echo "ERROR: tests/isolation suite is not yet implemented (owned by Hana Sato)"; \
+		echo "ERROR: tests/isolation suite is not yet implemented"; \
 		exit 1; \
 	fi
 	@echo "Running isolation suite..."
 
 load-corpus:
 	@if [ ! -d "tools/load_corpus" ] || [ ! -f "tools/load_corpus/main.py" ]; then \
-		echo "ERROR: tools/load_corpus is not yet implemented (owned by Priya Nair)"; \
+		echo "ERROR: tools/load_corpus is not yet implemented"; \
 		exit 1; \
 	fi
 	@echo "Loading corpus..."
 
 eval:
 	@if [ ! -d "eval" ] || [ ! -f "eval/run.py" ]; then \
-		echo "ERROR: eval harness is not yet implemented (owned by Lucas Weber)"; \
+		echo "ERROR: eval harness is not yet implemented"; \
 		exit 1; \
 	fi
 	@echo "Running evaluation..."
 
 precheck:
-	@if [ -z "$(OWNER)" ]; then \
-		echo "Usage: make precheck OWNER=<handle>"; \
-		exit 1; \
+	@if [ -n "$(OWNER)" ]; then \
+		echo "Running precheck for owner: $(OWNER)"; \
+	else \
+		echo "Running precheck..."; \
 	fi
-	@echo "Running precheck for owner: $(OWNER)"
 	uv run ruff format --check .
 	uv run ruff check .
 	uv run pyright
 	uv run lint-imports
-	gitleaks detect --no-git --verbose
+	uv run python -m tools.ownership_check --check-all
+	gitleaks detect --source . --no-banner
 	uv run pytest -m "stage0"

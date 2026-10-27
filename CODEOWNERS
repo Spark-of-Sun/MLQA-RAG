@@ -4,23 +4,11 @@
 # High-risk / Security Review paths (Daniel Reyes as Security Lead)
 db/policies/                        @daniel
 contracts/authz-matrix.yaml         @daniel
-contracts/state-machines.yaml       @daniel @maya
+contracts/state-machines.yaml       @daniel @ganpati
 libs/lmqa_keys/                     @daniel
 libs/lmqa_auth/                     @daniel
 infra/keyguard/                     @daniel
 infra/auth0/                        @daniel
-
-# Maya Okafor (Platform and Data Engineer, Tech Lead)
-db/                                 @maya
-libs/lmqa_models/                   @maya
-libs/lmqa_db/                       @maya
-libs/lmqa_audit/                    @maya
-libs/lmqa_logging/                  @maya
-libs/lmqa_telemetry/                @maya
-services/audit/                     @maya
-tools/gatekeeper/                   @maya
-tools/doctor/                       @maya
-contracts/features.toml             @maya
 
 # Daniel Reyes (Identity, Gateway & Key Security)
 services/gateway/                   @daniel
@@ -29,30 +17,5 @@ services/ops/                       @daniel
 libs/lmqa_security/                 @daniel
 infra/aws/                          @daniel
 
-# Priya Nair (Ingestion and Corpus Engineer)
-services/ingestion/                 @priya
-libs/lmqa_objectstore/              @priya
-corpus/                             @priya
-tools/load_corpus/                  @priya
-
-# Lucas Weber (Retrieval and Validation Engineer)
-services/retrieval/                 @lucas
-services/generation/                @lucas
-services/citation_validator/        @lucas
-libs/lmqa_vectorstore/              @lucas
-libs/lmqa_release/                  @lucas
-prompts/                            @lucas
-eval/                               @lucas
-
-# Hana Sato (Frontend and Verification Engineer)
-frontend/                           @hana
-libs/lmqa_testing/                  @hana
-tests/                              @hana
-tools/leakscan/                     @hana
-tools/mvp_report/                   @hana
-
-# Pipeline & Automation
-.github/                            @Spark-of-Sun
-uv.lock                             @Spark-of-Sun
-AGENTS.md                           @Spark-of-Sun
-PATCH_WORKFLOW.md                   @Spark-of-Sun
+# Ganpati (Platform, Ingestion, Retrieval, Validation, Testing, Pipeline)
+*                                   @ganpati @Spark-of-Sun

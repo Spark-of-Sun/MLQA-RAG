@@ -11,7 +11,7 @@ Developers do not push directly to `main` or open Pull Requests. Instead, code i
 Save your patch files in the root `patches/` directory (untracked by git):
 ```
 patches/
-  maya_20261026_ci-skeleton.patch
+  daniel_20261028_gateway.patch
   applied/    (processed and landed commits)
   rejected/   (returned patches requiring changes)
   results/    (detailed check reports for each patch)
@@ -20,7 +20,7 @@ patches/
 ## 2. Patch File Naming
 
 Name your patch file: `<handle>_<YYYYMMDD>_<topic>.patch`
-Example: `priya_20261102_pdf-parser.patch`
+Example: `daniel_20261028_gateway.patch`
 
 ## 3. Required Patch Header
 

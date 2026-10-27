@@ -51,7 +51,7 @@ def main() -> int:
     """
     parser = argparse.ArgumentParser(description="Validate path ownership per OWNERSHIP.md")
     parser.add_argument("--patch", type=Path, help="Patch file to inspect")
-    parser.add_argument("--owner", type=str, help="Expected owner handle (e.g. maya, daniel)")
+    parser.add_argument("--owner", type=str, help="Expected owner handle (e.g. daniel, ganpati)")
     parser.add_argument(
         "--check-all", action="store_true", help="Verify all git tracked files have owners"
     )

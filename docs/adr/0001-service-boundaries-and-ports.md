@@ -1,7 +1,7 @@
 # 0001. Service Boundaries and Reserved Ports
 
 - **Status:** Accepted
-- **Deciders:** Maya Okafor (Tech Lead), Coordinator
+- **Deciders:** Coordinator, Daniel Reyes (Security Lead), Ganpati (Tech Lead)
 - **Date:** 2026-10-26
 
 ## Context

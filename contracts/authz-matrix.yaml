@@ -1,5 +1,5 @@
 # contracts/authz-matrix.yaml
-# Role × Route × Step-Up Authorization Matrix (Owned by Daniel Reyes)
+# Role × Route × Step-Up Authorization Matrix
 
 roles:
   - super_admin

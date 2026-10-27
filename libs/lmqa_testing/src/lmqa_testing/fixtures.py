@@ -1,4 +1,4 @@
-"""Test fixtures and context helpers (Owned by Hana Sato)."""
+"""Test fixtures and context helpers."""
 
 from __future__ import annotations
 

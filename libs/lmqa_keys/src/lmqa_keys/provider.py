@@ -1,4 +1,4 @@
-"""Key Provider interfaces for Envelope Encryption (Owned by Daniel Reyes)."""
+"""Key Provider interfaces for Envelope Encryption."""
 
 from __future__ import annotations
 
