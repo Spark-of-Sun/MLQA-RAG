@@ -78,6 +78,7 @@ Also acts as: tech lead, data steward, QA lead, and release manager (driving M1a
 - `prompts/`
 - `eval/`
 - `tests/`
+- `tools/migrate/`
 - `tools/gatekeeper/`
 - `tools/doctor/`
 - `tools/load_corpus/`

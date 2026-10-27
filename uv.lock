@@ -666,6 +666,26 @@ wheels = [
 name = "ingestion"
 version = "0.1.0"
 source = { editable = "services/ingestion" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "lmqa-db" },
+    { name = "lmqa-models" },
+    { name = "lmqa-objectstore" },
+    { name = "lmqa-vectorstore" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.115.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "lmqa-db", editable = "libs/lmqa_db" },
+    { name = "lmqa-models", editable = "libs/lmqa_models" },
+    { name = "lmqa-objectstore", editable = "libs/lmqa_objectstore" },
+    { name = "lmqa-vectorstore", editable = "libs/lmqa_vectorstore" },
+    { name = "pydantic", specifier = ">=2.10.0" },
+]
 
 [[package]]
 name = "iniconfig"
@@ -859,6 +879,16 @@ source = { editable = "libs/lmqa_testing" }
 name = "lmqa-vectorstore"
 version = "0.1.0"
 source = { editable = "libs/lmqa_vectorstore" }
+dependencies = [
+    { name = "httpx" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "pydantic", specifier = ">=2.10.0" },
+]
 
 [[package]]
 name = "markdown-it-py"

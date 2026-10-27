@@ -3,7 +3,15 @@ name = "ingestion"
 version = "0.1.0"
 description = "ingestion package"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "fastapi>=0.115.0",
+    "httpx>=0.28.1",
+    "pydantic>=2.10.0",
+    "lmqa_db",
+    "lmqa_models",
+    "lmqa_objectstore",
+    "lmqa_vectorstore",
+]
 
 [build-system]
 requires = ["hatchling"]

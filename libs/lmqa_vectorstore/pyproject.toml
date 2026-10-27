@@ -3,7 +3,10 @@ name = "lmqa_vectorstore"
 version = "0.1.0"
 description = "lmqa_vectorstore package"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "httpx>=0.28.1",
+    "pydantic>=2.10.0",
+]
 
 [build-system]
 requires = ["hatchling"]
