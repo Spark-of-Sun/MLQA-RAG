@@ -1,0 +1,369 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: lmqa
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: lmqa
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gateway-allow
+  namespace: lmqa
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: gateway
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: frontend
+    ports:
+    - port: 8000
+      protocol: TCP
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: identity
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: ingestion
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: retrieval
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: generation
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: citation-validator
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: audit
+  - to:
+    - ipBlock:
+        cidr: 10.20.0.0/20
+    ports:
+    - port: 5432
+      protocol: TCP
+    - port: 6432
+      protocol: TCP
+    - port: 6379
+      protocol: TCP
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 10.0.0.0/8
+        - 169.254.169.254/32
+    ports:
+    - port: 443
+      protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: identity-allow
+  namespace: lmqa
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: identity
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: gateway
+    ports:
+    - port: 8005
+      protocol: TCP
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 10.20.0.0/20
+    ports:
+    - port: 5432
+      protocol: TCP
+    - port: 6432
+      protocol: TCP
+    - port: 6379
+      protocol: TCP
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 10.0.0.0/8
+        - 169.254.169.254/32
+    ports:
+    - port: 443
+      protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ingestion-allow
+  namespace: lmqa
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ingestion
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: gateway
+    ports:
+    - port: 8001
+      protocol: TCP
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 10.20.0.0/20
+    ports:
+    - port: 5432
+      protocol: TCP
+    - port: 6432
+      protocol: TCP
+    - port: 6379
+      protocol: TCP
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: qdrant
+    ports:
+    - port: 6333
+      protocol: TCP
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 10.0.0.0/8
+        - 169.254.169.254/32
+    ports:
+    - port: 443
+      protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: retrieval-allow
+  namespace: lmqa
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: retrieval
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: gateway
+    ports:
+    - port: 8002
+      protocol: TCP
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 10.20.0.0/20
+    ports:
+    - port: 5432
+      protocol: TCP
+    - port: 6432
+      protocol: TCP
+    - port: 6379
+      protocol: TCP
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: qdrant
+    ports:
+    - port: 6333
+      protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: generation-allow
+  namespace: lmqa
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: generation
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: gateway
+    ports:
+    - port: 8003
+      protocol: TCP
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 10.20.0.0/20
+    ports:
+    - port: 5432
+      protocol: TCP
+    - port: 6432
+      protocol: TCP
+    - port: 6379
+      protocol: TCP
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 10.0.0.0/8
+        - 169.254.169.254/32
+    ports:
+    - port: 443
+      protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: citation-validator-allow
+  namespace: lmqa
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: citation-validator
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: gateway
+    ports:
+    - port: 8004
+      protocol: TCP
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 10.20.0.0/20
+    ports:
+    - port: 5432
+      protocol: TCP
+    - port: 6432
+      protocol: TCP
+    - port: 6379
+      protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: audit-allow
+  namespace: lmqa
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: audit
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: gateway
+    ports:
+    - port: 8007
+      protocol: TCP
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 10.20.0.0/20
+    ports:
+    - port: 5432
+      protocol: TCP
+    - port: 6432
+      protocol: TCP
+    - port: 6379
+      protocol: TCP
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 10.0.0.0/8
+        - 169.254.169.254/32
+    ports:
+    - port: 443
+      protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend-allow
+  namespace: lmqa
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: frontend
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - ports:
+    - port: 3000
+      protocol: TCP
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: gateway
+  - to:
+    - ipBlock:
+        cidr: 10.20.0.0/20
+    ports:
+    - port: 5432
+      protocol: TCP
+    - port: 6432
+      protocol: TCP
+    - port: 6379
+      protocol: TCP
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 10.0.0.0/8
+        - 169.254.169.254/32
+    ports:
+    - port: 443
+      protocol: TCP

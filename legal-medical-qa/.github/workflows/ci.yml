@@ -1,0 +1,67 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with: {enable-cache: true}
+      - run: uv python install 3.14
+      - run: uv sync --frozen --all-packages
+      - name: Lint, format, types, import boundaries
+        run: |
+          uv run ruff format --check
+          uv run ruff check
+          uv run pyright
+          uv run lint-imports
+      - name: KeyGuard policy lint (no production key with a short deletion window)
+        run: uv run python infra/keyguard/lint.py infra/aws
+      - name: Real infrastructure for the tests (PostgreSQL, PgBouncer, Valkey, OpenBao, Qdrant, SeaweedFS)
+        run: |
+          docker compose -f compose.test.yaml up -d
+          sleep 20
+          uv run python tools/db_migrate.py || true
+      - name: Tests that need no ML model and no cloud credentials
+        run: uv run pytest -m "not live_models and not live_aws and not live_auth0 and not live_llm" -n auto --dist loadfile
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: pytest-junit, path: gates/, if-no-files-found: ignore}
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults: {run: {working-directory: frontend}}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with: {node-version: 24, cache: pnpm, cache-dependency-path: frontend/pnpm-lock.yaml}
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+        env: {NEXT_TELEMETRY_DISABLED: "1"}
+
+  infrastructure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      matrix: {dir: [aws, cloudflare, auth0]}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: opentofu/setup-opentofu@v1
+      - run: tofu fmt -check -recursive infra/${{ matrix.dir }}
+      - run: tofu -chdir=infra/${{ matrix.dir }} init -backend=false -input=false
+      - run: tofu -chdir=infra/${{ matrix.dir }} validate

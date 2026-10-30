@@ -1,0 +1,32 @@
+# secrets (doc 12.10): explicit template exception, never a bare .env*
+.env
+.env.*
+!.env.example
+.secrets/
+*.pem
+*.key
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+*.egg-info/
+# node
+node_modules/
+.next/
+# corpus payloads are fetched, never committed
+corpus/data/*
+!corpus/data/.gitkeep
+# gate attestations are produced by CI
+gates/
+# terraform / opentofu
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# rendered by tools/gen_env.py (holds object store credentials)
+infra/compose/seaweedfs/s3.json

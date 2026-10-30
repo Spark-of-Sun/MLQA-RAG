@@ -1,0 +1,39 @@
+# Production overlay: real image registry and tag, one IRSA role per service account.
+# Secrets are NOT in this repository: create lmqa-<service> Secrets from AWS Secrets Manager
+# (External Secrets Operator or the Secrets Store CSI driver) before the first rollout.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: lmqa
+resources:
+  - ../../base
+images:
+  - {name: REGISTRY/lmqa-ENV/gateway, newName: ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/lmqa-staging/gateway, newTag: REPLACE_WITH_GIT_SHA}
+  - {name: REGISTRY/lmqa-ENV/identity, newName: ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/lmqa-staging/identity, newTag: REPLACE_WITH_GIT_SHA}
+  - {name: REGISTRY/lmqa-ENV/ingestion, newName: ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/lmqa-staging/ingestion, newTag: REPLACE_WITH_GIT_SHA}
+  - {name: REGISTRY/lmqa-ENV/retrieval, newName: ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/lmqa-staging/retrieval, newTag: REPLACE_WITH_GIT_SHA}
+  - {name: REGISTRY/lmqa-ENV/generation, newName: ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/lmqa-staging/generation, newTag: REPLACE_WITH_GIT_SHA}
+  - {name: REGISTRY/lmqa-ENV/citation-validator, newName: ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/lmqa-staging/citation-validator, newTag: REPLACE_WITH_GIT_SHA}
+  - {name: REGISTRY/lmqa-ENV/audit, newName: ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/lmqa-staging/audit, newTag: REPLACE_WITH_GIT_SHA}
+  - {name: REGISTRY/lmqa-ENV/frontend, newName: ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/lmqa-staging/frontend, newTag: REPLACE_WITH_GIT_SHA}
+patches:
+  - target: {kind: ServiceAccount, name: gateway}
+    patch: |-
+      - {op: add, path: /metadata/annotations, value: {eks.amazonaws.com/role-arn: "arn:aws:iam::ACCOUNT:role/lmqa-staging-gateway"}}
+  - target: {kind: ServiceAccount, name: identity}
+    patch: |-
+      - {op: add, path: /metadata/annotations, value: {eks.amazonaws.com/role-arn: "arn:aws:iam::ACCOUNT:role/lmqa-staging-identity"}}
+  - target: {kind: ServiceAccount, name: ingestion}
+    patch: |-
+      - {op: add, path: /metadata/annotations, value: {eks.amazonaws.com/role-arn: "arn:aws:iam::ACCOUNT:role/lmqa-staging-ingestion"}}
+  - target: {kind: ServiceAccount, name: retrieval}
+    patch: |-
+      - {op: add, path: /metadata/annotations, value: {eks.amazonaws.com/role-arn: "arn:aws:iam::ACCOUNT:role/lmqa-staging-retrieval"}}
+  - target: {kind: ServiceAccount, name: generation}
+    patch: |-
+      - {op: add, path: /metadata/annotations, value: {eks.amazonaws.com/role-arn: "arn:aws:iam::ACCOUNT:role/lmqa-staging-generation"}}
+  - target: {kind: ServiceAccount, name: citation-validator}
+    patch: |-
+      - {op: add, path: /metadata/annotations, value: {eks.amazonaws.com/role-arn: "arn:aws:iam::ACCOUNT:role/lmqa-staging-citation-validator"}}
+  - target: {kind: ServiceAccount, name: audit}
+    patch: |-
+      - {op: add, path: /metadata/annotations, value: {eks.amazonaws.com/role-arn: "arn:aws:iam::ACCOUNT:role/lmqa-staging-audit"}}

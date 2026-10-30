@@ -1,0 +1,38 @@
+# Path ownership by stage and gate profiles (doc 19.6). A pull request may modify only paths owned by
+# stages up to STAGE + 1; STAGE advances only through the gatekeeper once the stage's attestation passes.
+
+[stage.0]
+owns = ["pyproject.toml", "uv.lock", "tools/**", "infra/compose/**", "infra/docker/**", "infra/auth0/**", "corpus/**", "contracts/**", ".github/**", "compose*.yaml", "Makefile", "docs/**"]
+[stage.1]
+owns = ["db/**", "libs/lmqa_db/**", "libs/lmqa_keys/**", "libs/lmqa_security/**", "libs/lmqa_audit/**", "libs/lmqa_models/**", "libs/lmqa_testing/**", "infra/keyguard/**", "infra/aws/**"]
+[stage.2]
+owns = ["services/identity/**"]
+[stage.3]
+owns = ["services/gateway/**", "libs/lmqa_auth/**"]
+[stage.4]
+owns = ["services/ingestion/**", "libs/lmqa_objectstore/**"]
+[stage.5]
+owns = ["services/retrieval/**", "libs/lmqa_vectorstore/**"]
+[stage.6]
+owns = ["services/generation/**", "prompts/**"]
+[stage.7]
+owns = ["services/citation_validator/**"]
+[stage.8]
+owns = ["frontend/**"]
+[stage.9]
+owns = ["services/audit/**", "services/ops/**", "infra/keyguard/**"]
+[stage.10]
+owns = ["tests/isolation/**", "tests/load/**", "tests/chaos/**", "eval/**"]
+[stage.11]
+owns = ["infra/k8s/**", "infra/cloudflare/**", "docs/runbooks/**"]
+
+# Profiles. `full` is the only profile valid for production. `mvp` may reduce SIZES and may bind
+# gates to disabled features (contracts/features.toml); it never lowers a safety threshold.
+[profile.full]
+skips = []
+production_valid = true
+
+[profile.mvp]
+skips = ["live_models", "live_aws", "live_auth0", "live_llm", "perf", "chaos"]
+production_valid = false
+note = "The model-free lane. Re-run with the live lanes on a machine with RAM, AWS and Auth0 before go-live."

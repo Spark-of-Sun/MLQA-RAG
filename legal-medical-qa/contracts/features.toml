@@ -1,0 +1,44 @@
+# Feature flags bound to gates (doc 19.6). A flag may be enabled only with signed attestations from
+# its bound gates; a disabled feature's endpoints answer 404 as if they did not exist.
+[features.org_settings]
+enabled = false
+gates = ["G2.6"]
+note = "Organization settings PATCH: needs the Auth0 SSO connection work (live Auth0)"
+
+[features.governance_requests]
+enabled = false
+gates = ["G2.10", "G9.9"]
+note = "Two-person governance (successor transfer, wall lift, unseal, destroy, owner recovery)"
+
+[features.break_glass]
+enabled = false
+gates = ["G5.6", "G9.8"]
+note = "Admin read of private documents. The database policy for it exists and is tested; the API is deferred"
+
+[features.emergency_access]
+enabled = false
+gates = ["G5.7", "G9.8"]
+note = "Clinical emergency access API (the policy rule 6 exists and is tested)"
+
+[features.exports]
+enabled = false
+gates = ["G9.3"]
+
+[features.held_documents]
+enabled = false
+gates = ["G4.11", "G9.5"]
+
+[features.citation_panel_endpoint]
+enabled = false
+gates = ["G7.10", "G8.9"]
+note = "Needs the validator's citation resolution under live models"
+
+[features.authenticators_endpoint]
+enabled = false
+gates = ["G2.6", "G2.7"]
+note = "Needs the Auth0 Management API (live Auth0)"
+
+[features.operator_plane]
+enabled = false
+gates = ["G9.7", "G9.12"]
+note = "ops service: JIT operator access, KeyGuard approvals, owner recovery"

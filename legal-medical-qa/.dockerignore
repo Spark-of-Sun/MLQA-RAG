@@ -1,0 +1,10 @@
+*
+!pyproject.toml
+!uv.lock
+!.python-version
+!libs/**
+!services/**
+!contracts/**
+!prompts/**
+**/__pycache__
+**/.pytest_cache

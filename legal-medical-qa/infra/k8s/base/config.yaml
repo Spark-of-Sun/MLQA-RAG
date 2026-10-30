@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lmqa-config
+  namespace: lmqa
+data:
+  APP_ENV: production
+  PRODUCT_DOMAIN: onekami.site
+  APP_BASE_URL: https://onekami.site
+  KMS_PROVIDER: aws
+  AWS_REGION: us-east-1
+  IDENTITY_URL: http://identity:8005
+  INGESTION_URL: http://ingestion:8001
+  RETRIEVAL_URL: http://retrieval:8002
+  GENERATION_URL: http://generation:8003
+  VALIDATOR_URL: http://citation-validator:8004
+  AUDIT_URL: http://audit:8007
+  API_BASE_URL: http://gateway:8000
+  TRUST_CLOUDFLARE: 'true'
+  CONTRACTS_DIR: /app/contracts
+  PROMPTS_DIR: /app/prompts
+  ANSWER_CACHE: 'off'
+  AUTH0_AUDIENCE_MAIN: https://api.onekami.site
+  AUTH0_AUDIENCE_ONBOARDING: https://onboarding.onekami.site
+  AUTH0_CLAIMS_NAMESPACE: https://claims.onekami.site

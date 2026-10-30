@@ -1,0 +1,38 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "KeyGuardNoServiceMayDestroyOrDisable",
+      "Effect": "Deny",
+      "Action": [
+        "kms:ScheduleKeyDeletion",
+        "kms:DisableKey",
+        "kms:DeleteImportedKeyMaterial"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "ArnNotLike": {
+          "aws:PrincipalArn": [
+            "arn:aws:iam::*:role/keyguard-destroyer",
+            "arn:aws:iam::*:role/key-admin"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "KeyGuardPolicyChangesOnlyAtCreationOrByKeyAdmin",
+      "Effect": "Deny",
+      "Action": ["kms:PutKeyPolicy"],
+      "Resource": "*",
+      "Condition": {
+        "ArnNotLike": {
+          "aws:PrincipalArn": [
+            "arn:aws:iam::*:role/keyguard-destroyer",
+            "arn:aws:iam::*:role/key-admin",
+            "arn:aws:iam::*:role/lmqa-*-identity"
+          ]
+        }
+      }
+    }
+  ]
+}

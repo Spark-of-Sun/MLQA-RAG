@@ -1,0 +1,9 @@
+{
+  "identities": [
+    {
+      "name": "ingestion",
+      "credentials": [{"accessKey": "REPLACE_WITH_OBJECT_STORE_ACCESS_KEY", "secretKey": "REPLACE_WITH_OBJECT_STORE_SECRET_KEY"}],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

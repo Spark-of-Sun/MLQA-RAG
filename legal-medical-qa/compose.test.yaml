@@ -1,0 +1,32 @@
+# Infrastructure only, for running the test suite from the host (no application containers).
+# PostgreSQL uses trust auth and PgBouncer uses pgbouncer.test.ini: this is a TEST stack, never a deployment.
+# Usage: docker compose -f compose.test.yaml up -d
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:18}
+    environment: {POSTGRES_HOST_AUTH_METHOD: trust}
+    ports: ["127.0.0.1:5432:5432"]
+  valkey:
+    image: ${VALKEY_IMAGE:-valkey/valkey:9}
+    ports: ["127.0.0.1:6379:6379"]
+  openbao:
+    image: ${OPENBAO_IMAGE:-openbao/openbao:2.7.2}
+    command: [server, -dev, -dev-root-token-id=lmqa-dev-token, -dev-listen-address=0.0.0.0:8200]
+    cap_add: [IPC_LOCK]
+    ports: ["127.0.0.1:8200:8200"]
+  qdrant:
+    image: ${QDRANT_IMAGE:-qdrant/qdrant:v1.20.0}
+    environment: {QDRANT__SERVICE__API_KEY: lmqa-dev-rw-key, QDRANT__SERVICE__READ_ONLY_API_KEY: lmqa-dev-ro-key}
+    ports: ["127.0.0.1:6333:6333"]
+  seaweedfs:
+    image: ${SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:latest}
+    command: [server, -dir=/data, -s3, -s3.port=8333, "-s3.config=/etc/seaweedfs/s3.json", -volume.max=64]
+    volumes: [./infra/compose/seaweedfs/s3.test.json:/etc/seaweedfs/s3.json:ro]
+    ports: ["127.0.0.1:8333:8333"]
+  pgbouncer:
+    image: ${PGBOUNCER_IMAGE:-edoburu/pgbouncer:latest}
+    volumes:
+      - ./infra/compose/pgbouncer/pgbouncer.test.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./infra/compose/pgbouncer/userlist.test.txt:/etc/pgbouncer/userlist.test.txt:ro
+    depends_on: [postgres]
+    ports: ["127.0.0.1:6432:6432"]

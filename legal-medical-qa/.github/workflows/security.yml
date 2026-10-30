@@ -1,0 +1,32 @@
+name: security
+on:
+  pull_request:
+  schedule: [{cron: "0 4 * * 1"}]
+permissions:
+  contents: read
+  security-events: write
+jobs:
+  secrets-and-deps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with: {fetch-depth: 0}
+      - uses: gitleaks/gitleaks-action@v2
+        env: {GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"}
+      - uses: astral-sh/setup-uv@v6
+      - run: uv python install 3.14 && uv sync --frozen --all-packages
+      - run: uv run pip-audit
+      - uses: pnpm/action-setup@v4
+        with: {package_json_file: frontend/package.json}
+      - run: pnpm --dir frontend audit --audit-level high
+      - uses: returntocorp/semgrep-action@v1
+        with: {config: "p/python p/typescript p/owasp-top-ten"}
+  images:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: {service: [gateway, identity, ingestion, retrieval, generation, citation_validator, audit]}
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker build -f infra/docker/service.Dockerfile --build-arg SERVICE=${{ matrix.service }} -t scan/${{ matrix.service }} .
+      - uses: aquasecurity/trivy-action@0.33.1
+        with: {image-ref: "scan/${{ matrix.service }}", severity: "CRITICAL,HIGH", exit-code: "1", ignore-unfixed: true}

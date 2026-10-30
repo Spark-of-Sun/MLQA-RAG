@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - config.yaml
+  - network-policies.yaml
+  - ingress.yaml
+  - gateway.yaml
+  - identity.yaml
+  - ingestion.yaml
+  - retrieval.yaml
+  - generation.yaml
+  - citation-validator.yaml
+  - audit.yaml
+  - frontend.yaml
