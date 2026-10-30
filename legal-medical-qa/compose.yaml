@@ -1,0 +1,153 @@
+# The full stack for local development and for a single-host staging run. NOT executed in the
+# authoring sandbox (no Docker there): run `make doctor` and `make up` on a machine with Docker.
+# Image tags are starting points: pin every image by digest before production (doc 4.5 policy).
+#
+# Networks mirror doc 4.7: the browser reaches only the frontend; only the frontend reaches the
+# gateway; only the gateway reaches the other services; only retrieval (read-only key) and
+# ingestion (read-write key) reach Qdrant; only ingestion reaches the object store.
+
+x-service: &service
+  restart: unless-stopped
+  env_file: .env
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  depends_on:
+    pgbouncer: {condition: service_started}
+    valkey: {condition: service_healthy}
+
+x-build: &build
+  context: .
+  dockerfile: infra/docker/service.Dockerfile
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:18}
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set POSTGRES_SUPERUSER_PASSWORD in .env}
+    volumes: [pgdata:/var/lib/postgresql]
+    networks: [data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres"]
+      interval: 5s
+      retries: 20
+
+  pgbouncer:
+    image: ${PGBOUNCER_IMAGE:-edoburu/pgbouncer:latest}
+    restart: unless-stopped
+    volumes: [./infra/compose/pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro]
+    depends_on: {postgres: {condition: service_healthy}}
+    networks: [data]
+
+  valkey:
+    image: ${VALKEY_IMAGE:-valkey/valkey:9}
+    restart: unless-stopped
+    command: [valkey-server, --save, "", --appendonly, "no", --maxmemory, 512mb, --maxmemory-policy, volatile-lru]
+    networks: [data]
+    healthcheck:
+      test: [CMD, valkey-cli, ping]
+      interval: 5s
+      retries: 20
+
+  openbao:
+    image: ${OPENBAO_IMAGE:-openbao/openbao:2.7.2}
+    profiles: [local-keys]  # local development key provider; production uses AWS KMS
+    command: [server, -dev, "-dev-root-token-id=${OPENBAO_TOKEN:?set OPENBAO_TOKEN}", -dev-listen-address=0.0.0.0:8200]
+    cap_add: [IPC_LOCK]
+    networks: [data]
+
+  qdrant:
+    image: ${QDRANT_IMAGE:-qdrant/qdrant:v1.20.0}
+    restart: unless-stopped
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_KEY_RW:?set QDRANT_KEY_RW}
+      QDRANT__SERVICE__READ_ONLY_API_KEY: ${QDRANT_KEY_RO:?set QDRANT_KEY_RO}
+    volumes: [qdrant:/qdrant/storage]
+    networks: [vector]
+
+  seaweedfs:
+    image: ${SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:latest}
+    restart: unless-stopped
+    command: [server, -dir=/data, -s3, -s3.port=8333, "-s3.config=/etc/seaweedfs/s3.json", -volume.max=64]
+    volumes: [seaweed:/data, ./infra/compose/seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro]
+    networks: [objects]
+
+  clamav:
+    image: ${CLAMAV_IMAGE:-clamav/clamav:stable}
+    restart: unless-stopped
+    networks: [objects]
+
+  identity:
+    <<: *service
+    build: {<<: *build, args: {SERVICE: identity, PORT: "8005"}}
+    environment: {VALKEY_URL: "redis://valkey:6379", IDENTITY_URL: "http://identity:8005"}
+    networks: [core, data, egress]  # the only service that calls the Auth0 Management API (doc 8.8)
+
+  audit:
+    <<: *service
+    build: {<<: *build, args: {SERVICE: audit, PORT: "8007"}}
+    environment: {VALKEY_URL: "redis://valkey:6379"}
+    networks: [core, data]
+
+  ingestion:
+    <<: *service
+    build: {<<: *build, args: {SERVICE: ingestion, PORT: "8001"}}
+    environment:
+      VALKEY_URL: "redis://valkey:6379"
+      QDRANT_URL: "http://qdrant:6333"
+      OBJECT_STORE_ENDPOINT: "http://seaweedfs:8333"
+      CLAMD_HOST: clamav
+    networks: [core, data, vector, objects]
+    depends_on: {qdrant: {condition: service_started}, seaweedfs: {condition: service_started}, valkey: {condition: service_healthy}, pgbouncer: {condition: service_started}}
+
+  retrieval:
+    <<: *service
+    build: {<<: *build, args: {SERVICE: retrieval, PORT: "8002"}}
+    environment: {VALKEY_URL: "redis://valkey:6379", QDRANT_URL: "http://qdrant:6333"}
+    networks: [core, data, vector]
+
+  generation:
+    <<: *service
+    build: {<<: *build, args: {SERVICE: generation, PORT: "8003"}}
+    environment: {VALKEY_URL: "redis://valkey:6379"}
+    networks: [core, data, egress]
+
+  citation-validator:
+    <<: *service
+    build: {<<: *build, args: {SERVICE: citation_validator, PORT: "8004", EXTRAS: "--extra nli"}}
+    environment: {VALKEY_URL: "redis://valkey:6379", SERVICE: citation_validator}
+    networks: [core, data]
+
+  gateway:
+    <<: *service
+    build: {<<: *build, args: {SERVICE: gateway, PORT: "8000"}}
+    environment:
+      VALKEY_URL: "redis://valkey:6379"
+      IDENTITY_URL: "http://identity:8005"
+      INGESTION_URL: "http://ingestion:8001"
+      RETRIEVAL_URL: "http://retrieval:8002"
+      GENERATION_URL: "http://generation:8003"
+      VALIDATOR_URL: "http://citation-validator:8004"
+      AUDIT_URL: "http://audit:8007"
+    networks: [edge, core, data, egress]  # fetches Auth0 signing keys (JWKS)
+
+  frontend:
+    build: {context: ./frontend}
+    restart: unless-stopped
+    env_file: .env
+    environment: {VALKEY_URL: "redis://valkey:6379", API_BASE_URL: "http://gateway:8000"}
+    ports: ["3000:3000"]  # behind Cloudflare and the load balancer in production
+    depends_on: {gateway: {condition: service_started}, valkey: {condition: service_healthy}}
+    networks: [edge, data]
+
+networks:
+  edge: {}
+  core: {internal: true}
+  data: {internal: true}
+  vector: {internal: true}
+  objects: {internal: true}
+  egress: {}  # outbound: generation (LLM provider, no tools; doc 10.9), identity (Auth0), gateway (JWKS)
+
+volumes: {pgdata: {}, qdrant: {}, seaweed: {}}

@@ -1,0 +1,172 @@
+# Workspace root: shared ruff, pytest, pyright and import-linter config (doc sections 18, 19.3, 19.4, 4.7).
+[project]
+name = "legal-medical-qa"
+version = "0.1.0"
+description = "Citation-verified question answering over legal and medical document sets (MVP)"
+requires-python = ">=3.14"
+readme = "README.md"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "ruff>=0.17",
+  "pyright>=1.1.4",
+  "pytest>=9.2",
+  "pytest-asyncio>=1.4",
+  "pytest-cov>=7.1",
+  "pytest-randomly>=5.0",
+  "pytest-timeout>=2.4",
+  "pytest-xdist>=3.8",
+  "hypothesis>=6.170",
+  "import-linter>=2.15",
+  "pip-audit>=2.10",
+  "httpx>=0.28",
+  "alembic>=1.20",
+  "types-boto3[kms]>=1.43",
+  "lxml-stubs>=0.5",
+  "psycopg[binary]>=3.3",
+  "sqlalchemy>=2.1",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["libs/*", "services/*"]
+
+# ---------------------------------------------------------------- ruff (doc 19.3)
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+extend-exclude = ["db/migrations/versions", "corpus/data", "docs", "frontend", "agent_work"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+  "COM812", "ISC001",   # conflict with the formatter
+  "D203", "D213",       # conflicting docstring styles
+  "CPY", "FIX", "TD",   # policies handled in review
+]
+
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-decorators = ["dataclasses.dataclass"]
+runtime-evaluated-base-classes = ["pydantic.BaseModel"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.isort]
+known-first-party = [
+  "gateway", "identity", "ingestion", "retrieval", "generation", "citation_validator", "audit", "ops",
+  "lmqa_models", "lmqa_auth", "lmqa_db", "lmqa_keys", "lmqa_security", "lmqa_vectorstore",
+  "lmqa_objectstore", "lmqa_audit", "lmqa_logging", "lmqa_telemetry", "lmqa_testing",
+]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"unittest.mock".msg = "R2: use real systems"
+"pytest_mock".msg = "R2: use real systems"
+"respx".msg = "R2: use real systems"
+"responses".msg = "R2: use real systems"
+"faker".msg = "R1: no fake data"
+"factory".msg = "R1: no fake data"
+"freezegun".msg = "R7: time acceleration through configuration only"
+"pydantic.v1".msg = "Pydantic v2 only"
+"sqlalchemy.create_engine".msg = "use lmqa_db scoped session"
+"sqlalchemy.ext.asyncio.create_async_engine".msg = "use lmqa_db scoped session"
+"psycopg.connect".msg = "use lmqa_db scoped session"
+"psycopg.AsyncConnection.connect".msg = "use lmqa_db scoped session"
+
+[tool.ruff.lint.per-file-ignores]
+# Test code holds long SQL strings and seeded random worlds; these rules add noise, not safety.
+"**/tests/**" = [
+  "S101", "PLR2004", "ANN", "D", "S105", "S106",
+  "E501", "ISC004", "S608", "S311", "N817", "C901", "TID251", "SLF001", "PT011", "PT012", "PLR0912", "PLR0913", "PLR0914", "PLR0915", "PLR0917",
+]
+"tests/**" = [
+  "S101", "PLR2004", "ANN", "D", "S105", "S106", "INP001",
+  "E501", "ISC004", "S608", "S311", "PLR0912", "PLR0913", "PLR0914", "PLR0915", "PLR0917",
+]
+"libs/lmqa_testing/**" = [
+  "E501", "S608", "S311", "PLR0913", "PLR0917", "PLR2004", "C901", "PLR0912", "PLR0914", "PLR0915", "S101", "D",
+]
+# Alembic runs directly against PostgreSQL as the migration owner, never through the scoped session.
+"db/migrations/**" = ["E501", "D", "INP001", "TID251"]
+"libs/lmqa_db/**" = ["TID251"]
+# Operational scripts (probes, loaders): asserts are their checks and output is their interface.
+"tools/**" = ["T201", "INP001", "S101", "D", "E501", "C901", "EM101", "TRY003", "ANN401"]
+"corpus/**" = ["T201", "INP001", "D", "ANN401", "PLR2004"]
+# Operational scripts under infra/ are run directly, not imported.
+"infra/**" = ["INP001", "T201"]
+# FastAPI resolves route annotations (UUID, datetime, Request...) at runtime: keep those imports real.
+"services/*/src/*/app.py" = ["TC001", "TC002", "TC003"]
+
+# ---------------------------------------------------------------- pytest (doc 19.4)
+[tool.pytest.ini_options]
+minversion = "9.1"
+addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
+xfail_strict = true
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
+timeout = 180
+filterwarnings = ["error"]
+testpaths = ["libs", "services", "tests", "tools"]
+markers = [
+  "unit", "integration", "contract", "e2e", "isolation", "perf", "chaos",
+  "live_auth0", "live_kms", "live_aws", "live_llm", "live_models", "control",
+  "stage0", "stage1", "stage2", "stage3", "stage4", "stage5", "stage6",
+  "stage7", "stage8", "stage9", "stage10", "stage11",
+]
+
+# ---------------------------------------------------------------- pyright
+[tool.pyright]
+pythonVersion = "3.14"
+typeCheckingMode = "standard"
+include = ["libs", "services", "tools"]
+exclude = ["**/tests", "**/.venv"]
+strict = ["libs"]
+
+# ---------------------------------------------------------------- import-linter (doc 4.7)
+[tool.importlinter]
+root_packages = [
+  "gateway", "identity", "ingestion", "retrieval", "generation", "citation_validator", "audit", "ops",
+  "lmqa_models", "lmqa_auth", "lmqa_db", "lmqa_keys", "lmqa_security", "lmqa_vectorstore",
+  "lmqa_objectstore", "lmqa_audit", "lmqa_logging", "lmqa_telemetry", "lmqa_testing",
+]
+
+[[tool.importlinter.contracts]]
+name = "Services are independent of each other"
+type = "independence"
+modules = ["gateway", "identity", "ingestion", "retrieval", "generation", "citation_validator", "audit", "ops"]
+
+[[tool.importlinter.contracts]]
+name = "Gateway holds no storage or vector capability"
+type = "forbidden"
+source_modules = ["gateway"]
+forbidden_modules = ["lmqa_vectorstore", "lmqa_objectstore"]
+
+[[tool.importlinter.contracts]]
+name = "Retrieval has no object store"
+type = "forbidden"
+source_modules = ["retrieval"]
+forbidden_modules = ["lmqa_objectstore"]
+
+[[tool.importlinter.contracts]]
+name = "Validator has no vector store or object store"
+type = "forbidden"
+source_modules = ["citation_validator"]
+forbidden_modules = ["lmqa_vectorstore", "lmqa_objectstore"]
+
+[[tool.importlinter.contracts]]
+name = "Generation has no vector store or object store"
+type = "forbidden"
+source_modules = ["generation"]
+forbidden_modules = ["lmqa_vectorstore", "lmqa_objectstore"]
+
+[[tool.importlinter.contracts]]
+name = "Libraries never import services"
+type = "forbidden"
+source_modules = [
+  "lmqa_models", "lmqa_auth", "lmqa_db", "lmqa_keys", "lmqa_security", "lmqa_vectorstore",
+  "lmqa_objectstore", "lmqa_audit", "lmqa_logging", "lmqa_telemetry", "lmqa_testing",
+]
+forbidden_modules = ["gateway", "identity", "ingestion", "retrieval", "generation", "citation_validator", "audit", "ops"]

@@ -1,0 +1,7 @@
+title = "lmqa gitleaks"
+[extend]
+useDefault = true
+[allowlist]
+description = "documented placeholders and fixed local development keys (no real secret)"
+regexes = ['''<[A-Z0-9_]{4,}>''', '''lmqa-dev-[a-z-]+''']
+paths = ['''\.env\.example$''', '''tests/.*''']

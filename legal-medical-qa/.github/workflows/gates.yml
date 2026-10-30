@@ -1,0 +1,28 @@
+name: gates
+# The cumulative stage gate (doc 19.6). A pull request may modify only paths owned by stages up to STAGE+1,
+# and every earlier gate re-runs. The attestation (gates/stage-N.json) is signed keyless with cosign.
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      profile: {description: "mvp or full", default: mvp}
+permissions:
+  contents: read
+  id-token: write       # keyless signing
+  attestations: write
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+        with: {fetch-depth: 0}
+      - uses: astral-sh/setup-uv@v6
+      - run: uv python install 3.14
+      - run: docker compose -f compose.test.yaml up -d && sleep 20
+      - run: uv run python tools/gatekeeper.py "$(cat STAGE)" --profile "${{ inputs.profile || 'mvp' }}"
+      - uses: sigstore/cosign-installer@v3
+      - name: Sign the gate attestation for this commit
+        run: cosign sign-blob --yes --bundle gates/stage.bundle gates/stage-$(cat STAGE).json
+      - uses: actions/upload-artifact@v4
+        with: {name: gate-attestation, path: gates/}

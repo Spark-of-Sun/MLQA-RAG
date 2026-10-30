@@ -1,0 +1,9 @@
+# Prompt registry (doc 11.5, 11.7). A version is promoted only when the evaluation harness shows
+# the validation pass rate, refusal accuracy and retrieval metrics at or above eval/floors.toml.
+# The hash covers the system prompt and the few-shot examples; the registry refuses a mismatch.
+[[prompt]]
+name = "answer_system"
+version = "v1"
+system_file = "templates/answer_system_v1.txt"
+few_shot_file = "few_shot_examples/format_and_refusal.md"
+sha256 = "65150ff307f7ab03fdc843ff334fa5101220b1ce0b6b461c763081f152e1e6eb"

@@ -1,0 +1,9 @@
+{
+  "identities": [
+    {
+      "name": "dev",
+      "credentials": [{"accessKey": "lmqa-dev-access", "secretKey": "lmqa-dev-secret"}],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

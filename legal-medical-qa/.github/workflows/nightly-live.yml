@@ -1,0 +1,34 @@
+name: nightly-live
+# The lanes that need real credentials and real models. Run on a self-hosted or large runner (the model
+# tests need ~8 GB RAM). Secrets come from the repository's environment, never from code.
+on:
+  schedule: [{cron: "0 3 * * *"}]
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  live:
+    runs-on: ubuntu-latest-8-cores   # or a self-hosted runner with at least 16 GB
+    timeout-minutes: 120
+    environment: ci-live
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - run: uv python install 3.14
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.AWS_CI_ROLE_ARN }}   # OIDC: no static keys
+          aws-region: us-east-1
+      - run: uv sync --frozen --all-packages --extra nli
+      - run: docker compose -f compose.test.yaml up -d && sleep 20
+      - name: Real ML models (embedding, re-ranker, NLI) and the end-to-end suites
+        run: uv run pytest -m "live_models" -p no:randomly
+        env: {NLI_MODEL_HASH: "${{ vars.NLI_MODEL_HASH }}"}
+      - name: Real AWS KMS (schedule, cancel, enable, context binding)
+        run: uv run pytest -m "live_aws" -p no:randomly
+      - name: Real LLM calls within a spend cap
+        run: uv run pytest -m "live_llm" -p no:randomly
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          LLM_TEST_BUDGET_USD: "5"

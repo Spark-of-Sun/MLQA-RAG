@@ -1,0 +1,58 @@
+# Role x route x step-up. The Gateway allow-list, the generated client and the authorization tests
+# all come from this file (doc 15.1, G3.6). Roles: SA super admin / co-owner, AD admin, TE tenant,
+# ON onboarding scope, PENDING pending members, ANON anonymous. Role codes are QUOTED: a bare ON
+# is the YAML boolean true (the Norway problem) and would silently match no role. A route a role may not call is 404.
+routes:
+  - {method: POST, path: "/v1/onboarding/organization", service: identity, audience: onboarding, roles: ["ON"], step_up: false, state_changing: true, stream: false}
+  - {method: POST, path: "/v1/onboarding/join-admin", service: identity, audience: onboarding, roles: ["ON"], step_up: false, state_changing: true, stream: false}
+  - {method: POST, path: "/v1/onboarding/join-tenant/preview", service: identity, audience: onboarding, roles: ["ON"], step_up: false, state_changing: true, stream: false}
+  - {method: POST, path: "/v1/onboarding/join-tenant", service: identity, audience: onboarding, roles: ["ON"], step_up: false, state_changing: true, stream: false}
+  - {method: GET, path: "/v1/onboarding/status", service: identity, audience: onboarding, roles: ["ON"], step_up: false, state_changing: false, stream: false}
+  - {method: GET, path: "/v1/me", service: identity, audience: main, roles: ["SA", "AD", "TE", "PENDING"], step_up: false, state_changing: false, stream: false}
+  - {method: GET, path: "/v1/org", service: identity, audience: main, roles: ["SA"], step_up: false, state_changing: false, stream: false}
+  - {method: PATCH, path: "/v1/org/settings", service: identity, audience: main, roles: ["SA"], step_up: true, state_changing: true, stream: false, feature: org_settings}
+  - {method: POST, path: "/v1/org/code", service: identity, audience: main, roles: ["SA"], step_up: true, state_changing: true, stream: false}
+  - {method: POST, path: "/v1/org/code/rotate", service: identity, audience: main, roles: ["SA"], step_up: true, state_changing: true, stream: false}
+  - {method: GET, path: "/v1/org/admins", service: identity, audience: main, roles: ["SA"], step_up: false, state_changing: false, stream: false}
+  - {method: GET, path: "/v1/org/admins/{id}", service: identity, audience: main, roles: ["SA"], step_up: false, state_changing: false, stream: false}
+  - {method: POST, path: "/v1/org/admins/{id}/approve", service: identity, audience: main, roles: ["SA"], step_up: true, state_changing: true, stream: false}
+  - {method: POST, path: "/v1/org/admins/{id}/reject", service: identity, audience: main, roles: ["SA"], step_up: true, state_changing: true, stream: false}
+  - {method: POST, path: "/v1/org/admins/{id}/suspend", service: identity, audience: main, roles: ["SA"], step_up: true, state_changing: true, stream: false}
+  - {method: POST, path: "/v1/org/admins/{id}/reactivate", service: identity, audience: main, roles: ["SA"], step_up: true, state_changing: true, stream: false}
+  - {method: GET, path: "/v1/org/workspaces", service: identity, audience: main, roles: ["SA"], step_up: false, state_changing: false, stream: false}
+  - {method: GET, path: "/v1/org/audit", service: audit, audience: main, roles: ["SA"], step_up: false, state_changing: false, stream: false}
+  - {method: GET, path: "/v1/workspace/policy", service: identity, audience: main, roles: ["AD"], step_up: false, state_changing: false, stream: false}
+  - {method: PATCH, path: "/v1/workspace/policy", service: identity, audience: main, roles: ["AD"], step_up: true, state_changing: true, stream: false}
+  - {method: POST, path: "/v1/workspace/code", service: identity, audience: main, roles: ["AD"], step_up: true, state_changing: true, stream: false}
+  - {method: POST, path: "/v1/workspace/code/rotate", service: identity, audience: main, roles: ["AD"], step_up: true, state_changing: true, stream: false}
+  - {method: GET, path: "/v1/workspace/tenants", service: identity, audience: main, roles: ["AD"], step_up: false, state_changing: false, stream: false}
+  - {method: POST, path: "/v1/workspace/tenants/{id}/approve", service: identity, audience: main, roles: ["AD"], step_up: false, state_changing: true, stream: false}
+  - {method: POST, path: "/v1/workspace/tenants/{id}/reject", service: identity, audience: main, roles: ["AD"], step_up: false, state_changing: true, stream: false}
+  - {method: POST, path: "/v1/workspace/tenants/{id}/suspend", service: identity, audience: main, roles: ["AD"], step_up: false, state_changing: true, stream: false}
+  - {method: POST, path: "/v1/workspace/tenants/{id}/reactivate", service: identity, audience: main, roles: ["AD"], step_up: false, state_changing: true, stream: false}
+  - {method: PUT, path: "/v1/workspace/tenants/{id}/grants", service: identity, audience: main, roles: ["AD"], step_up: false, state_changing: true, stream: false}
+  - {method: GET, path: "/v1/workspace/matters", service: identity, audience: main, roles: ["AD", "TE"], step_up: false, state_changing: false, stream: false}
+  - {method: POST, path: "/v1/workspace/matters", service: identity, audience: main, roles: ["AD"], step_up: false, state_changing: true, stream: false}
+  - {method: PATCH, path: "/v1/workspace/matters/{id}", service: identity, audience: main, roles: ["AD"], step_up: false, state_changing: true, stream: false}
+  - {method: DELETE, path: "/v1/workspace/matters/{id}", service: identity, audience: main, roles: ["AD"], step_up: false, state_changing: true, stream: false}
+  - {method: GET, path: "/v1/workspace/walls", service: identity, audience: main, roles: ["AD"], step_up: false, state_changing: false, stream: false}
+  - {method: POST, path: "/v1/workspace/walls", service: identity, audience: main, roles: ["AD"], step_up: false, state_changing: true, stream: false}
+  - {method: GET, path: "/v1/workspace/audit", service: audit, audience: main, roles: ["AD"], step_up: false, state_changing: false, stream: false}
+  - {method: GET, path: "/v1/audit/me", service: audit, audience: main, roles: ["AD", "TE"], step_up: false, state_changing: false, stream: false}
+  - {method: POST, path: "/v1/query", service: gateway, audience: main, roles: ["AD", "TE"], step_up: false, state_changing: false, stream: true}
+  - {method: GET, path: "/v1/documents", service: ingestion, audience: main, roles: ["AD", "TE"], step_up: false, state_changing: false, stream: false}
+  - {method: GET, path: "/v1/documents/{id}", service: ingestion, audience: main, roles: ["AD", "TE"], step_up: false, state_changing: false, stream: false}
+  - {method: POST, path: "/v1/documents/uploads", service: ingestion, audience: main, roles: ["AD", "TE"], step_up: false, state_changing: true, stream: false}
+  - {method: POST, path: "/v1/documents/{id}/complete", service: ingestion, audience: main, roles: ["AD", "TE"], step_up: false, state_changing: true, stream: false}
+  - {method: PATCH, path: "/v1/documents/{id}", service: ingestion, audience: main, roles: ["AD", "TE"], step_up: false, state_changing: true, stream: false}
+  - {method: DELETE, path: "/v1/documents/{id}", service: ingestion, audience: main, roles: ["AD", "TE"], step_up: false, state_changing: true, stream: false}
+  - {method: GET, path: "/v1/documents/{id}/download", service: ingestion, audience: main, roles: ["AD", "TE"], step_up: false, state_changing: false, stream: false}
+  - {method: GET, path: "/v1/health", service: gateway, audience: main, roles: ["ANON"], step_up: false, state_changing: false, stream: false}
+  - {method: POST, path: "/v1/governance-requests", service: identity, audience: main, roles: ["SA", "AD"], step_up: true, state_changing: true, stream: false, feature: governance_requests}
+  - {method: GET, path: "/v1/governance-requests", service: identity, audience: main, roles: ["SA", "AD"], step_up: false, state_changing: false, stream: false, feature: governance_requests}
+  - {method: POST, path: "/v1/workspace/break-glass", service: identity, audience: main, roles: ["AD"], step_up: true, state_changing: true, stream: false, feature: break_glass}
+  - {method: POST, path: "/v1/access/emergency", service: identity, audience: main, roles: ["TE"], step_up: true, state_changing: true, stream: false, feature: emergency_access}
+  - {method: POST, path: "/v1/exports", service: identity, audience: main, roles: ["AD", "TE"], step_up: true, state_changing: true, stream: false, feature: exports}
+  - {method: GET, path: "/v1/workspace/held-documents", service: identity, audience: main, roles: ["AD"], step_up: false, state_changing: false, stream: false, feature: held_documents}
+  - {method: GET, path: "/v1/citations/{request_id}/{alias}", service: identity, audience: main, roles: ["AD", "TE"], step_up: false, state_changing: false, stream: false, feature: citation_panel_endpoint}
+  - {method: GET, path: "/v1/me/authenticators", service: identity, audience: main, roles: ["SA", "AD", "TE"], step_up: false, state_changing: false, stream: false, feature: authenticators_endpoint}

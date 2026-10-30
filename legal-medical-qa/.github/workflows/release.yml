@@ -1,0 +1,62 @@
+name: release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - {service: gateway, image: gateway, port: 8000}
+          - {service: identity, image: identity, port: 8005}
+          - {service: ingestion, image: ingestion, port: 8001}
+          - {service: retrieval, image: retrieval, port: 8002}
+          - {service: generation, image: generation, port: 8003}
+          - {service: citation_validator, image: citation-validator, port: 8004, extras: "--extra nli"}
+          - {service: audit, image: audit, port: 8007}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_CI_ROLE_ARN }}   # OIDC, no static keys
+          aws-region: us-east-1
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/service.Dockerfile
+          push: true
+          build-args: |
+            SERVICE=${{ matrix.service }}
+            PORT=${{ matrix.port }}
+            EXTRAS=${{ matrix.extras }}
+          tags: ${{ steps.ecr.outputs.registry }}/lmqa-production/${{ matrix.image }}:${{ github.sha }}
+          provenance: true
+          sbom: true
+      - uses: actions/attest-build-provenance@v3
+        with:
+          subject-name: ${{ steps.ecr.outputs.registry }}/lmqa-production/${{ matrix.image }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: aws-actions/configure-aws-credentials@v5
+        with: {role-to-assume: "${{ vars.AWS_CI_ROLE_ARN }}", aws-region: us-east-1}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/lmqa-production/frontend:${{ github.sha }}
+          provenance: true
+          sbom: true

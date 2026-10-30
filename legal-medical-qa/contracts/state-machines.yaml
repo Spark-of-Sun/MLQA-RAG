@@ -1,0 +1,134 @@
+# Single source for every lifecycle in doc section 6.
+# Generates: (1) PostgreSQL transition tables + triggers, (2) service guards (lmqa_models),
+# (3) the generated transition test suites (G1.9, G2.9, G9.9).
+#
+# actors: who may trigger the transition
+#   super_admin | admin | tenant | system | operator | approver (membership approver for that role)
+version: 1
+machines:
+
+  membership:            # 6.2
+    table: memberships
+    column: state
+    initial: pending_approval
+    terminal: [rejected, removed]
+    states: [pending_approval, active, suspended, rejected, removed]
+    transitions:
+      - {from: pending_approval, to: active,    event: approve,    actors: [approver]}
+      - {from: pending_approval, to: rejected,  event: reject,     actors: [approver]}
+      - {from: active,           to: suspended, event: suspend,    actors: [approver, system]}
+      - {from: suspended,        to: active,    event: reactivate, actors: [approver, system]}
+      - {from: active,           to: removed,   event: remove,     actors: [approver]}
+      - {from: suspended,        to: removed,   event: remove,     actors: [approver]}
+
+  workspace:             # 6.3
+    table: workspaces
+    column: state
+    initial: pending
+    terminal: [rejected, destroyed]
+    states: [pending, provisioning, active, frozen, sealed, destroyed, rejected]
+    transitions:
+      - {from: pending,      to: provisioning, event: approve,     actors: [super_admin]}
+      - {from: pending,      to: rejected,     event: reject,      actors: [super_admin]}
+      - {from: provisioning, to: active,       event: provisioned, actors: [system]}
+      - {from: active,       to: frozen,       event: freeze,      actors: [super_admin, operator, system]}
+      - {from: frozen,       to: active,       event: reactivate,  actors: [super_admin, system]}
+      - {from: frozen,       to: sealed,       event: seal,        actors: [system]}
+      - {from: sealed,       to: frozen,       event: unseal,      actors: [super_admin]}
+      - {from: sealed,       to: destroyed,    event: destroy,     actors: [super_admin]}
+
+  organization:          # 6.4
+    table: orgs
+    column: state
+    initial: pending
+    terminal: [rejected, destroyed]
+    states: [pending, active, frozen, deletion_pending, sealed, destroyed, rejected]
+    transitions:
+      - {from: pending,          to: active,           event: approve,  actors: [system, operator]}
+      - {from: pending,          to: rejected,         event: reject,   actors: [operator]}
+      - {from: active,           to: frozen,           event: freeze,   actors: [operator]}
+      - {from: frozen,           to: active,           event: release,  actors: [operator]}
+      - {from: active,           to: deletion_pending, event: org_delete, actors: [super_admin, system]}
+      - {from: frozen,           to: deletion_pending, event: org_delete, actors: [super_admin, system]}
+      - {from: deletion_pending, to: active,           event: cancel,   actors: [super_admin]}
+      - {from: deletion_pending, to: sealed,           event: seal,     actors: [system]}
+      - {from: sealed,           to: frozen,           event: restore,  actors: [super_admin, operator]}
+      - {from: sealed,           to: destroyed,        event: destroy,  actors: [system]}
+
+  document:              # 6.5
+    table: documents
+    column: status
+    initial: uploading
+    terminal: [deleted]
+    states: [uploading, scanning, parsing, ocr_review, indexing, indexed, failed, held, deleting, deleted]
+    transitions:
+      - {from: uploading,  to: scanning,   event: complete,        actors: [system, tenant, admin]}
+      - {from: scanning,   to: parsing,    event: scan_clean,      actors: [system]}
+      - {from: parsing,    to: ocr_review, event: low_confidence,  actors: [system]}
+      - {from: parsing,    to: indexing,   event: parsed,          actors: [system]}
+      - {from: ocr_review, to: indexing,   event: review_done,     actors: [tenant, admin]}
+      - {from: indexing,   to: indexed,    event: indexed,         actors: [system]}
+      - {from: uploading,  to: failed,     event: fail,            actors: [system]}
+      - {from: scanning,   to: failed,     event: fail,            actors: [system]}
+      - {from: parsing,    to: failed,     event: fail,            actors: [system]}
+      - {from: indexing,   to: failed,     event: fail,            actors: [system]}
+      - {from: indexed,    to: held,       event: owner_removed,   actors: [system]}
+      - {from: held,       to: indexed,    event: reassign,        actors: [admin]}
+      - {from: uploading,  to: deleting,   event: delete,          actors: [tenant, admin, system]}
+      - {from: indexed,    to: deleting,   event: delete,          actors: [tenant, admin, system]}
+      - {from: held,       to: deleting,   event: delete,          actors: [admin, system]}
+      - {from: failed,     to: deleting,   event: delete,          actors: [tenant, admin, system]}
+      - {from: ocr_review, to: deleting,   event: delete,          actors: [tenant, admin, system]}
+      - {from: deleting,   to: deleted,    event: erased,          actors: [system]}
+
+  join_code:             # 6.6
+    table: join_codes
+    column: state
+    initial: active
+    terminal: [rotated, expired, exhausted, revoked]
+    states: [active, rotated, expired, exhausted, disabled, revoked]
+    transitions:
+      - {from: active,   to: rotated,   event: rotate,  actors: [super_admin, admin]}
+      - {from: active,   to: expired,   event: expire,  actors: [system]}
+      - {from: active,   to: exhausted, event: exhaust, actors: [system]}
+      - {from: active,   to: disabled,  event: disable, actors: [system]}
+      - {from: disabled, to: active,    event: enable,  actors: [system]}
+      - {from: disabled, to: rotated,   event: rotate,  actors: [super_admin, admin]}  # a cascade-disabled code stays dead until rotated (doc 7.7)
+      - {from: active,   to: revoked,   event: revoke,  actors: [super_admin, admin, operator]}
+      - {from: disabled, to: revoked,   event: revoke,  actors: [super_admin, admin, operator]}
+
+  governance_request:    # 6.7
+    table: governance_requests
+    column: state
+    initial: requested
+    terminal: [executed, rejected, cancelled, expired, failed]
+    states: [requested, approved, waiting, executable, executed, rejected, cancelled, expired, failed]
+    transitions:
+      - {from: requested,  to: approved,   event: approve,    actors: [approver]}
+      - {from: approved,   to: waiting,    event: start_wait, actors: [system]}
+      - {from: waiting,    to: executable, event: wait_over,  actors: [system]}
+      - {from: executable, to: executed,   event: execute,    actors: [system]}
+      - {from: requested,  to: rejected,   event: reject,     actors: [approver]}
+      - {from: approved,   to: rejected,   event: reject,     actors: [approver]}
+      - {from: requested,  to: cancelled,  event: cancel,     actors: [initiator]}
+      - {from: approved,   to: cancelled,  event: cancel,     actors: [initiator]}
+      - {from: waiting,    to: cancelled,  event: cancel,     actors: [initiator]}
+      - {from: executable, to: cancelled,  event: cancel,     actors: [initiator]}
+      - {from: requested,  to: expired,    event: expire,     actors: [system]}
+      - {from: approved,   to: expired,    event: expire,     actors: [system]}
+      - {from: executable, to: failed,     event: fail,       actors: [system]}
+
+  access_session:        # 6.8 (break-glass, emergency, operator JIT)
+    table: access_sessions
+    column: state
+    initial: requested
+    terminal: [reviewed, denied]
+    states: [requested, approved, denied, active, expired, revoked, reviewed]
+    transitions:
+      - {from: requested, to: approved, event: approve,  actors: [approver, system]}
+      - {from: requested, to: denied,   event: deny,     actors: [approver]}
+      - {from: approved,  to: active,   event: activate, actors: [system]}
+      - {from: active,    to: expired,  event: expire,   actors: [system]}
+      - {from: active,    to: revoked,  event: revoke,   actors: [approver, admin, super_admin, operator]}
+      - {from: expired,   to: reviewed, event: review,   actors: [admin, operator]}
+      - {from: revoked,   to: reviewed, event: review,   actors: [admin, operator]}

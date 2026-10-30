@@ -1,0 +1,9 @@
+# Local development additions (loaded automatically by `docker compose`). Not for production.
+services:
+  postgres:
+    ports: ["127.0.0.1:5432:5432"]  # lets `make migrate` run tools/db_migrate.py from the host
+  pgbouncer:
+    ports: ["127.0.0.1:6432:6432"]
+networks:
+  data:
+    internal: false  # host port publishing needs a non-internal network in local development

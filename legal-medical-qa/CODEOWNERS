@@ -1,0 +1,9 @@
+# Security review is required for the files that carry the isolation, key and identity guarantees (doc 18).
+/db/policies/                       @onekami/security
+/contracts/authz-matrix.yaml        @onekami/security
+/contracts/state-machines.yaml      @onekami/security
+/libs/lmqa_keys/                    @onekami/security
+/libs/lmqa_auth/                    @onekami/security
+/infra/keyguard/                    @onekami/security
+/infra/auth0/                       @onekami/security
+/stages.toml                        @onekami/security @onekami/engineering
