@@ -30,3 +30,7 @@ gates/
 
 # rendered by tools/gen_env.py (holds object store credentials)
 infra/compose/seaweedfs/s3.json
+
+# folder 
+agent_work
+project-blueprint
