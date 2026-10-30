@@ -63,7 +63,11 @@ class Item:
 
 
 def _get(client: httpx.Client, url: str, **kw: Any) -> httpx.Response:
-    response = client.get(url, follow_redirects=True, timeout=60, **kw)
+    for attempt in range(4):
+        response = client.get(url, follow_redirects=True, timeout=60, **kw)
+        if response.status_code < 500 and response.status_code != 429:
+            break
+        time.sleep(2**attempt)  # 1s, 2s, 4s, 8s
     response.raise_for_status()
     time.sleep(0.2)  # polite to public servers (EDGAR allows 10 requests per second)
     return response
@@ -86,6 +90,7 @@ def edgar_contracts(client: httpx.Client, count: int = 4) -> list[Item]:
     search = _get(
         client,
         "https://efts.sec.gov/LATEST/search-index",
+        headers={"Accept-Encoding": "gzip"},   # <- add this line
         params={
             "q": '"agreement"',
             "forms": "8-K",
