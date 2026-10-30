@@ -65,7 +65,3 @@ API token and zone, SMTP. `make doctor` lists exactly which are still missing.
 Follow [`docs/deployment-onekami.md`](docs/deployment-onekami.md): Cloudflare in front, everything else on AWS
 (OpenTofu for `infra/aws`, `infra/cloudflare`, `infra/auth0`; Kubernetes manifests in `infra/k8s`).
 
-## Tests that need a bigger machine
-
-Tests that load an ML model are marked `live_models`, real-KMS tests `live_aws`. They were **not run** where this was
-built (2 GB of RAM). Run them on a machine with at least 8 GB: `make test-models`, `make test-aws`.
