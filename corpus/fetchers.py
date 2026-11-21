@@ -4,8 +4,10 @@ Every item records its source URL, licence, retrieval date and SHA-256. The data
 git-ignored; the manifest is committed, so a fixture can always be re-fetched and re-verified.
 The loader fails on any hash mismatch or missing licence. English-language documents only (v1).
 
-Usage:  python corpus/fetchers.py            fetch and (re)write the manifest
-        python corpus/fetchers.py --verify   re-check hashes of what is on disk
+Usage:  python corpus/fetchers.py            restore the manifest's documents; verify every SHA-256
+        python corpus/fetchers.py --refresh  re-select from live sources and REWRITE the manifest
+                                             (a manifest change is reviewed like code)
+        python corpus/fetchers.py --verify   re-check hashes of what is already on disk
 """
 
 from __future__ import annotations
@@ -61,7 +63,11 @@ class Item:
 
 
 def _get(client: httpx.Client, url: str, **kw: Any) -> httpx.Response:
-    response = client.get(url, follow_redirects=True, timeout=60, **kw)
+    for attempt in range(4):
+        response = client.get(url, follow_redirects=True, timeout=60, **kw)
+        if response.status_code < 500 and response.status_code != 429:
+            break
+        time.sleep(2**attempt)  # 1s, 2s, 4s, 8s
     response.raise_for_status()
     time.sleep(0.2)  # polite to public servers (EDGAR allows 10 requests per second)
     return response
@@ -84,6 +90,7 @@ def edgar_contracts(client: httpx.Client, count: int = 4) -> list[Item]:
     search = _get(
         client,
         "https://efts.sec.gov/LATEST/search-index",
+        headers={"Accept-Encoding": "gzip"},   # <- add this line
         params={
             "q": '"agreement"',
             "forms": "8-K",
@@ -271,7 +278,35 @@ def verify() -> list[str]:
     return problems
 
 
+def restore() -> list[str]:
+    """Download exactly the manifest's documents; verify each against its recorded SHA-256."""
+    problems: list[str] = []
+    with httpx.Client(headers={"User-Agent": UA}) as client:
+        for item in tomllib.loads(MANIFEST.read_text(encoding="utf-8"))["item"]:
+            path = DATA / f"{item['id']}.{EXTENSIONS.get(item['format'], item['format'])}"
+            if path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest() == item["sha256"]:
+                continue
+            try:
+                body = _get(client, item["source_url"], headers={"Accept-Encoding": "gzip"}).content
+            except httpx.HTTPError as exc:
+                problems.append(f"{item['id']}: download failed ({type(exc).__name__})")
+                continue
+            if hashlib.sha256(body).hexdigest() != item["sha256"]:
+                problems.append(
+                    f"{item['id']}: the upstream document changed (hash differs); "
+                    "review it and run --refresh"
+                )
+                continue
+            DATA.mkdir(exist_ok=True)
+            path.write_bytes(body)
+    return problems
+
+
 def main() -> int:
+    if "--refresh" not in sys.argv and "--verify" not in sys.argv:
+        problems = restore()
+        print("\n".join(problems) or "corpus restored and verified")
+        return 1 if problems else 0
     if "--verify" in sys.argv:
         problems = verify()
         print("\n".join(problems) or "corpus verified")

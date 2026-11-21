@@ -18,6 +18,7 @@ from lmqa_models.state_machine import (
     load_machines,
     sql_for,
 )
+from lmqa_models.tokenizer import HfTokenizer
 
 __all__ = [
     "EMERGENCY_TIER_CAP",
@@ -25,6 +26,7 @@ __all__ = [
     "Decision",
     "Document",
     "Grant",
+    "HfTokenizer",
     "IllegalTransitionError",
     "Role",
     "StateMachine",

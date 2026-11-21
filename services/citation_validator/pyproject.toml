@@ -7,6 +7,7 @@ dependencies = [
   "uvicorn>=0.54",
   "httpx>=0.28",
   "pydantic-settings>=2.16",
+  "websockets>=15",
   "lmqa_models",
   "lmqa_auth",
   "lmqa_db",
@@ -15,6 +16,9 @@ dependencies = [
   "lmqa_audit",
   "lmqa_logging"
 ]
+
+[project.optional-dependencies]
+nli = ["torch>=2.15", "transformers>=5.22"]
 
 [build-system]
 requires = ["hatchling"]

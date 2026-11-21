@@ -12,6 +12,11 @@ from pathlib import Path
 
 from lmqa_db.bootstrap import repo_root
 
+
+class CorpusMissingError(RuntimeError):
+    """The corpus documents are not on disk. They are fetched, never committed (rule R3)."""
+
+
 EXTENSIONS = {"html": "htm", "jats": "xml", "spl": "xml"}
 
 
@@ -41,6 +46,12 @@ def load_corpus(domain: str | None = None, kind: str | None = None) -> list[Corp
             msg = f"corpus item {entry['id']} has no licence"
             raise ValueError(msg)
         path = root / "data" / f"{entry['id']}.{EXTENSIONS.get(entry['format'], entry['format'])}"
+        if not path.is_file():
+            msg = (
+                f"corpus document {entry['id']} is missing: the real public documents are fetched, not "
+                "committed. Run `make load-corpus` (uv run python corpus/fetchers.py) once, then re-run the tests."
+            )
+            raise CorpusMissingError(msg)
         data = path.read_bytes()
         if hashlib.sha256(data).hexdigest() != entry["sha256"]:
             msg = f"corpus item {entry['id']} does not match its recorded SHA-256"

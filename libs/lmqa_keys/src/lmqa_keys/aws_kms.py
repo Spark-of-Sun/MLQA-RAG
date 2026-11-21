@@ -7,6 +7,7 @@ as well as by the policy lint in CI: a production key always uses the 30 day max
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Any, cast
 
 import boto3
@@ -36,13 +37,67 @@ _UNAVAILABLE_CODES = {
 }
 
 
+def kms_alias(name: str) -> str:
+    """AWS aliases must begin with ``alias/``; ``alias/aws/`` is reserved for AWS."""
+    alias = name if name.startswith("alias/") else f"alias/{name}"
+    if alias.startswith("alias/aws/"):
+        msg = "aliases under alias/aws/ are reserved by AWS"
+        raise KeyProviderError(msg)
+    return alias
+
+
+DESTRUCTIVE_ACTIONS = (
+    "kms:ScheduleKeyDeletion",
+    "kms:DisableKey",
+    "kms:PutKeyPolicy",
+    "kms:DeleteImportedKeyMaterial",
+)
+
+
+def kms_key_policy(account_id: str, destroyer_role_arn: str, key_admin_role_arn: str) -> str:
+    """The key policy every organization key is born with (doc 12.5, KeyGuard preventive layer).
+
+    The account root keeps IAM-delegated permissions (so the key can never be orphaned), and an
+    explicit DENY on the four destructive actions applies to every principal except the two KeyGuard
+    roles. A key policy deny beats any IAM allow, so a compromised service role cannot schedule a
+    key's deletion.
+    """
+    return json.dumps(
+        {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Sid": "EnableIamPermissions",
+                    "Effect": "Allow",
+                    "Principal": {"AWS": f"arn:aws:iam::{account_id}:root"},
+                    "Action": "kms:*",
+                    "Resource": "*",
+                },
+                {
+                    "Sid": "KeyGuardDenyDestructiveActions",
+                    "Effect": "Deny",
+                    "Principal": {"AWS": "*"},
+                    "Action": list(DESTRUCTIVE_ACTIONS),
+                    "Resource": "*",
+                    "Condition": {
+                        "StringNotEquals": {
+                            "aws:PrincipalArn": [destroyer_role_arn, key_admin_role_arn]
+                        }
+                    },
+                },
+            ],
+        }
+    )
+
+
 class AwsKmsProvider:
     """Symmetric organization keys in AWS KMS, with multi-Region replicas."""
 
     name = "aws"
 
-    def __init__(self, region: str) -> None:
-        """Create the provider. Credentials come from the environment or an assumed role."""
+    def __init__(self, region: str, *, key_policy: str | None = None) -> None:
+        """Create the provider; ``key_policy`` (see ``kms_key_policy``) goes on every new key."""
+        self._key_policy = key_policy
         self._kms: Any = boto3.client("kms", region_name=region)  # pyright: ignore[reportUnknownMemberType] - overloaded boto3 stubs
         self._region = region
 
@@ -71,10 +126,18 @@ class AwsKmsProvider:
             KeySpec="SYMMETRIC_DEFAULT",
             KeyUsage="ENCRYPT_DECRYPT",
             MultiRegion=True,
+            Tags=[
+                {"TagKey": "project", "TagValue": "lmqa"}
+            ],  # the IAM policy allows CreateKey only with this tag
+            **(
+                {"Policy": self._key_policy, "BypassPolicyLockoutSafetyCheck": False}
+                if self._key_policy
+                else {}
+            ),
             Description=f"lmqa organization key {alias}",
         )
         key_id = str(created["KeyMetadata"]["KeyId"])
-        await self._run("create_alias", AliasName=alias, TargetKeyId=key_id)
+        await self._run("create_alias", AliasName=kms_alias(alias), TargetKeyId=key_id)
         return key_id
 
     async def create_drill_key(self, alias: str) -> str:

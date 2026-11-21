@@ -33,6 +33,30 @@ ALTER FUNCTION app_actor_active() OWNER TO policy_helper;
 ALTER FUNCTION app_can_access(uuid, uuid, text, integer) OWNER TO policy_helper;
 ALTER FUNCTION app_may_upload(uuid, integer) OWNER TO policy_helper;
 
+-- The caller's retrieval scope, derived from the transaction context alone (no identity argument).
+-- Retrieval has no table access to grants, walls or sessions; it asks for this summary instead.
+CREATE FUNCTION app_scope() RETURNS jsonb
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS
+$$
+  SELECT jsonb_build_object(
+    'role', app_role(),
+    'active', app_actor_active(),
+    'grants', coalesce((SELECT jsonb_object_agg(g.matter_id::text, g.max_tier) FROM matter_grants g
+       WHERE g.workspace_id = app_ws() AND g.user_id = app_user()
+         AND (g.expires_at IS NULL OR g.expires_at > now())), '{}'::jsonb),
+    'walls', coalesce((SELECT jsonb_agg(w.matter_id::text) FROM matter_walls w
+       WHERE w.workspace_id = app_ws() AND w.user_id = app_user()), '[]'::jsonb),
+    'emergency', coalesce((SELECT jsonb_agg(DISTINCT s.matter_id::text) FROM access_sessions s
+       WHERE s.workspace_id = app_ws() AND s.user_id = app_user() AND s.kind = 'emergency'
+         AND s.state = 'active' AND s.expires_at > now() AND s.matter_id IS NOT NULL), '[]'::jsonb),
+    'admin_private_read', (app_role() = 'admin'
+       AND EXISTS (SELECT 1 FROM workspaces w WHERE w.id = app_ws() AND w.admin_can_read_private)
+       AND EXISTS (SELECT 1 FROM access_sessions s WHERE s.workspace_id = app_ws() AND s.user_id = app_user()
+         AND s.kind = 'break_glass' AND s.state = 'active' AND s.expires_at > now()))
+  )
+$$;
+ALTER FUNCTION app_scope() OWNER TO policy_helper;
+
 -- ---------------------------------------------------------------- enable and FORCE everywhere
 DO $$
 DECLARE t text;
@@ -86,15 +110,20 @@ CREATE POLICY identity_workspaces ON workspaces FOR ALL TO svc_identity
   USING (app_is_system() OR (org_id = app_org() AND (app_role() = 'super_admin' OR id = app_ws())))
   WITH CHECK (app_is_system() OR (org_id = app_org() AND (app_role() = 'super_admin' OR id = app_ws())));
 
-CREATE POLICY identity_memberships ON memberships FOR ALL TO svc_identity
+-- Anyone may READ their own membership row, but only an approver (or the platform) may WRITE one:
+-- otherwise a pending tenant could activate themselves if service code ever tried to let them.
+CREATE POLICY identity_memberships_read ON memberships FOR SELECT TO svc_identity
   USING (app_is_system() OR (org_id = app_org() AND (
         (app_role() = 'super_admin' AND role IN ('super_admin', 'admin'))
      OR (app_role() = 'admin' AND workspace_id = app_ws() AND role = 'tenant')
-     OR user_id = app_user())))
+     OR user_id = app_user())));
+CREATE POLICY identity_memberships_write ON memberships FOR ALL TO svc_identity
+  USING (app_is_system() OR (org_id = app_org() AND (
+        (app_role() = 'super_admin' AND role IN ('super_admin', 'admin'))
+     OR (app_role() = 'admin' AND workspace_id = app_ws() AND role = 'tenant'))))
   WITH CHECK (app_is_system() OR (org_id = app_org() AND (
         (app_role() = 'super_admin' AND role IN ('super_admin', 'admin'))
-     OR (app_role() = 'admin' AND workspace_id = app_ws() AND role = 'tenant')
-     OR user_id = app_user())));
+     OR (app_role() = 'admin' AND workspace_id = app_ws() AND role = 'tenant'))));
 
 CREATE POLICY identity_join_codes ON join_codes FOR ALL TO svc_identity
   USING (app_is_system() OR (org_id = app_org() AND (

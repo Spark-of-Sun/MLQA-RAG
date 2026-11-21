@@ -7,6 +7,7 @@ dependencies = [
   "cryptography>=50",
   "httpx>=0.28",
   "valkey>=6.2",
+  "fastapi>=0.162",
   "lmqa_models",
   "lmqa_db",
   "lmqa_keys"

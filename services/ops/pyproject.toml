@@ -7,6 +7,7 @@ dependencies = [
   "uvicorn>=0.54",
   "httpx>=0.28",
   "pydantic-settings>=2.16",
+  "websockets>=15",
   "lmqa_models",
   "lmqa_auth",
   "lmqa_db",

@@ -14,29 +14,47 @@ import hashlib
 import json
 import uuid
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final, cast
 from uuid import UUID
 
 from sqlalchemy import text
 
 from ingestion.chunker import ChunkConfig, Tokenizer, chunk_document
+from ingestion.embedder import Embedder
 from ingestion.parsers import UnsupportedFormatError, parse
+from ingestion.scanner import Scanner
 from lmqa_audit import AuditEvent, AuditWriter
-from lmqa_keys import Aad, KeyService, encrypt
-from lmqa_vectorstore import ChunkPoint
+from lmqa_db import Database
+from lmqa_keys import Aad, KeyService, decrypt, encrypt
+from lmqa_objectstore import ObjectStore
+from lmqa_vectorstore import ChunkPoint, VectorWriter
 
 if TYPE_CHECKING:
+    from sqlalchemy import CursorResult
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from ingestion.embedder import Embedder
     from ingestion.model import ChunkDraft
-    from ingestion.scanner import Scanner
-    from lmqa_db import Database, DbContext
-    from lmqa_objectstore import ObjectStore
-    from lmqa_vectorstore import VectorWriter
+    from lmqa_db import DbContext
 
 EMBED_BATCH: Final = 32
 _CTX = {"admin": "admin", "tenant": "tenant"}
+
+
+def _affected(result: object) -> int:
+    """Rows changed by a statement (SQLAlchemy types ``rowcount`` only on CursorResult)."""
+    return int(cast("CursorResult[Any]", result).rowcount)
+
+
+def _ids(ctx: DbContext) -> tuple[UUID, UUID]:
+    """The organization and workspace of a context that must have both."""
+    if ctx.org is None or ctx.ws is None:
+        msg = "ingestion needs an organization and workspace context"
+        raise ValueError(msg)
+    return ctx.org, ctx.ws
+
+
+class DocumentNotFoundError(LookupError):
+    """No such document for this principal (a document outside the caller's scope is 404)."""
 
 
 class DocumentHeldError(RuntimeError):
@@ -79,6 +97,21 @@ class IngestResult:
 
 
 @dataclass(frozen=True, slots=True)
+class DocumentInfo:
+    """Document metadata for the library. The title is decrypted for the readable caller only."""
+
+    doc_id: UUID
+    title: str
+    status: str
+    visibility: str
+    tier: int
+    matter_id: UUID | None
+    owner_id: UUID
+    failure_reason: str | None
+    created_at: str
+
+
+@dataclass(frozen=True, slots=True)
 class _Keys:
     cmk_id: str
     version: int
@@ -92,25 +125,24 @@ class IngestionPipeline:
         """Bind the components."""
         self.c = c
 
-    # ------------------------------------------------------------------ key material
+    # Key material
     async def _keys(self, session: AsyncSession, ctx: DbContext) -> _Keys:
         cmk = (
             await session.execute(
-                text("SELECT kms_key_id FROM org_keys WHERE org_id = :o"), {"o": ctx.org_id}
+                text("SELECT kms_key_id FROM org_keys WHERE org_id = :o"), {"o": ctx.org}
             )
         ).scalar_one()
         row = (
             await session.execute(
                 text(
-                    "SELECT version, wrapped_key FROM workspace_keys WHERE workspace_id = :w AND state = 'active'"
+                    "SELECT version, wrapped_key FROM workspace_keys WHERE workspace_id = :w AND "
+                    "state = 'active'"
                     " ORDER BY version DESC LIMIT 1"
                 ),
-                {"w": ctx.workspace_id},
+                {"w": ctx.ws},
             )
         ).one()
-        key = await self.c.keys.workspace_key(
-            str(cmk), ctx.org_id, ctx.workspace_id, int(row[0]), bytes(row[1])
-        )  # type: ignore[arg-type]
+        key = await self.c.keys.workspace_key(str(cmk), ctx.org, ctx.ws, int(row[0]), bytes(row[1]))
         return _Keys(str(cmk), int(row[0]), key)
 
     async def _doc_key(
@@ -124,20 +156,22 @@ class IngestionPipeline:
         return KeyService.open_document_key(
             ws_key,
             None if wrapped is None else bytes(wrapped),
-            ctx.org_id,
-            ctx.workspace_id,
+            ctx.org,
+            ctx.ws,
             doc_id,
-        )  # type: ignore[arg-type]
+        )
 
     async def _status(
         self, session: AsyncSession, doc_id: UUID, status: str, reason: str | None = None
     ) -> None:
-        await session.execute(
+        result = await session.execute(
             text("UPDATE documents SET status = :s, failure_reason = :r WHERE id = :d"),
             {"s": status, "r": reason, "d": doc_id},
         )
+        if _affected(result) == 0:  # RLS filtered it: not the owner, not active, or not there
+            raise DocumentNotFoundError(str(doc_id))
 
-    async def _audit(
+    async def _audit(  # noqa: PLR0913, PLR0917 - session, context, action, subject and outcome
         self,
         session: AsyncSession,
         ctx: DbContext,
@@ -148,20 +182,20 @@ class IngestionPipeline:
     ) -> None:
         await self.c.audit.append(
             session,
-            ctx.org_id,
-            ctx.workspace_id,  # type: ignore[arg-type]
+            ctx.org,
+            ctx.ws,
             AuditEvent(
                 action,
                 outcome,
                 "workspace",
-                ctx.user_id,
+                ctx.user,
                 ctx.role.value,
                 f"document:{doc_id}",
                 reason,
             ),
         )
 
-    # ------------------------------------------------------------------ step 1: upload init
+    # Step 1: upload init
     async def create_upload(
         self, ctx: DbContext, title: str, visibility: str, matter_id: UUID | None, tier: int
     ) -> Upload:
@@ -170,21 +204,20 @@ class IngestionPipeline:
         async with self.c.db.scoped(ctx) as s:
             keys = await self._keys(s, ctx)
             doc_key, wrapped = KeyService.new_document_key(
-                keys.workspace_key, ctx.org_id, ctx.workspace_id, doc_id
-            )  # type: ignore[arg-type]
-            title_ct = encrypt(
-                doc_key, title.encode(), Aad(ctx.org_id, ctx.workspace_id, doc_id, 0)
-            )  # type: ignore[arg-type]
+                keys.workspace_key, ctx.org, ctx.ws, doc_id
+            )
+            title_ct = encrypt(doc_key, title.encode(), Aad(ctx.org, ctx.ws, doc_id, 0))
             await s.execute(
                 text(
-                    "INSERT INTO documents (id, org_id, workspace_id, owner_user_id, matter_id, title_ciphertext,"
+                    "INSERT INTO documents (id, org_id, workspace_id, owner_user_id, matter_id, "
+                    "title_ciphertext,"
                     " visibility, confidentiality_tier) VALUES (:d, :o, :w, :u, :m, :t, :v, :tier)"
                 ),
                 {
                     "d": doc_id,
-                    "o": ctx.org_id,
-                    "w": ctx.workspace_id,
-                    "u": ctx.user_id,
+                    "o": ctx.org,
+                    "w": ctx.ws,
+                    "u": ctx.user,
                     "m": matter_id,
                     "t": title_ct,
                     "v": visibility,
@@ -198,8 +231,8 @@ class IngestionPipeline:
                 ),
                 {
                     "d": doc_id,
-                    "o": ctx.org_id,
-                    "w": ctx.workspace_id,
+                    "o": ctx.org,
+                    "w": ctx.ws,
                     "k": wrapped,
                     "v": keys.version,
                 },
@@ -207,23 +240,23 @@ class IngestionPipeline:
             await self._audit(s, ctx, "document.upload_started", doc_id)
         return Upload(doc_id)
 
-    # ------------------------------------------------------------------ steps 2 to 10
+    # Steps 2 to 10
     async def _fail(
         self, ctx: DbContext, doc_id: UUID, reason: str, *, delete_upload: bool = True
     ) -> IngestResult:
         if delete_upload:
-            await self.c.objects.delete_quarantine(ctx.org_id, ctx.workspace_id, doc_id)  # type: ignore[arg-type]
+            await self.c.objects.delete_quarantine(ctx.org, ctx.ws, doc_id)
         async with self.c.db.scoped(ctx) as s:
             await self._status(s, doc_id, "failed", reason)
             await self._audit(s, ctx, "document.failed", doc_id, "fail", reason)
         return IngestResult(doc_id, "failed", reason=reason)
 
-    async def complete_upload(
+    async def complete_upload(  # noqa: PLR0911 - each ingestion failure returns its own reason
         self, ctx: DbContext, doc_id: UUID, declared_type: str, expected_sha256: str
     ) -> IngestResult:
         """Verify the checksum, scan, parse, chunk, encrypt, store, embed and index."""
-        org, ws = ctx.org_id, ctx.workspace_id
-        data, actual = await self.c.objects.read_quarantine(org, ws, doc_id)  # type: ignore[arg-type]
+        org, ws = ctx.org, ctx.ws
+        data, actual = await self.c.objects.read_quarantine(org, ws, doc_id)
         if actual != expected_sha256.lower():
             return await self._fail(ctx, doc_id, "checksum_mismatch")
         async with self.c.db.scoped(ctx) as s:
@@ -240,13 +273,13 @@ class IngestionPipeline:
             )
         except UnsupportedFormatError:
             return await self._fail(ctx, doc_id, "unsupported_format")
-        except Exception:  # a parser crash isolates to this document
+        except Exception:  # noqa: BLE001 - a parser crash is isolated to this one document
             return await self._fail(ctx, doc_id, "parser_error")
         ocr_pages = tuple(p.number for p in parsed.pages if p.extraction == "none")
         if not drafts and not ocr_pages:
             return await self._fail(ctx, doc_id, "no_text")
         chunk_ids = await self._store(
-            ctx, doc_id, data, drafts, parsed.domain_hint == "medical", actual
+            ctx, doc_id, data, drafts, phi=parsed.domain_hint == "medical", sha256=actual
         )
         if ocr_pages:  # nothing is searchable until a human reviews the pages without a text layer
             async with self.c.db.scoped(ctx) as s:
@@ -258,24 +291,25 @@ class IngestionPipeline:
         await self._index(ctx, doc_id, drafts, chunk_ids)
         return IngestResult(doc_id, "indexed", len(drafts), structure=parsed.structure)
 
-    async def _store(
+    async def _store(  # noqa: PLR0913 - the document, its bytes, its chunks and its provenance
         self,
         ctx: DbContext,
         doc_id: UUID,
         original: bytes,
         drafts: list[ChunkDraft],
+        *,
         phi: bool,
         sha256: str,
     ) -> list[UUID]:
-        org, ws = ctx.org_id, ctx.workspace_id
-        assert org is not None and ws is not None  # noqa: S101
+        org, ws = _ids(ctx)
         async with self.c.db.scoped(ctx) as s:
             keys = await self._keys(s, ctx)
             doc_key = await self._doc_key(s, ctx, doc_id, keys.workspace_key)
             doc = (
                 await s.execute(
                     text(
-                        "SELECT matter_id, visibility, confidentiality_tier, owner_user_id FROM documents WHERE id = :d"
+                        "SELECT matter_id, visibility, confidentiality_tier, owner_user_id FROM "
+                        "documents WHERE id = :d"
                     ),
                     {"d": doc_id},
                 )
@@ -313,10 +347,14 @@ class IngestionPipeline:
             if rows:
                 await s.execute(
                     text(
-                        "INSERT INTO chunks (id, org_id, workspace_id, doc_id, doc_version, ordinal, owner_user_id,"
-                        " matter_id, visibility, confidentiality_tier, kind, section_path, clause_no, heading,"
-                        " page_start, page_end, spans, text_ciphertext, text_sha256, token_count, contains_phi)"
-                        " VALUES (:id, :o, :w, :d, 1, :n, :u, :m, :v, :t, :kind, :sp, :cn, :h, :ps, :pe,"
+                        "INSERT INTO chunks (id, org_id, workspace_id, doc_id, doc_version, "
+                        "ordinal, owner_user_id,"
+                        " matter_id, visibility, confidentiality_tier, kind, section_path, "
+                        "clause_no, heading,"
+                        " page_start, page_end, spans, text_ciphertext, text_sha256, "
+                        "token_count, contains_phi)"
+                        " VALUES (:id, :o, :w, :d, 1, :n, :u, :m, :v, :t, :kind, :sp, :cn, :h, "
+                        ":ps, :pe,"
                         " CAST(:spans AS jsonb), :ct, :sha, :tok, :phi)"
                     ),
                     rows,
@@ -324,7 +362,8 @@ class IngestionPipeline:
             object_key = await self.c.objects.put_encrypted(doc_key, org, ws, doc_id, 1, [original])
             await s.execute(
                 text(
-                    "INSERT INTO document_versions (doc_id, org_id, workspace_id, version, object_key, object_sha256,"
+                    "INSERT INTO document_versions (doc_id, org_id, workspace_id, version, "
+                    "object_key, object_sha256,"
                     " embedding_version) VALUES (:d, :o, :w, 1, :k, :h, :e)"
                 ),
                 {
@@ -344,14 +383,14 @@ class IngestionPipeline:
     async def _index(
         self, ctx: DbContext, doc_id: UUID, drafts: list[ChunkDraft], chunk_ids: list[UUID]
     ) -> None:
-        org, ws = ctx.org_id, ctx.workspace_id
-        assert org is not None and ws is not None  # noqa: S101
+        org, ws = _ids(ctx)
         async with self.c.db.scoped(ctx) as s:
             await self._status(s, doc_id, "indexing")
             doc = (
                 await s.execute(
                     text(
-                        "SELECT matter_id, visibility, confidentiality_tier, owner_user_id FROM documents WHERE id = :d"
+                        "SELECT matter_id, visibility, confidentiality_tier, owner_user_id FROM "
+                        "documents WHERE id = :d"
                     ),
                     {"d": doc_id},
                 )
@@ -360,7 +399,7 @@ class IngestionPipeline:
         for start in range(0, len(drafts), EMBED_BATCH):
             batch = drafts[start : start + EMBED_BATCH]
             vectors = await self.c.embedder.embed_documents([d.text for d in batch])
-            for offset, (d, (dense, sparse)) in enumerate(zip(batch, vectors, strict=True)):
+            for offset, (_d, (dense, sparse)) in enumerate(zip(batch, vectors, strict=True)):
                 points.append(
                     ChunkPoint(
                         chunk_ids[start + offset],
@@ -385,25 +424,29 @@ class IngestionPipeline:
         async with self.c.db.scoped(ctx) as s:
             await s.execute(
                 text(
-                    "UPDATE document_versions SET index_state = 'in_sync' WHERE doc_id = :d AND version = 1"
+                    "UPDATE document_versions SET index_state = 'in_sync' WHERE doc_id = :d AND "
+                    "version = 1"
                 ),
                 {"d": doc_id},
             )
             await self._status(s, doc_id, "indexed")
             await self._audit(s, ctx, "document.indexed", doc_id)
 
-    # ------------------------------------------------------------------ access changes (outbox)
+    # Access changes (outbox)
     async def change_access(
         self, ctx: DbContext, doc_id: UUID, *, visibility: str, matter_id: UUID | None, tier: int
     ) -> None:
-        """Change visibility, matter or tier. Postgres changes first; the vector index follows via the outbox."""
+        """Change visibility, matter or tier. Postgres first; the vector index follows (outbox)."""
         async with self.c.db.scoped(ctx) as s:
-            await s.execute(
+            changed = await s.execute(
                 text(
-                    "UPDATE documents SET visibility = :v, matter_id = :m, confidentiality_tier = :t WHERE id = :d"
+                    "UPDATE documents SET visibility = :v, matter_id = :m, confidentiality_tier "
+                    "= :t WHERE id = :d"
                 ),
                 {"v": visibility, "m": matter_id, "t": tier, "d": doc_id},
             )
+            if _affected(changed) == 0:
+                raise DocumentNotFoundError(str(doc_id))
             await s.execute(
                 text(
                     "UPDATE chunks SET visibility = :v, matter_id = :m, confidentiality_tier = :t,"
@@ -417,22 +460,23 @@ class IngestionPipeline:
             )
             await s.execute(
                 text(
-                    "INSERT INTO index_outbox (org_id, workspace_id, doc_id, doc_version, operation)"
+                    "INSERT INTO index_outbox (org_id, workspace_id, doc_id, doc_version, "
+                    "operation)"
                     " VALUES (:o, :w, :d, 1, 'set_payload')"
                 ),
-                {"o": ctx.org_id, "w": ctx.workspace_id, "d": doc_id},
+                {"o": ctx.org, "w": ctx.ws, "d": doc_id},
             )
             await self._audit(s, ctx, "document.access_changed", doc_id)
 
     async def apply_outbox(self, ctx: DbContext, doc_id: UUID) -> int:
-        """Apply pending re-index rows for a document (the indexer worker). Returns how many were applied."""
-        org, ws = ctx.org_id, ctx.workspace_id
-        assert org is not None and ws is not None  # noqa: S101
+        """Apply pending re-index rows for a document (the indexer worker); returns the count."""
+        org, ws = _ids(ctx)
         async with self.c.db.scoped(ctx) as s:
             pending = (
                 await s.execute(
                     text(
-                        "SELECT id FROM index_outbox WHERE doc_id = :d AND state = 'pending' ORDER BY id"
+                        "SELECT id FROM index_outbox WHERE doc_id = :d AND state = 'pending' "
+                        "ORDER BY id"
                     ),
                     {"d": doc_id},
                 )
@@ -442,7 +486,8 @@ class IngestionPipeline:
             doc = (
                 await s.execute(
                     text(
-                        "SELECT matter_id, visibility, confidentiality_tier, owner_user_id FROM documents WHERE id = :d"
+                        "SELECT matter_id, visibility, confidentiality_tier, owner_user_id FROM "
+                        "documents WHERE id = :d"
                     ),
                     {"d": doc_id},
                 )
@@ -475,11 +520,10 @@ class IngestionPipeline:
             )
         return len(pending)
 
-    # ------------------------------------------------------------------ deletion (crypto-erase)
+    # Deletion is a crypto-erase.
     async def delete_document(self, ctx: DbContext, doc_id: UUID) -> None:
         """Destroy the key first (atomic with the row changes), then remove vectors and objects."""
-        org, ws = ctx.org_id, ctx.workspace_id
-        assert org is not None and ws is not None  # noqa: S101
+        org, ws = _ids(ctx)
         async with self.c.db.scoped(ctx) as s:
             try:
                 await self._status(s, doc_id, "deleting")
@@ -499,10 +543,65 @@ class IngestionPipeline:
                     "INSERT INTO deletion_tombstones (scope, target_id, org_id, approver_refs)"
                     " VALUES ('document', :d, :o, CAST(:r AS jsonb))"
                 ),
-                {"d": doc_id, "o": org, "r": json.dumps([str(ctx.user_id)])},
+                {"d": doc_id, "o": org, "r": json.dumps([str(ctx.user)])},
             )
         await self.c.vectors.delete_document(org, ws, doc_id)
         await self.c.objects.delete_document(org, ws, doc_id)
         async with self.c.db.scoped(ctx) as s:
             await self._status(s, doc_id, "deleted")
             await self._audit(s, ctx, "document.deleted", doc_id)
+
+    # Reads for the library and downloads (everything under RLS in the caller's context).
+    async def list_documents(self, ctx: DbContext) -> list[DocumentInfo]:
+        """Documents the caller may read, newest first, with decrypted titles."""
+        async with self.c.db.scoped(ctx) as s:
+            rows = (
+                await s.execute(
+                    text(
+                        "SELECT id, title_ciphertext, status, visibility, confidentiality_tier, "
+                        "matter_id,"
+                        " owner_user_id, failure_reason, created_at FROM documents"
+                        " WHERE status <> 'deleted' ORDER BY created_at DESC LIMIT 500"
+                    )
+                )
+            ).all()
+            if not rows:
+                return []
+            keys = await self._keys(s, ctx)
+            wrapped = {
+                r[0]: r[1]
+                for r in (
+                    await s.execute(
+                        text("SELECT doc_id, wrapped_key FROM doc_keys WHERE doc_id = ANY(:d)"),
+                        {"d": [r[0] for r in rows]},
+                    )
+                ).all()
+            }
+        out: list[DocumentInfo] = []
+        for r in rows:
+            blob = wrapped.get(r[0])
+            if blob is None:
+                continue
+            doc_key = KeyService.open_document_key(
+                keys.workspace_key, bytes(blob), ctx.org, ctx.ws, r[0]
+            )
+            title = decrypt(doc_key, bytes(r[1]), Aad(ctx.org, ctx.ws, r[0], 0)).decode()
+            out.append(
+                DocumentInfo(r[0], title, r[2], r[3], int(r[4]), r[5], r[6], r[7], r[8].isoformat())
+            )
+        return out
+
+    async def get_document(self, ctx: DbContext, doc_id: UUID) -> DocumentInfo:
+        """One document, or ``DocumentNotFoundError`` when it is outside the caller's scope."""
+        for info in await self.list_documents(ctx):
+            if info.doc_id == doc_id:
+                return info
+        raise DocumentNotFoundError(str(doc_id))
+
+    async def download(self, ctx: DbContext, doc_id: UUID) -> bytes:
+        """The decrypted original, for a caller who may read the document."""
+        await self.get_document(ctx, doc_id)
+        async with self.c.db.scoped(ctx) as s:
+            keys = await self._keys(s, ctx)
+            doc_key = await self._doc_key(s, ctx, doc_id, keys.workspace_key)
+        return await self.c.objects.get_decrypted(doc_key, ctx.org, ctx.ws, doc_id, 1)

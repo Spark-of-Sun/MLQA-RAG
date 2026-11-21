@@ -23,7 +23,12 @@ if TYPE_CHECKING:
 
     from .conftest import Env
 
-pytestmark = [pytest.mark.integration, pytest.mark.live_kms, pytest.mark.stage4]
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.live_kms,
+    pytest.mark.live_models,
+    pytest.mark.stage4,
+]
 QUERY_SPARSE = SparseVec([1], [1.0])
 
 
@@ -50,8 +55,8 @@ async def ingest(
 
 async def chunk_texts(env: Env, ctx: DbContext, doc_id: UUID) -> dict[int, str]:
     async with env.components.db.scoped(ctx) as s:
-        keys = await env.pipeline._keys(s, ctx)  # noqa: SLF001
-        doc_key = await env.pipeline._doc_key(s, ctx, doc_id, keys.workspace_key)  # noqa: SLF001
+        keys = await env.pipeline._keys(s, ctx)
+        doc_key = await env.pipeline._doc_key(s, ctx, doc_id, keys.workspace_key)
         rows = (
             await s.execute(
                 text("SELECT ordinal, text_ciphertext, text_sha256 FROM chunks WHERE doc_id = :d"),
@@ -96,7 +101,8 @@ async def test_a_real_document_becomes_encrypted_chunks_and_matching_vectors(
     assert (result.status, result.reason) == ("indexed", None)
     assert result.chunks >= 3
     texts = await chunk_texts(env, env.owner, doc_id)
-    assert len(texts) == result.chunks and all(t.strip() for t in texts.values())
+    assert len(texts) == result.chunks
+    assert all(t.strip() for t in texts.values())
     assert len(await vector_ids(env, env.owner)) == result.chunks, (
         "one vector per chunk, none for anything else"
     )
@@ -121,8 +127,8 @@ async def test_a_real_document_becomes_encrypted_chunks_and_matching_vectors(
     )
     # The original is stored encrypted and the plaintext upload is gone from quarantine.
     async with env.components.db.scoped(env.owner) as s:
-        keys = await env.pipeline._keys(s, env.owner)  # noqa: SLF001
-        doc_key = await env.pipeline._doc_key(s, env.owner, doc_id, keys.workspace_key)  # noqa: SLF001
+        keys = await env.pipeline._keys(s, env.owner)
+        doc_key = await env.pipeline._doc_key(s, env.owner, doc_id, keys.workspace_key)
     original = await env.components.objects.get_decrypted(doc_key, env.org.id, env.ws.id, doc_id, 1)
     assert original == item.data
     with pytest.raises(ObjectNotFoundError):
@@ -177,7 +183,8 @@ async def test_g4_9_the_same_file_in_two_workspaces_shares_nothing(env: Env) -> 
     doc_a, a = await ingest(env, item.data, item.format)
     ws2, ctx2 = await env.second_workspace()
     doc_b, b = await ingest(env, item.data, item.format, ctx=ctx2)
-    assert a.chunks == b.chunks and a.status == b.status == "indexed"
+    assert a.chunks == b.chunks
+    assert a.status == b.status == "indexed"
     assert object_key(env.org.id, env.ws.id, doc_a, 1) != object_key(env.org.id, ws2.id, doc_b, 1)
     async with env.components.db.scoped(env.owner) as s:
         rows_a = (
@@ -259,7 +266,7 @@ async def test_g4_11_deleting_a_document_destroys_its_key_and_removes_everything
     keeper, kept = await ingest(env, load_corpus(kind="drug_label")[0].data, "spl")
     assert result.status == kept.status == "indexed"
     async with env.components.db.scoped(env.owner) as s:
-        keys = await env.pipeline._keys(s, env.owner)  # noqa: SLF001
+        keys = await env.pipeline._keys(s, env.owner)
         ciphertext = bytes(
             (
                 await s.execute(

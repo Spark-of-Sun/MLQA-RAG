@@ -20,7 +20,9 @@ SELECT u.id                AS user_id,
        m.scope_version     AS scope_version,
        m.scope_hash        AS scope_hash,
        m.owner_linked      AS owner_linked,
-       u.auth_strength_last AS auth_strength_last
+       u.auth_strength_last AS auth_strength_last,
+       w.delivery_mode     AS delivery_mode,
+       w.on_fail           AS on_fail
   FROM memberships m
   JOIN users u ON u.id = m.user_id
   JOIN orgs o ON o.id = m.org_id
@@ -47,6 +49,8 @@ BEGIN
   END LOOP;
 END
 $$;
+
+GRANT EXECUTE ON FUNCTION app_scope() TO svc_retrieval;
 
 -- helper roles: lookups only
 GRANT SELECT ON memberships, workspaces, orgs, matter_walls, matter_grants, access_sessions TO policy_helper;

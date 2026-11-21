@@ -65,6 +65,19 @@ class OpenBaoTrustRoot:
         signature = str(response.json()["data"]["signature"])
         return base64.b64decode(signature.rsplit(":", 1)[-1])
 
+    def public_key_pem_sync(self) -> bytes:
+        """The latest version's public key, fetched synchronously (service start-up)."""
+        response = httpx.get(
+            f"{self._client.base_url}/v1/{self._mount}/keys/{self._name}",
+            headers={"X-Vault-Token": self._client.headers["X-Vault-Token"]},
+            timeout=10.0,
+        )
+        if response.status_code >= 400:  # noqa: PLR2004
+            msg = f"cannot read trust root: {response.status_code}"
+            raise KeyProviderError(msg)
+        keys: dict[str, Any] = response.json()["data"]["keys"]
+        return str(keys[max(keys, key=int)]["public_key"]).encode()
+
     async def public_key_pem(self) -> bytes:
         """The latest version's public key."""
         response = await self._client.get(f"/v1/{self._mount}/keys/{self._name}")
@@ -95,12 +108,16 @@ class AwsKmsTrustRoot:
         )
         return bytes(out["Signature"])
 
-    async def public_key_pem(self) -> bytes:
-        """Fetch the DER public key and return it as PEM."""
-        out = await asyncio.to_thread(self._kms.get_public_key, KeyId=self._key_id)
+    def public_key_pem_sync(self) -> bytes:
+        """Fetch the DER public key and return it as PEM, synchronously (service start-up)."""
+        out = self._kms.get_public_key(KeyId=self._key_id)
         der = bytes(out["PublicKey"])
         body = base64.encodebytes(der).decode().replace("\n", "")
         lines = [body[i : i + 64] for i in range(0, len(body), 64)]
         return (
             "-----BEGIN PUBLIC KEY-----\n" + "\n".join(lines) + "\n-----END PUBLIC KEY-----\n"
         ).encode()
+
+    async def public_key_pem(self) -> bytes:
+        """Fetch the DER public key and return it as PEM."""
+        return await asyncio.to_thread(self.public_key_pem_sync)

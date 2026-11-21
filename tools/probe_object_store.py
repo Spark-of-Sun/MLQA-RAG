@@ -58,7 +58,12 @@ def main() -> int:
         head = s3.head_object(Bucket=bucket, Key="c/doc", ChecksumMode="ENABLED")
         assert head.get("ChecksumSHA256") == digest
         try:
-            s3.put_object(Bucket=bucket, Key="c/bad", Body=body, ChecksumSHA256=base64.b64encode(b"x" * 32).decode())
+            s3.put_object(
+                Bucket=bucket,
+                Key="c/bad",
+                Body=body,
+                ChecksumSHA256=base64.b64encode(b"x" * 32).decode(),
+            )
         except ClientError:
             return
         raise AssertionError("a wrong checksum was accepted")
@@ -80,9 +85,13 @@ def main() -> int:
         upload = s3.create_multipart_upload(Bucket=bucket, Key=key)["UploadId"]
         parts = []
         for number in (1, 2):
-            etag = s3.upload_part(Bucket=bucket, Key=key, UploadId=upload, PartNumber=number, Body=part)["ETag"]
+            etag = s3.upload_part(
+                Bucket=bucket, Key=key, UploadId=upload, PartNumber=number, Body=part
+            )["ETag"]
             parts.append({"ETag": etag, "PartNumber": number})
-        s3.complete_multipart_upload(Bucket=bucket, Key=key, UploadId=upload, MultipartUpload={"Parts": parts})
+        s3.complete_multipart_upload(
+            Bucket=bucket, Key=key, UploadId=upload, MultipartUpload={"Parts": parts}
+        )
         assert s3.head_object(Bucket=bucket, Key=key)["ContentLength"] == 2 * len(part)
 
     def prefix_listing() -> None:
@@ -91,14 +100,19 @@ def main() -> int:
         listed = s3.list_objects_v2(Bucket=bucket, Prefix="org_a/ws_1/")["Contents"]
         assert [o["Key"] for o in listed] == ["org_a/ws_1/doc/v1"]
 
-    for name, fn in (("versioning", versioning), ("checksum_headers", checksum_header),
-                     ("presigned_put", presigned_put), ("multipart", multipart), ("prefix_listing", prefix_listing)):
+    for name, fn in (
+        ("versioning", versioning),
+        ("checksum_headers", checksum_header),
+        ("presigned_put", presigned_put),
+        ("multipart", multipart),
+        ("prefix_listing", prefix_listing),
+    ):
         check(name, fn)
     for obj in s3.list_object_versions(Bucket=bucket).get("Versions", []):
         s3.delete_object(Bucket=bucket, Key=obj["Key"], VersionId=obj["VersionId"])
     s3.delete_bucket(Bucket=bucket)
     for name, outcome in results.items():
-        print(f"{name:18} {outcome}")  # noqa: T201
+        print(f"{name:18} {outcome}")
     return 0 if all(v == "PASS" for v in results.values()) else 1
 
 

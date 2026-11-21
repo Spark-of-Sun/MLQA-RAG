@@ -35,3 +35,14 @@ END
 $$;
 -- The owner must be a member of the helper roles to hand them function ownership.
 GRANT policy_helper, principal_owner, audit_definer, scope_maintainer TO lmqa_owner;
+
+
+-- PgBouncer authenticates each client as itself (doc 10.3): it looks the SCRAM verifier up through
+-- one narrow function, so the pooler never needs a superuser and holds no password list of its own.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pgbouncer_auth') THEN
+    CREATE ROLE pgbouncer_auth LOGIN NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE;
+  END IF;
+END
+$$;
