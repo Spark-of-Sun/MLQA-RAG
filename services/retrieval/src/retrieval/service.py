@@ -22,26 +22,36 @@ class RetrievalService:
         self._db = db
         self._embedder = embedder
 
-    def retrieve(self, p: Principal, question: str, *, budget_tokens: int) -> tuple[list[Source], list[Dropped]]:
+    def retrieve(
+        self, p: Principal, question: str, *, budget_tokens: int, carry_chunk_ids: list[str] | None = None
+    ) -> tuple[list[Source], list[Dropped]]:
+        """Hybrid search for `question`. `carry_chunk_ids` are the passages cited in the previous turn of the
+        conversation: up to two keep a reserved slot so a follow-up ("explain that") can still see them. They are
+        re-read under RLS like everything else, so a revoked or deleted source is not carried."""
         m = p.membership
         assert m is not None and m.workspace_id is not None
         vector = self._embedder.embed_query(question)
         top_k = self._s.retrieval_top_k
         with self._db.scoped(p.user_id) as scope:
             ranked = hybrid_candidates(scope, workspace_id=m.workspace_id, text=question, vector=vector)[: top_k * 3]
-            if not ranked:
+            ranked_ids = {cid for cid, _ in ranked}
+            carry = [cid for cid in dict.fromkeys(carry_chunk_ids or []) if cid not in ranked_ids][:2]
+            if not ranked and not carry:
                 return [], []
             rows = scope.execute(
                 "select c.id, c.document_id, d.title, c.section, c.page_start, c.page_end, c.text, c.text_sha256,"
                 " c.token_count from chunks c join documents d on d.id = c.document_id"
                 " where c.id = any(%s) and d.status = 'ready'",
-                [[cid for cid, _ in ranked]],
+                [[cid for cid, _ in ranked] + carry],
             ).fetchall()
         by_id = {str(r["id"]): r for r in rows}
+        carried = [cid for cid in carry if cid in by_id]
+        lowest = ranked[-1][1] if ranked else 0.0
+        candidates = ranked[: max(top_k - len(carried), 0)] + [(cid, lowest) for cid in carried] + ranked[top_k:]
         kept: list[Source] = []
         dropped: list[Dropped] = []
         used = 0
-        for cid, score in ranked:
+        for cid, score in candidates:
             row = by_id.get(cid)
             if row is None:
                 dropped.append(Dropped(cid, "not_visible", score))

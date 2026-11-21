@@ -11,6 +11,7 @@ the true reason goes to the audit log only. Transitions come from contracts/stat
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
@@ -25,6 +26,9 @@ from lmqa_models.errors import BadRequest, Conflict, NotFound, ServiceError, Too
 from lmqa_models.principal import Membership, Principal
 from lmqa_models.settings import ConfigError, Settings
 from lmqa_security import codes
+
+PHONE = re.compile(r"[0-9+()\- ]{3,40}")
+PROFILE_FIELDS = ("name", "job_title", "department", "phone")
 
 CODE_POLICY: dict[codes.Kind, tuple[timedelta, int]] = {  # blueprint 7.6: expiry / max uses
     "org": (timedelta(days=30), 25),
@@ -112,7 +116,9 @@ class IdentityService:
             user = conn.execute(
                 "insert into users (auth0_sub, email, name, last_seen_at) values (%s, %s, %s, now())"
                 " on conflict (auth0_sub) do update set email = coalesce(excluded.email, users.email),"
-                " name = coalesce(excluded.name, users.name),"
+                # A name the person set on their Profile page wins over the Auth0 name.
+                " name = case when users.profile_updated_at is null then coalesce(excluded.name, users.name)"
+                " else users.name end,"
                 " last_seen_at = case when users.last_seen_at < now() - interval '1 minute' then now()"
                 " else users.last_seen_at end"
                 " returning id, email, name",
@@ -138,6 +144,68 @@ class IdentityService:
                 else {"id": m.workspace_id, "name": m.workspace_name, "status": m.workspace_status},
             }
         return {"user": {"id": p.user_id, "email": p.email, "name": p.name}, "membership": membership}
+
+    # ------------------------------------------------------------------ profile
+    def profile(self, p: Principal) -> dict[str, Any]:
+        m = p.membership
+        assert m is not None
+        with self._db.system() as conn:
+            row = conn.execute(
+                "select u.email, u.name, u.job_title, u.department, u.phone, u.profile_updated_at, u.created_at,"
+                " m.created_at as joined_at, m.decided_at as approved_at"
+                " from users u join memberships m on m.user_id = u.id where u.id = %s and m.id = %s",
+                [p.user_id, m.id],
+            ).fetchone()
+        assert row is not None
+        return {
+            **jsonable(row),
+            "role": m.role,
+            "organization": m.org_name,
+            "workspace": m.workspace_name,
+        }
+
+    def update_profile(self, p: Principal, changes: dict[str, str | None]) -> dict[str, Any]:
+        m = p.membership
+        assert m is not None
+        clean: dict[str, str | None] = {}
+        for field, value in changes.items():
+            if field not in PROFILE_FIELDS:  # column names are interpolated below: allow-list only
+                raise BadRequest(f"Unknown profile field {field!r}.")
+            text = " ".join(value.split()) if value else ""
+            if field == "name":
+                if not 2 <= len(text) <= 120:
+                    raise BadRequest("Name must be between 2 and 120 characters.")
+            elif field == "phone":
+                if text and not PHONE.fullmatch(text):
+                    raise BadRequest("Phone may contain digits, spaces and + ( ) - only (up to 40 characters).")
+            elif len(text) > 120:
+                raise BadRequest(f"{field.replace('_', ' ').capitalize()} is limited to 120 characters.")
+            clean[field] = text or None
+        if not clean:
+            return self.profile(p)
+        with self._db.system() as conn:
+            before = conn.execute(
+                "select name, job_title, department, phone from users where id = %s for update", [p.user_id]
+            ).fetchone()
+            assert before is not None
+            changed = sorted(f for f, v in clean.items() if before[f] != v)
+            if changed:
+                assignments = ", ".join(f"{f} = %s" for f in changed)
+                conn.execute(
+                    f"update users set {assignments}, profile_updated_at = now() where id = %s",
+                    [*(clean[f] for f in changed), p.user_id],
+                )
+                lmqa_audit.append(
+                    conn,
+                    org_id=m.org_id,
+                    workspace_id=m.workspace_id,
+                    actor_id=p.user_id,
+                    action="profile.updated",
+                    target_type="user",
+                    target_id=p.user_id,
+                    payload={"fields": changed},
+                )
+        return self.profile(p)
 
     @staticmethod
     def _require_no_membership(p: Principal) -> None:
@@ -381,7 +449,7 @@ class IdentityService:
         with self._db.system() as conn:
             rows = conn.execute(
                 """
-                select m.id, m.status, m.created_at, m.decided_at, u.email, u.name, u.last_seen_at,
+                select m.id, m.user_id, m.status, m.created_at, m.decided_at, u.email, u.name, u.last_seen_at,
                        w.id as workspace_id, w.name as workspace_name, w.status as workspace_status,
                        (select count(*) from memberships t where t.workspace_id = w.id and t.role = 'tenant'
                           and t.status = 'active') as tenants,
@@ -439,14 +507,33 @@ class IdentityService:
         with self._db.system() as conn:
             rows = conn.execute(
                 """
-                select m.id, m.status, m.created_at, m.decided_at, u.email, u.name, u.last_seen_at,
+                select m.id, m.user_id, m.status, m.created_at, m.decided_at, u.email, u.name, u.last_seen_at,
+                       u.job_title, u.department, u.phone, u.profile_updated_at,
                        (select count(*) from documents d where d.workspace_id = m.workspace_id
-                          and d.owner_id = m.user_id) as private_documents
+                          and d.owner_id = m.user_id) as documents,
+                       -- Counted, never listed: the admin cannot see these documents.
+                       (select count(*) from documents d where d.workspace_id = m.workspace_id
+                          and d.owner_id = m.user_id and d.visibility = 'private'
+                          and not exists (select 1 from document_shares s where s.document_id = d.id))
+                          as private_documents,
+                       (select count(*) from document_shares s where s.workspace_id = m.workspace_id
+                          and s.owner_id = m.user_id and s.user_id = %(admin)s) as shared_with_you,
+                       (select count(*) from document_shares s where s.workspace_id = m.workspace_id
+                          and s.owner_id = %(admin)s and s.user_id = m.user_id) as shared_with_them,
+                       -- Only the admin can share with the whole workspace, so these reach every member too.
+                       (select count(*) from documents d where d.workspace_id = m.workspace_id
+                          and d.visibility = 'workspace') as shared_with_workspace,
+                       q.questions, q.tokens, q.last_question_at
                 from memberships m join users u on u.id = m.user_id
-                where m.workspace_id = %s and m.role = 'tenant' and m.status <> 'rejected'
+                cross join lateral (
+                    select count(*) as questions, coalesce(sum(coalesce(x.tokens_in, 0) + coalesce(x.tokens_out, 0)), 0)
+                           as tokens, max(x.created_at) as last_question_at
+                    from queries x where x.workspace_id = m.workspace_id and x.user_id = m.user_id
+                ) q
+                where m.workspace_id = %(ws)s and m.role = 'tenant' and m.status <> 'rejected'
                 order by (m.status = 'pending') desc, m.created_at
                 """,
-                [m.workspace_id],
+                {"ws": m.workspace_id, "admin": p.user_id},
             ).fetchall()
         return [jsonable(r) for r in rows]
 

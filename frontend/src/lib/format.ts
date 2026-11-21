@@ -1,4 +1,7 @@
-export const BRAND = "Onekami";
+export const BRAND = "Cyte"; // the product
+export const COMPANY = "Onekami"; // the company that makes it
+export const CONTACT_EMAIL = "contact@onekami.site"; // sales, demos and general questions
+export const SUPPORT_EMAIL = "help@onekami.site"; // help for customers using the product
 
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -33,3 +36,10 @@ export function pages(start: number | null, end: number | null): string {
 }
 
 export const ROLE_LABEL = { super_admin: "Super Admin", admin: "Admin", tenant: "Member" } as const;
+
+/** Token totals are approximate (model-reported prompt and output tokens; embeddings are not counted). */
+export function formatTokens(n: number): string {
+  if (n < 1000) return `≈${n}`;
+  if (n < 1_000_000) return `≈${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}k`;
+  return `≈${(n / 1_000_000).toFixed(1)}M`;
+}

@@ -1,23 +1,27 @@
 "use client";
 
-import { ArrowUp, MessageSquareText, Plus } from "lucide-react";
+import { ArrowUp, CornerDownRight, History, MessageSquareText } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AnswerView } from "@/components/chat/answer-view";
 import { CitationPanel } from "@/components/chat/citation-panel";
-import { Alert } from "@/components/ui";
-import { api, errorMessage } from "@/lib/api-client";
+import { Alert, Spinner } from "@/components/ui";
+import { ApiError, api, errorMessage, notifyChatsChanged } from "@/lib/api-client";
 import { timeAgo } from "@/lib/format";
-import type { Answer, Citation, HistoryItem } from "@/lib/types";
+import type { Answer, ChatDetail, ChatSummary, Citation } from "@/lib/types";
 
 type Turn = { key: string; question: string; answer?: Answer; error?: string };
+
+// Threads already on screen, so switching chats (or the move from /chat to /chat/<id>) shows them at once.
+const threadCache = new Map<string, { title: string; turns: Turn[] }>();
 
 const EXAMPLES: Record<string, string[]> = {
   legal: [
     "When must the severance benefit be paid, and what conditions apply?",
     "What notice is required to terminate the agreement?",
-    "Which law governs this agreement?",
+    "What is the punishment for murder under Section 302?",
   ],
   medical: [
     "What is the recommended starting dosage for hypertension?",
@@ -26,32 +30,59 @@ const EXAMPLES: Record<string, string[]> = {
   ],
 };
 
-export function Chat({ kind }: { kind: "legal" | "medical" | "both" }) {
-  const [turns, setTurns] = useState<Turn[]>([]);
-  const [history, setHistory] = useState<HistoryItem[]>([]);
+function toTurns(answers: Answer[]): Turn[] {
+  return answers.map((a) => ({ key: a.id, question: a.question, answer: a }));
+}
+
+export function Chat({ conversationId, kind }: { conversationId: string | null; kind: "legal" | "medical" | "both" }) {
+  const router = useRouter();
+  const cached = conversationId ? threadCache.get(conversationId) : undefined;
+  const [turns, setTurns] = useState<Turn[]>(cached?.turns ?? []);
+  const [title, setTitle] = useState<string>(cached?.title ?? "");
+  const [loading, setLoading] = useState(Boolean(conversationId) && !cached);
+  const [missing, setMissing] = useState(false);
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [selected, setSelected] = useState<Citation | null>(null);
   const [docCount, setDocCount] = useState<number | null>(null);
+  const [lastChat, setLastChat] = useState<ChatSummary | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
-  const examples = kind === "both" ? [...EXAMPLES.legal!.slice(0, 2), EXAMPLES.medical![0]!] : EXAMPLES[kind]!;
+  const input = useRef<HTMLTextAreaElement>(null);
+  const turnsRef = useRef<Turn[]>(turns);
+  turnsRef.current = turns;
+  const examples = kind === "both" ? [EXAMPLES.legal![0]!, EXAMPLES.legal![2]!, EXAMPLES.medical![0]!] : EXAMPLES[kind]!;
 
-  const loadHistory = useCallback(async () => {
+  const loadThread = useCallback(async (id: string) => {
     try {
-      setHistory(await api.get<HistoryItem[]>("queries?limit=30"));
-    } catch {
-      /* history is optional */
+      const chat = await api.get<ChatDetail>(`conversations/${id}`);
+      const next = toTurns(chat.turns);
+      threadCache.set(id, { title: chat.title, turns: next });
+      setTurns(next);
+      setTitle(chat.title);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) setMissing(true);
+      else setTurns((t) => (t.length ? t : [{ key: "load-error", question: "", error: errorMessage(e) }]));
+    } finally {
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void loadHistory();
-    api
-      .get<{ status: string }[]>("documents")
-      .then((docs) => setDocCount(docs.filter((d) => d.status === "ready").length))
-      .catch(() => setDocCount(null));
-  }, [loadHistory]);
+    if (conversationId) {
+      void loadThread(conversationId);
+    } else {
+      api
+        .get<ChatSummary[]>("conversations?limit=1")
+        .then((list) => setLastChat(list[0] ?? null))
+        .catch(() => setLastChat(null));
+      api
+        .get<{ status: string }[]>("documents")
+        .then((docs) => setDocCount(docs.filter((d) => d.status === "ready").length))
+        .catch(() => setDocCount(null));
+    }
+    input.current?.focus();
+  }, [conversationId, loadThread]);
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -73,9 +104,17 @@ export function Chat({ kind }: { kind: "legal" | "medical" | "both" }) {
     setBusy(true);
     setSelected(null);
     try {
-      const answer = await api.post<Answer>("queries", { question: q });
-      setTurns((t) => t.map((turn) => (turn.key === key ? { ...turn, answer } : turn)));
-      void loadHistory();
+      const answer = await api.post<Answer>("queries", { question: q, conversation_id: conversationId ?? undefined });
+      const id = answer.conversation_id;
+      const next = turnsRef.current.map((turn) => (turn.key === key ? { ...turn, answer } : turn));
+      setTurns(next);
+      threadCache.set(id, { title: answer.conversation_title ?? title, turns: next });
+      notifyChatsChanged();
+      if (!conversationId) {
+        router.replace(`/chat/${id}`); // a new chat now has an address you can come back to
+      } else if (answer.conversation_title) {
+        setTitle(answer.conversation_title);
+      }
     } catch (e) {
       setTurns((t) => t.map((turn) => (turn.key === key ? { ...turn, error: errorMessage(e) } : turn)));
     } finally {
@@ -83,64 +122,38 @@ export function Chat({ kind }: { kind: "legal" | "medical" | "both" }) {
     }
   }
 
-  async function openPast(id: string) {
-    setSelected(null);
-    try {
-      const answer = await api.get<Answer>(`queries/${id}`);
-      setTurns([{ key: id, question: answer.question, answer }]);
-    } catch (e) {
-      setTurns([{ key: id, question: "", error: errorMessage(e) }]);
-    }
+  if (missing) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+        <p className="font-medium text-ink-900">This chat does not exist or is not yours.</p>
+        <Link href="/chat" className="text-sm font-medium text-brand-600 hover:underline">
+          Start a new chat
+        </Link>
+      </div>
+    );
   }
 
   return (
     <div className="flex h-full">
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-ink-200 bg-white/60 lg:flex">
-        <div className="p-3">
-          <button
-            type="button"
-            onClick={() => {
-              setTurns([]);
-              setSelected(null);
-            }}
-            className="flex w-full items-center gap-2 rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm font-medium text-ink-700 hover:bg-ink-50"
-          >
-            <Plus className="size-4" aria-hidden /> New question
-          </button>
-        </div>
-        <p className="px-4 pb-1 text-xs font-medium tracking-wide text-ink-400 uppercase">Recent</p>
-        <ul className="flex-1 overflow-y-auto px-2 pb-3">
-          {history.map((h) => (
-            <li key={h.id}>
-              <button
-                type="button"
-                onClick={() => openPast(h.id)}
-                className="w-full rounded-lg px-2.5 py-2 text-left hover:bg-ink-100"
-              >
-                <p className="line-clamp-2 text-sm text-ink-800">{h.question}</p>
-                <p className="mt-0.5 text-xs text-ink-400">
-                  {h.outcome === "refused" ? "Not in documents" : h.outcome === "partial" ? "Partly answered" : "Answered"} ·{" "}
-                  {timeAgo(h.created_at)}
-                </p>
-              </button>
-            </li>
-          ))}
-          {history.length === 0 && <li className="px-2.5 py-2 text-sm text-ink-400">No questions yet.</li>}
-        </ul>
-      </aside>
-
       <div className="flex min-w-0 flex-1 flex-col">
+        {conversationId && (
+          <header className="flex h-12 shrink-0 items-center border-b border-ink-100 bg-white/80 px-6">
+            <h1 className="truncate text-sm font-semibold text-ink-900">{title || "Chat"}</h1>
+          </header>
+        )}
         <div className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-3xl px-6 py-8">
-            {turns.length === 0 && (
-              <div className="pt-10 text-center">
+            {loading && <Spinner label="Loading chat…" />}
+
+            {!conversationId && turns.length === 0 && (
+              <div className="pt-8 text-center">
                 <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
                   <MessageSquareText className="size-6" aria-hidden />
                 </div>
                 <h1 className="text-2xl font-semibold tracking-tight text-ink-950">Ask your documents</h1>
                 <p className="mx-auto mt-2 max-w-lg text-sm text-ink-500">
-                  Answers use only the documents you can access. Every sentence is checked against the passage it
-                  cites; anything that cannot be verified is removed.
+                  Answers use only the documents you can access. Ask follow-up questions in the same chat; every
+                  sentence is checked against the passage it cites, and anything unverified is removed.
                 </p>
                 {docCount === 0 && (
                   <div className="mx-auto mt-6 max-w-md">
@@ -153,7 +166,20 @@ export function Chat({ kind }: { kind: "legal" | "medical" | "both" }) {
                     </Alert>
                   </div>
                 )}
-                <div className="mx-auto mt-8 grid max-w-xl gap-2">
+                {lastChat && (
+                  <Link
+                    href={`/chat/${lastChat.id}`}
+                    className="mx-auto mt-6 flex max-w-xl items-center gap-3 rounded-xl border border-brand-200 bg-brand-50/60 px-4 py-3 text-left hover:bg-brand-50"
+                  >
+                    <History className="size-4 shrink-0 text-brand-600" aria-hidden />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-xs font-medium text-brand-700">Continue where you left off</span>
+                      <span className="block truncate text-sm text-ink-800">{lastChat.title}</span>
+                    </span>
+                    <span className="shrink-0 text-xs text-ink-500">{timeAgo(lastChat.updated_at)}</span>
+                  </Link>
+                )}
+                <div className="mx-auto mt-6 grid max-w-xl gap-2">
                   {examples.map((ex) => (
                     <button
                       key={ex}
@@ -169,22 +195,31 @@ export function Chat({ kind }: { kind: "legal" | "medical" | "both" }) {
             )}
 
             <div className="space-y-8">
-              {turns.map((turn) => (
-                <div key={turn.key}>
-                  {turn.question && (
-                    <div className="mb-3 flex justify-end">
-                      <p className="max-w-[85%] rounded-2xl rounded-br-md bg-ink-900 px-4 py-2.5 text-sm text-white">
-                        {turn.question}
-                      </p>
-                    </div>
-                  )}
-                  {turn.answer && (
-                    <AnswerView answer={turn.answer} selected={selected} onSelect={(c) => setSelected(c)} />
-                  )}
-                  {turn.error && <Alert>{turn.error}</Alert>}
-                  {!turn.answer && !turn.error && <Working elapsed={elapsed} />}
-                </div>
-              ))}
+              {turns.map((turn, i) => {
+                const rewritten =
+                  turn.answer?.standalone_question &&
+                  turn.answer.standalone_question.trim().toLowerCase() !== turn.question.trim().toLowerCase();
+                return (
+                  <div key={turn.key}>
+                    {turn.question && (
+                      <div className="mb-3 flex flex-col items-end">
+                        <p className="max-w-[85%] rounded-2xl rounded-br-md bg-ink-900 px-4 py-2.5 text-sm text-white">
+                          {turn.question}
+                        </p>
+                        {rewritten && i > 0 && (
+                          <p className="mt-1 flex max-w-[85%] items-start gap-1 text-xs text-ink-500" title="How this follow-up was understood">
+                            <CornerDownRight className="mt-px size-3 shrink-0" aria-hidden />
+                            Searched as: {turn.answer!.standalone_question}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {turn.answer && <AnswerView answer={turn.answer} selected={selected} onSelect={(c) => setSelected(c)} />}
+                    {turn.error && <Alert>{turn.error}</Alert>}
+                    {!turn.answer && !turn.error && <Working elapsed={elapsed} />}
+                  </div>
+                );
+              })}
             </div>
             <div ref={bottom} />
           </div>
@@ -203,6 +238,7 @@ export function Chat({ kind }: { kind: "legal" | "medical" | "both" }) {
             </label>
             <textarea
               id="question"
+              ref={input}
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               onKeyDown={(e) => {
@@ -213,12 +249,13 @@ export function Chat({ kind }: { kind: "legal" | "medical" | "both" }) {
               }}
               rows={1}
               maxLength={2000}
-              placeholder="Ask a question about your documents…"
+              disabled={loading}
+              placeholder={turns.length ? "Ask a follow-up…" : "Ask a question about your documents…"}
               className="max-h-40 min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none placeholder:text-ink-400"
             />
             <button
               type="submit"
-              disabled={busy || question.trim().length < 3}
+              disabled={busy || loading || question.trim().length < 3}
               className="flex size-9 items-center justify-center rounded-xl bg-brand-600 text-white hover:bg-brand-700 disabled:bg-ink-200"
               aria-label="Ask"
             >

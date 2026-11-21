@@ -4,6 +4,9 @@ import type { NextConfig } from "next";
 const config: NextConfig = {
   // Lets a verification build run beside a live one (tools use NEXT_DIST_DIR); the default is .next.
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  // A verification build type-checks only its own route types, so stale types in a live build's folder (for example
+  // a route that was just removed) cannot fail it.
+  ...(process.env.NEXT_DIST_DIR ? { typescript: { tsconfigPath: "tsconfig.verify.json" } } : {}),
   poweredByHeader: false,
   reactStrictMode: true,
   async headers() {

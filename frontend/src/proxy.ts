@@ -57,5 +57,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|robots.txt).*)"],
+  // Static icons and logos in public/ skip the proxy: they need no session and no CSP.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|robots.txt|.*\\.png$).*)"],
 };

@@ -12,7 +12,7 @@ from typing import Any
 import httpx
 import psycopg
 
-from generation.llm_client import GeminiClient, LLMError
+from generation.llm_client import LLMClient, LLMError
 from lmqa_models.envfile import merged_env
 from lmqa_models.settings import EMBEDDING_DIM, load_settings
 from lmqa_vectorstore import Embedder, EmbeddingError
@@ -37,13 +37,14 @@ def check_settings(env: dict[str, str]) -> None:
         "AUTH0_SESSION_SECRET": "session cookie encryption secret",
         "CODE_PEPPER_V1": "join-code pepper",
         "LMQA_DB_APP_PASSWORD": "database password",
-        "GEMINI_API_KEY": "Google AI Studio key",
+        "GEMINI_API_KEY": "Google AI Studio key (embeddings always; answers when LLM_PROVIDER=gemini)",
     }
     for key, what in required.items():
         present = bool(env.get(key)) or (key == "GEMINI_API_KEY" and bool(env.get("GOOGLE_API_KEY")))
         report(OK if present else FAIL, key, "set" if present else f"missing ({what})")
     s = load_settings()
-    report(OK, "LLM models", " -> ".join(s.llm_models))
+    report(OK, "LLM_PROVIDER", s.llm_provider)
+    report(OK if s.llm_models else FAIL, "answer models", " -> ".join(s.llm_models) or "LLM_MODEL is not set")
 
 
 def check_database() -> None:
@@ -55,7 +56,8 @@ def check_database() -> None:
             vec = conn.execute("select extversion from pg_extension where extname = 'vector'").fetchone()
             applied = conn.execute("select count(*) from schema_migrations").fetchone()
             forced = conn.execute(
-                "select count(*) from pg_class where relname in ('documents','chunks','queries','retrieval_records')"
+                "select count(*) from pg_class where relname in"
+                " ('documents', 'chunks', 'queries', 'retrieval_records', 'conversations', 'document_shares')"
                 " and relrowsecurity and relforcerowsecurity"
             ).fetchone()
             roles = conn.execute(
@@ -65,9 +67,9 @@ def check_database() -> None:
         report(OK if vec else FAIL, "pgvector", vec[0] if vec else "extension missing")
         report(OK, "migrations", f"{applied[0] if applied else 0} applied")
         report(
-            OK if forced and forced[0] == 4 else FAIL,
+            OK if forced and forced[0] == 6 else FAIL,
             "row-level security",
-            f"FORCE RLS on {forced[0] if forced else 0}/4 content tables",
+            f"FORCE RLS on {forced[0] if forced else 0}/6 content tables",
         )
         app_ok = any(r[0] == "lmqa_app" and not r[1] and not r[2] for r in roles)
         report(OK if app_ok else FAIL, "lmqa_app role", "non-superuser, NOBYPASSRLS" if app_ok else "misconfigured")
@@ -168,29 +170,37 @@ def check_auth0(env: dict[str, str]) -> None:
             report(WARN, "application settings", f"cannot read (HTTP {app.status_code}; M2M app needs read:clients)")
 
 
-def check_gemini() -> None:
-    print("\nGemini")
+def check_models() -> None:
+    print("\nAnswer models and embeddings")
     s = load_settings()
-    client = GeminiClient(s)
-    if not client.configured:
-        report(FAIL, "Gemini", "no API key")
-        return
-    try:
-        available = set(client.list_models())
-        for model in s.llm_models:
-            report(
-                OK if model in available else WARN,
-                f"model {model}",
-                "listed" if model in available else "not listed for this key",
-            )
-        out = client.generate_json(
-            system="Reply with JSON only.",
-            user='Return {"ok": true}.',
-            schema={"type": "OBJECT", "properties": {"ok": {"type": "BOOLEAN"}}, "required": ["ok"]},
+    client = LLMClient(s)
+    for name, provider in client.providers.items():
+        missing = provider.missing()
+        report(
+            OK if missing is None else FAIL, f"provider {name}", "configured" if missing is None else f"set {missing}"
         )
-        report(OK if out.data.get("ok") is True else FAIL, "generation", f"answered by {out.model}")
-    except LLMError as exc:
-        report(FAIL, "generation", str(exc))
+    gemini = client.gemini()
+    if gemini is not None and gemini.configured:
+        try:
+            available = set(gemini.list_models())
+            for p, model in s.llm_chain:
+                if p == "gemini":
+                    listed = model in available
+                    report(OK if listed else WARN, f"model {model}", "listed" if listed else "not listed for this key")
+        except LLMError as exc:
+            report(WARN, "Gemini model list", str(exc))
+    if client.configured:
+        try:
+            out = client.generate_json(
+                system="Reply with JSON only.",
+                user='Return {"ok": true}.',
+                schema={"type": "OBJECT", "properties": {"ok": {"type": "BOOLEAN"}}, "required": ["ok"]},
+            )
+            report(OK if out.data.get("ok") is True else FAIL, "generation", f"answered by {out.model}")
+        except LLMError as exc:
+            report(FAIL, "generation", str(exc))
+    else:
+        report(FAIL, "generation", f"no usable answer model: set {', '.join(client.missing())}")
     try:
         vec = Embedder(s).embed_query("Either party may terminate this Agreement on thirty (30) days notice.")
         report(OK if len(vec) == EMBEDDING_DIM else FAIL, f"embeddings {s.embedding_model}", f"{len(vec)} dimensions")
@@ -203,7 +213,7 @@ def main() -> int:
     check_settings(env)
     check_database()
     check_auth0(env)
-    check_gemini()
+    check_models()
     print(f"\n{'All checks passed.' if failures == 0 else f'{failures} check(s) failed.'}")
     return 1 if failures else 0
 

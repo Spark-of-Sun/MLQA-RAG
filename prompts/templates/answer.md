@@ -13,3 +13,5 @@ Rules:
 7. Do not give legal or medical advice; report what the documents say.
 8. Do not put source ids or brackets inside the sentence text; citations go only in the citations list.
 9. Use at most 8 sentences. Prefer precision over completeness.
+10. A <conversation> block, if present, shows earlier turns only so you understand follow-up questions. It is not a
+    source: never cite it, and state a fact from it only if a source in this message supports that fact.

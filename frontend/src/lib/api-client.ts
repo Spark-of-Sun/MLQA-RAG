@@ -43,9 +43,16 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 export const api = {
   get: <T>(path: string) => call<T>("GET", path),
   post: <T>(path: string, body?: unknown) => call<T>("POST", path, body ?? {}),
+  patch: <T>(path: string, body: unknown) => call<T>("PATCH", path, body),
   del: <T = void>(path: string) => call<T>("DELETE", path),
   upload: <T>(path: string, form: FormData) => call<T>("POST", path, form),
 };
+
+/** Tell other components (the chat list) that chats were created, renamed or deleted. */
+export const CHATS_CHANGED = "lmqa:chats-changed";
+export function notifyChatsChanged() {
+  window.dispatchEvent(new Event(CHATS_CHANGED));
+}
 
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong.";

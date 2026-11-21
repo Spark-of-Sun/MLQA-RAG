@@ -3,23 +3,27 @@
 --   lmqa_owner (schema owner, migrations only), lmqa_app (NOBYPASSRLS), lmqa_system (BYPASSRLS).
 
 revoke all on all tables in schema public from public;
-revoke all on function app_active_workspace(), app_active_role(), audit_verify(uuid),
+revoke all on function app_active_workspace(), app_active_role(), app_share_target_ok(uuid), app_owns_document(uuid),
+    audit_verify(uuid),
     audit_append(uuid, uuid, uuid, text, text, text, jsonb) from public;
 grant usage on schema public to lmqa_app, lmqa_system;
 
 -- lmqa_app: the data plane. Content tables only, always under row-level security.
 revoke all on all tables in schema public from lmqa_app;
 grant select, insert, delete on documents to lmqa_app;
+grant select, insert on document_shares to lmqa_app;
 grant select on chunks to lmqa_app;
 grant select, insert on queries, retrieval_records to lmqa_app;
+grant select, insert, update (title, updated_at), delete on conversations to lmqa_app;
 
 -- lmqa_system: identity, onboarding and the ingestion worker. Authorization is enforced in code.
 revoke all on all tables in schema public from lmqa_system;
 grant select, insert, update, delete on users, organizations, workspaces, memberships, join_codes,
     documents, chunks to lmqa_system;
-grant select on queries, audit_events to lmqa_system;
+grant select on queries, document_shares, audit_events to lmqa_system;
 
-grant execute on function app_user_id(), app_active_workspace(), app_active_role() to lmqa_app, lmqa_system;
+grant execute on function app_user_id(), app_active_workspace(), app_active_role(), app_share_target_ok(uuid),
+    app_owns_document(uuid) to lmqa_app, lmqa_system;
 grant execute on function audit_append(uuid, uuid, uuid, text, text, text, jsonb) to lmqa_app, lmqa_system;
 grant execute on function audit_material(uuid, uuid, uuid, text, text, text, jsonb, timestamptz, text)
     to lmqa_app, lmqa_system;

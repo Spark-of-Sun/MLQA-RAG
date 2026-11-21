@@ -13,6 +13,10 @@ routes:
   - { method: GET,    path: /v1/health,                               roles: [public] }
   - { method: GET,    path: /v1/me,                                   roles: [authenticated] }
 
+  # Profile: everyone edits their own; an admin reads members' profiles through Manage Members
+  - { method: GET,    path: /v1/profile,                              roles: [super_admin, admin, tenant] }
+  - { method: PATCH,  path: /v1/profile,                              roles: [super_admin, admin, tenant] }
+
   # onboarding (blueprint 7)
   - { method: POST,   path: /v1/onboarding/organization,              roles: [authenticated] }
   - { method: POST,   path: /v1/onboarding/join-admin,                roles: [authenticated] }
@@ -38,9 +42,14 @@ routes:
   - { method: GET,    path: "/v1/documents/{doc_id}",                 roles: [admin, tenant] }
   - { method: DELETE, path: "/v1/documents/{doc_id}",                 roles: [admin, tenant] }
   - { method: POST,   path: /v1/queries,                              roles: [admin, tenant] }
-  - { method: GET,    path: /v1/queries,                              roles: [admin, tenant] }
   - { method: GET,    path: "/v1/queries/{query_id}",                 roles: [admin, tenant] }
 
-  # Audit: content scoped by role (org-level / workspace / own)
+  # Chats: private to their author under RLS; admins cannot read members' chats
+  - { method: GET,    path: /v1/conversations,                        roles: [admin, tenant] }
+  - { method: GET,    path: "/v1/conversations/{conversation_id}",    roles: [admin, tenant] }
+  - { method: PATCH,  path: "/v1/conversations/{conversation_id}",    roles: [admin, tenant] }
+  - { method: DELETE, path: "/v1/conversations/{conversation_id}",    roles: [admin, tenant] }
+
+  # Audit: content scoped by role (org-level / workspace / own); everyone can verify the hash chain
   - { method: GET,    path: /v1/audit,                                roles: [super_admin, admin, tenant] }
-  - { method: GET,    path: /v1/audit/verify,                         roles: [super_admin, admin] }
+  - { method: GET,    path: /v1/audit/verify,                         roles: [super_admin, admin, tenant] }

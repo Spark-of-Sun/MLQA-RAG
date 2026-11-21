@@ -4,14 +4,68 @@ import { Users } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { CodePanel } from "@/components/manage/code-panel";
-import { Alert, Button, Card, ConfirmButton, EmptyState, PageHeader, Spinner, StatusBadge } from "@/components/ui";
+import { Alert, Button, Card, ConfirmButton, EmptyState, Modal, PageHeader, Spinner, StatusBadge } from "@/components/ui";
 import { api, errorMessage } from "@/lib/api-client";
-import { timeAgo } from "@/lib/format";
+import { formatDate, formatTokens, timeAgo } from "@/lib/format";
 import type { MemberRow } from "@/lib/types";
+
+function sharedBy(m: MemberRow): string {
+  const total = m.shared_with_them + m.shared_with_workspace;
+  return `${total} (${m.shared_with_them} to them by name, ${m.shared_with_workspace} with the whole workspace)`;
+}
+
+function MemberDetails({ m, onClose }: { m: MemberRow; onClose: () => void }) {
+  const rows: [string, string | number][] = [
+    ["Email", m.email ?? "—"],
+    ["Job title", m.job_title ?? "—"],
+    ["Department", m.department ?? "—"],
+    ["Phone", m.phone ?? "—"],
+    ["Status", m.status],
+    ["Requested", formatDate(m.created_at)],
+    ["Decided", formatDate(m.decided_at)],
+    ["Last active", timeAgo(m.last_seen_at)],
+  ];
+  const usage: [string, string | number][] = [
+    ["Documents uploaded", m.documents],
+    ["Private documents", m.private_documents],
+    ["Shared with you", m.shared_with_you],
+    ["Shared by you", sharedBy(m)],
+    ["Questions asked", m.questions],
+    ["Approximate tokens", formatTokens(m.tokens)],
+    ["Last question", m.last_question_at ? formatDate(m.last_question_at) : "never"],
+  ];
+  return (
+    <Modal title={m.name || m.email || "Member"} onClose={onClose}>
+      <h3 className="text-xs font-semibold tracking-wide text-ink-500 uppercase">Profile</h3>
+      <dl className="mt-2 grid grid-cols-[9rem_1fr] gap-y-1.5 text-sm">
+        {rows.map(([k, v]) => (
+          <div key={k} className="contents">
+            <dt className="text-ink-500">{k}</dt>
+            <dd className="break-words text-ink-900">{v}</dd>
+          </div>
+        ))}
+      </dl>
+      <h3 className="mt-5 text-xs font-semibold tracking-wide text-ink-500 uppercase">Usage</h3>
+      <dl className="mt-2 grid grid-cols-[9rem_1fr] gap-y-1.5 text-sm">
+        {usage.map(([k, v]) => (
+          <div key={k} className="contents">
+            <dt className="text-ink-500">{k}</dt>
+            <dd className="text-ink-900 tabular-nums">{v}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-4 text-xs text-ink-500">
+        You see counts only. Their questions, answers, chats and private documents stay private to them; documents they
+        share with you appear in your library.
+      </p>
+    </Modal>
+  );
+}
 
 export function ManageTenants({ workspaceName }: { workspaceName: string }) {
   const [rows, setRows] = useState<MemberRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [details, setDetails] = useState<MemberRow | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -36,13 +90,13 @@ export function ManageTenants({ workspaceName }: { workspaceName: string }) {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-8 py-8">
+    <div className="mx-auto max-w-6xl px-8 py-8">
       <PageHeader
         title="Manage members"
         subtitle={
           <>
-            Members of {workspaceName} can ask questions over the documents you share and upload private documents of their
-            own. You cannot read their private documents.
+            Members of {workspaceName} can ask questions over the documents you share and upload documents of their own.
+            You see a member&apos;s documents only if they share them with you. Click a member for their profile.
           </>
         }
       />
@@ -67,7 +121,19 @@ export function ManageTenants({ workspaceName }: { workspaceName: string }) {
                 <tr>
                   <th className="px-5 py-3 font-medium">Member</th>
                   <th className="px-3 py-3 font-medium">Status</th>
-                  <th className="px-3 py-3 text-right font-medium">Private documents</th>
+                  <th className="px-3 py-3 text-right font-medium" title="Documents only the member can see. You see the count, never the documents.">
+                    Private documents
+                  </th>
+                  <th className="px-3 py-3 text-right font-medium" title="Documents this member shared with you">
+                    Shared with you
+                  </th>
+                  <th className="px-3 py-3 text-right font-medium" title="Documents you shared with this member: by name, plus everything you shared with the whole workspace">
+                    Shared by you
+                  </th>
+                  <th className="px-3 py-3 text-right font-medium">Questions</th>
+                  <th className="px-3 py-3 text-right font-medium" title="Approximate model tokens used by their questions">
+                    Tokens
+                  </th>
                   <th className="px-3 py-3 font-medium">Last active</th>
                   <th className="px-5 py-3" />
                 </tr>
@@ -76,13 +142,26 @@ export function ManageTenants({ workspaceName }: { workspaceName: string }) {
                 {rows.map((r) => (
                   <tr key={r.id} className={r.status === "pending" ? "bg-amber-50/40" : undefined}>
                     <td className="px-5 py-3">
-                      <p className="font-medium text-ink-900">{r.name || r.email}</p>
-                      {r.name && <p className="text-xs text-ink-500">{r.email}</p>}
+                      <button type="button" onClick={() => setDetails(r)} className="text-left hover:underline">
+                        <span className="block font-medium text-ink-900">{r.name || r.email}</span>
+                      </button>
+                      <p className="text-xs text-ink-500">
+                        {[r.job_title, r.name ? r.email : null].filter(Boolean).join(" · ")}
+                      </p>
                     </td>
                     <td className="px-3 py-3">
                       <StatusBadge status={r.status} />
                     </td>
                     <td className="px-3 py-3 text-right tabular-nums text-ink-700">{r.private_documents}</td>
+                    <td className="px-3 py-3 text-right tabular-nums text-ink-700">{r.shared_with_you}</td>
+                    <td className="px-3 py-3 text-right tabular-nums text-ink-700">
+                      {r.shared_with_them + r.shared_with_workspace}
+                      <span className="block text-[11px] text-ink-400">
+                        {r.shared_with_them} by name · {r.shared_with_workspace} workspace
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 text-right tabular-nums text-ink-700">{r.questions}</td>
+                    <td className="px-3 py-3 text-right text-xs tabular-nums text-ink-600">{formatTokens(r.tokens)}</td>
                     <td className="px-3 py-3 text-xs text-ink-500">{timeAgo(r.last_seen_at)}</td>
                     <td className="px-5 py-3">
                       <div className="flex justify-end gap-2">
@@ -108,7 +187,13 @@ export function ManageTenants({ workspaceName }: { workspaceName: string }) {
             </table>
           )}
         </Card>
+        <p className="text-xs text-ink-400">
+          Private documents are counted only; you cannot open them. Shared by you counts documents you shared with that
+          member by name plus the documents you shared with the whole workspace. Questions counts every question asked, not chats. Tokens are approximate: what the model reported for answering,
+          rewriting follow-ups and checking answers; search embeddings are not included.
+        </p>
       </div>
+      {details && <MemberDetails m={details} onClose={() => setDetails(null)} />}
     </div>
   );
 }

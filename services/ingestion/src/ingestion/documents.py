@@ -1,4 +1,11 @@
-"""Document library API logic: upload, list, get, delete. Every content statement runs under RLS."""
+"""Document library API logic: upload, list, get, delete. Every content statement runs under RLS.
+
+Access to a document (blueprint 5.4, MVP subset):
+  workspace  the admin shared it with everyone in the workspace
+  shared     the owner shared it with named people: a member with their admin, the admin with chosen members
+  private    the owner only
+Shares are rows in `document_shares`, inserted in the same transaction as the document and checked by RLS.
+"""
 
 from __future__ import annotations
 
@@ -13,7 +20,7 @@ import psycopg
 import lmqa_audit
 from ingestion.parsers import ParseError, detect_type
 from ingestion.pipeline import Ingestor
-from lmqa_db import Database
+from lmqa_db import Database, Scope
 from lmqa_models.errors import BadRequest, Forbidden, NotFound, TooLarge
 from lmqa_models.principal import Principal
 from lmqa_models.settings import Settings
@@ -23,12 +30,27 @@ COLUMNS = (
     "id, title, filename, file_type, size_bytes, visibility, status, error, notes, page_count, chunk_count,"
     " structure, created_at, updated_at, owner_id"
 )
+SHARE_ADMIN = "admin"  # what a member sends to mean "my workspace admin"; resolved here, never trusted as an ID
+MAX_SHARES = 200
 
 
 def title_from_filename(filename: str) -> str:
     stem = filename.replace("\\", "/").rsplit("/", 1)[-1]
     stem = stem.rsplit(".", 1)[0] if "." in stem else stem
     return (re.sub(r"_+", " ", stem).strip() or "Untitled document")[:200]
+
+
+def shares_of(conn: psycopg.Connection[Any] | Scope, doc_ids: list[str]) -> dict[str, list[str]]:
+    """document_id -> recipient user IDs, as visible to the connection (owner: all; recipient: themself)."""
+    out: dict[str, list[str]] = {}
+    if doc_ids:
+        rows = conn.execute(
+            "select document_id, user_id from document_shares where document_id = any(%s) order by created_at",
+            [doc_ids],
+        ).fetchall()
+        for r in rows:
+            out.setdefault(str(r["document_id"]), []).append(str(r["user_id"]))
+    return out
 
 
 class DocumentService:
@@ -38,36 +60,102 @@ class DocumentService:
         self._store = store
         self._ingestor = ingestor
 
-    def _shape(self, rows: list[dict[str, Any]], p: Principal) -> list[dict[str, Any]]:
-        owners: dict[str, str] = {}
-        ids = list({str(r["owner_id"]) for r in rows})
+    def _shape(self, rows: list[dict[str, Any]], shares: dict[str, list[str]], p: Principal) -> list[dict[str, Any]]:
+        m = p.membership
+        assert m is not None
+        people: dict[str, dict[str, Any]] = {}
+        ids = list({str(r["owner_id"]) for r in rows} | {u for us in shares.values() for u in us})
         if ids:
             with self._db.system() as conn:
                 for r in conn.execute(
-                    "select id, coalesce(name, email) as label from users where id = any(%s)", [ids]
+                    "select u.id, coalesce(u.name, u.email) as label, m.role from users u"
+                    " left join memberships m on m.user_id = u.id and m.workspace_id = %s and m.status <> 'rejected'"
+                    " where u.id = any(%s)",
+                    [m.workspace_id, ids],
                 ).fetchall():
-                    owners[str(r["id"])] = r["label"] or "User"
+                    people[str(r["id"])] = {"label": r["label"] or "User", "role": r["role"] or "tenant"}
         out = []
         for r in rows:
             item = {k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in r.items()}
-            item["id"] = str(r["id"])
-            item["owner_id"] = str(r["owner_id"])
-            item["owner"] = owners.get(item["owner_id"], "User")
-            item["mine"] = item["owner_id"] == p.user_id
+            doc_id, owner_id = str(r["id"]), str(r["owner_id"])
+            owner = people.get(owner_id, {"label": "User", "role": "tenant"})
+            mine = owner_id == p.user_id
+            recipients = shares.get(doc_id, [])
+            access = "workspace" if r["visibility"] == "workspace" else "shared" if recipients else "private"
+            item.update(
+                {
+                    "id": doc_id,
+                    "owner_id": owner_id,
+                    "owner": owner["label"],
+                    "owner_role": owner["role"],
+                    "mine": mine,
+                    "access": access,
+                    "shared_by": None
+                    if access == "private"
+                    else "you"
+                    if mine
+                    else ("admin" if owner["role"] == "admin" else "member"),
+                    "shared_with": [
+                        {
+                            "id": u,
+                            "name": people.get(u, {}).get("label", "User"),
+                            "role": people.get(u, {}).get("role", "tenant"),
+                        }
+                        for u in recipients
+                    ],
+                }
+            )
             out.append(item)
         return out
 
     def list(self, p: Principal) -> list[dict[str, Any]]:
         with self._db.scoped(p.user_id) as scope:
             rows = scope.execute(f"select {COLUMNS} from documents order by created_at desc").fetchall()
-        return self._shape(rows, p)
+            shares = shares_of(scope, [str(r["id"]) for r in rows])
+        return self._shape(rows, shares, p)
 
     def get(self, p: Principal, doc_id: str) -> dict[str, Any]:
         with self._db.scoped(p.user_id) as scope:
             row = scope.execute(f"select {COLUMNS} from documents where id = %s", [doc_id]).fetchone()
-        if row is None:
-            raise NotFound("Document not found.")
-        return self._shape([row], p)[0]
+            if row is None:
+                raise NotFound("Document not found.")
+            shares = shares_of(scope, [doc_id])
+        return self._shape([row], shares, p)[0]
+
+    def _resolve_recipients(self, p: Principal, vis: str, share_with: list[str]) -> list[str]:
+        """Turn the requested recipients into user IDs, with friendly errors. RLS re-checks every row."""
+        m = p.membership
+        assert m is not None
+        wanted = list(dict.fromkeys(s.strip() for s in share_with if s and s.strip()))
+        if not wanted:
+            return []
+        if vis == "workspace":
+            raise BadRequest("A document shared with the whole workspace cannot also have individual shares.")
+        if len(wanted) > MAX_SHARES:
+            raise BadRequest(f"Share with at most {MAX_SHARES} people at once.")
+        with self._db.system() as conn:
+            if m.role == "tenant":
+                if wanted != [SHARE_ADMIN]:
+                    raise Forbidden("Members can share their documents with their workspace admin only.")
+                admin = conn.execute(
+                    "select user_id from memberships where workspace_id = %s and role = 'admin' and status = 'active'",
+                    [m.workspace_id],
+                ).fetchone()
+                if admin is None:
+                    raise BadRequest("Your workspace has no active admin to share with.")
+                return [str(admin["user_id"])]
+            try:
+                ids = [str(uuid.UUID(s)) for s in wanted]
+            except ValueError as exc:
+                raise BadRequest("Choose members of your workspace to share with.") from exc
+            found = conn.execute(
+                "select user_id from memberships where workspace_id = %s and role = 'tenant' and status = 'active'"
+                " and user_id = any(%s)",
+                [m.workspace_id, ids],
+            ).fetchall()
+        if len(found) != len(ids):
+            raise BadRequest("Choose active members of your workspace to share with.")
+        return ids
 
     def upload(
         self,
@@ -76,6 +164,7 @@ class DocumentService:
         data: bytes,
         visibility: str | None,
         title: str | None = None,
+        share_with: list[str] | None = None,
     ) -> dict[str, Any]:
         m = p.membership
         assert m is not None and m.workspace_id is not None
@@ -83,11 +172,12 @@ class DocumentService:
             raise BadRequest("The file is empty.")
         if len(data) > self._s.upload_max_mb * 1024 * 1024:
             raise TooLarge(f"Files are limited to {self._s.upload_max_mb} MB.")
-        vis = visibility or ("workspace" if m.role == "admin" else "private")
+        vis = visibility or ("workspace" if m.role == "admin" and not share_with else "private")
         if vis not in {"workspace", "private"}:
             raise BadRequest("Visibility must be workspace or private.")
         if vis == "workspace" and m.role != "admin":
             raise Forbidden("Only the workspace admin can share documents with the whole workspace.")
+        recipients = self._resolve_recipients(p, vis, share_with or [])
         try:
             kind = detect_type(filename, data)
         except ParseError as exc:
@@ -119,6 +209,13 @@ class DocumentService:
                     ],
                 ).fetchone()
                 assert row is not None
+                if recipients:
+                    with scope.cursor() as cur:
+                        cur.executemany(
+                            "insert into document_shares (org_id, workspace_id, document_id, owner_id, user_id)"
+                            " values (%s, %s, %s, %s, %s)",
+                            [(m.org_id, m.workspace_id, doc_id, p.user_id, u) for u in recipients],
+                        )
                 lmqa_audit.append(
                     scope,
                     org_id=m.org_id,
@@ -133,23 +230,26 @@ class DocumentService:
                         "bytes": len(data),
                         "sha256": digest,
                         "visibility": vis,
+                        "shared_with": recipients,
                     },
                 )
         except psycopg.errors.InsufficientPrivilege as exc:
             self._store.delete(key)
-            raise Forbidden("You are not allowed to add this document.") from exc
+            raise Forbidden("You are not allowed to add or share this document.") from exc
         except BaseException:
             self._store.delete(key)
             raise
         self._ingestor.submit(doc_id)
-        return self._shape([row], p)[0]
+        return self._shape([row], {doc_id: recipients}, p)[0]
 
     def delete(self, p: Principal, doc_id: str) -> None:
         with self._db.scoped(p.user_id) as scope:
             if scope.execute("select 1 from documents where id = %s", [doc_id]).fetchone() is None:
                 raise NotFound("Document not found.")
+            recipients = shares_of(scope, [doc_id]).get(doc_id, [])
             row = scope.execute(
-                "delete from documents where id = %s returning org_id, workspace_id, object_key, title", [doc_id]
+                "delete from documents where id = %s returning org_id, workspace_id, object_key, title, visibility",
+                [doc_id],
             ).fetchone()
             if row is None:
                 raise Forbidden("Only the owner or the workspace admin can delete this document.")
@@ -161,6 +261,6 @@ class DocumentService:
                 action="document.deleted",
                 target_type="document",
                 target_id=doc_id,
-                payload={"title": row["title"]},
+                payload={"title": row["title"], "visibility": row["visibility"], "shared_with": recipients},
             )
         self._store.delete(row["object_key"])

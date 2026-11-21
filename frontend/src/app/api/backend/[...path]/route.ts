@@ -50,4 +50,4 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
   });
 }
 
-export { forward as GET, forward as POST, forward as DELETE };
+export { forward as GET, forward as POST, forward as PATCH, forward as DELETE };

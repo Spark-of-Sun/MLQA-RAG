@@ -1,20 +1,63 @@
 "use client";
 
-import { AlertTriangle, FileText, Lock, Trash2, UploadCloud, Users } from "lucide-react";
+import { AlertTriangle, FileText, Lock, Share2, Trash2, UploadCloud, UserCheck, Users } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Alert, Badge, Card, ConfirmButton, EmptyState, PageHeader, Spinner, StatusBadge } from "@/components/ui";
 import { api, errorMessage } from "@/lib/api-client";
 import { formatBytes, timeAgo } from "@/lib/format";
-import type { DocumentRow } from "@/lib/types";
+import type { DocumentRow, MemberRow } from "@/lib/types";
 
 const ACCEPT = ".pdf,.docx,.html,.htm,.xml,.txt,.md";
+
+type Audience = "workspace" | "members" | "private";
+
+const AUDIENCES: { value: Audience; label: string; icon: typeof Users }[] = [
+  { value: "workspace", label: "Whole workspace", icon: Users },
+  { value: "members", label: "Selected members", icon: UserCheck },
+  { value: "private", label: "Only me", icon: Lock },
+];
+
+function names(list: { name: string }[]): string {
+  const all = list.map((x) => x.name);
+  if (all.length <= 2) return all.join(" and ");
+  return `${all.slice(0, 2).join(", ")} and ${all.length - 2} more`;
+}
+
+/** Who shared the document, and with whom, from the viewer's point of view. */
+function Access({ d }: { d: DocumentRow }) {
+  if (d.access === "private") {
+    return (
+      <Badge>
+        <Lock className="size-3" aria-hidden /> Private
+      </Badge>
+    );
+  }
+  const by = d.shared_by === "you" ? "Shared by you" : d.shared_by === "admin" ? "Shared by admin" : "Shared by member";
+  const tone = d.shared_by === "you" ? "green" : d.shared_by === "admin" ? "blue" : "gray";
+  let detail: string;
+  if (d.access === "workspace") detail = "with the whole workspace";
+  else if (!d.mine) detail = d.shared_by === "member" ? `${d.owner}, with you` : "with you";
+  else if (d.shared_with.every((x) => x.role === "admin")) detail = `with your admin (${names(d.shared_with)})`;
+  else detail = `with ${names(d.shared_with)}`;
+  return (
+    <div className="space-y-0.5" title={d.access === "shared" && d.mine ? d.shared_with.map((x) => x.name).join(", ") : undefined}>
+      <Badge tone={tone}>
+        <Share2 className="size-3" aria-hidden /> {by}
+      </Badge>
+      <p className="max-w-48 text-[11px] leading-tight text-ink-500">{detail}</p>
+    </div>
+  );
+}
 
 export function Library({ isAdmin }: { isAdmin: boolean }) {
   const [docs, setDocs] = useState<DocumentRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [visibility, setVisibility] = useState<"workspace" | "private">(isAdmin ? "workspace" : "private");
+  const [audience, setAudience] = useState<Audience>(isAdmin ? "workspace" : "private");
+  const [shareWithAdmin, setShareWithAdmin] = useState(false);
+  const [members, setMembers] = useState<MemberRow[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [uploading, setUploading] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -31,6 +74,23 @@ export function Library({ isAdmin }: { isAdmin: boolean }) {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (!isAdmin) return;
+    api
+      .get<MemberRow[]>("workspace/members")
+      .then((rows) => setMembers(rows.filter((r) => r.status === "active")))
+      .catch(() => setMembers([]));
+  }, [isAdmin]);
+
+  function toggle(userId: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  }
+
   const processing = docs?.some((d) => d.status === "processing") ?? false;
   useEffect(() => {
     if (!processing) return;
@@ -41,13 +101,20 @@ export function Library({ isAdmin }: { isAdmin: boolean }) {
   async function upload(files: FileList | File[]) {
     setError(null);
     setNotice(null);
+    if (isAdmin && audience === "members" && selected.size === 0) {
+      setError("Choose at least one member to share with, or pick another option.");
+      if (input.current) input.current.value = "";
+      return;
+    }
     const list = Array.from(files);
     let ok = 0;
     for (const file of list) {
       setUploading(file.name);
       const form = new FormData();
       form.append("file", file);
-      form.append("visibility", visibility);
+      form.append("visibility", isAdmin && audience === "workspace" ? "workspace" : "private");
+      if (isAdmin && audience === "members") for (const id of selected) form.append("share_with", id);
+      if (!isAdmin && shareWithAdmin) form.append("share_with", "admin");
       try {
         await api.upload("documents", form);
         ok += 1;
@@ -77,8 +144,8 @@ export function Library({ isAdmin }: { isAdmin: boolean }) {
         title="Library"
         subtitle={
           isAdmin
-            ? "Shared documents are visible to everyone in your workspace. Private documents are visible only to you."
-            : "Documents you upload are private to you. Documents shared by your workspace admin appear here too."
+            ? "Share each upload with the whole workspace, with selected members, or keep it to yourself. Documents members share with you appear here too."
+            : "Documents you upload are private unless you share them with your admin. Documents your admin shares with you appear here too."
         }
       />
 
@@ -113,24 +180,84 @@ export function Library({ isAdmin }: { isAdmin: boolean }) {
             />
           </label>
           <p className="mt-2 text-xs text-ink-500">PDF (with a text layer), DOCX, HTML, XML (JATS, SPL drug labels, eCFR), TXT · up to 25 MB</p>
-          {isAdmin && (
-            <div className="mt-4 inline-flex rounded-lg border border-ink-200 bg-white p-0.5 text-xs" role="radiogroup" aria-label="Visibility">
-              {(["workspace", "private"] as const).map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  role="radio"
-                  aria-checked={visibility === v}
-                  onClick={() => setVisibility(v)}
-                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium ${
-                    visibility === v ? "bg-ink-900 text-white" : "text-ink-600 hover:bg-ink-50"
-                  }`}
-                >
-                  {v === "workspace" ? <Users className="size-3.5" aria-hidden /> : <Lock className="size-3.5" aria-hidden />}
-                  {v === "workspace" ? "Share with workspace" : "Private to me"}
-                </button>
-              ))}
+          {isAdmin ? (
+            <div className="mt-4 w-full max-w-xl">
+              <p className="mb-1.5 text-xs font-medium text-ink-700">Who can use these documents?</p>
+              <div className="inline-flex rounded-lg border border-ink-200 bg-white p-0.5 text-xs" role="radiogroup" aria-label="Share with">
+                {AUDIENCES.map(({ value, label, icon: Icon }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={audience === value}
+                    onClick={() => setAudience(value)}
+                    className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium ${
+                      audience === value ? "bg-ink-900 text-white" : "text-ink-600 hover:bg-ink-50"
+                    }`}
+                  >
+                    <Icon className="size-3.5" aria-hidden />
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {audience === "members" && (
+                <div className="mt-3 rounded-lg border border-ink-200 bg-white p-3 text-left">
+                  {members.length === 0 ? (
+                    <p className="text-xs text-ink-500">No active members yet. Approve members in Manage members first.</p>
+                  ) : (
+                    <>
+                      <div className="mb-2 flex items-center justify-between text-xs">
+                        <span className="text-ink-600">
+                          {selected.size} of {members.length} selected
+                        </span>
+                        <button
+                          type="button"
+                          className="font-medium text-brand-700 hover:underline"
+                          onClick={() =>
+                            setSelected(selected.size === members.length ? new Set() : new Set(members.map((m) => m.user_id)))
+                          }
+                        >
+                          {selected.size === members.length ? "Clear" : "Select all"}
+                        </button>
+                      </div>
+                      <ul className="max-h-40 space-y-1 overflow-y-auto">
+                        {members.map((m) => (
+                          <li key={m.user_id}>
+                            <label className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-sm hover:bg-ink-50">
+                              <input
+                                type="checkbox"
+                                checked={selected.has(m.user_id)}
+                                onChange={() => toggle(m.user_id)}
+                                className="size-4 rounded border-ink-300"
+                              />
+                              <span className="text-ink-900">{m.name || m.email}</span>
+                              {m.name && <span className="truncate text-xs text-ink-500">{m.email}</span>}
+                            </label>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
+          ) : (
+            <label className="mt-4 flex max-w-md cursor-pointer items-start gap-2.5 rounded-lg border border-ink-200 bg-white px-3 py-2.5 text-left">
+              <input
+                type="checkbox"
+                checked={shareWithAdmin}
+                onChange={(e) => setShareWithAdmin(e.target.checked)}
+                className="mt-0.5 size-4 rounded border-ink-300"
+              />
+              <span>
+                <span className="block text-sm font-medium text-ink-900">Share with my workspace admin</span>
+                <span className="block text-xs text-ink-500">
+                  {shareWithAdmin
+                    ? "Your admin can see these documents in their library and ask questions over them."
+                    : "Off: only you can see these documents. Your admin cannot open them."}
+                </span>
+              </span>
+            </label>
           )}
           {uploading && (
             <div className="mt-4">
@@ -187,15 +314,7 @@ export function Library({ isAdmin }: { isAdmin: boolean }) {
                       )}
                     </td>
                     <td className="px-3 py-3">
-                      {d.visibility === "workspace" ? (
-                        <Badge tone="blue">
-                          <Users className="size-3" aria-hidden /> Shared
-                        </Badge>
-                      ) : (
-                        <Badge>
-                          <Lock className="size-3" aria-hidden /> Private
-                        </Badge>
-                      )}
+                      <Access d={d} />
                     </td>
                     <td className="px-3 py-3">
                       <StatusBadge status={d.status} />

@@ -163,9 +163,15 @@ def main() -> int:
             (alice, "/manage-admins", "Admins and workspaces"),
             (alice, "/audit", "Organization-level events"),
             (bob, "/chat", "Ask your documents"),
-            (bob, "/library", "Shared documents are visible"),
-            (bob, "/manage-tenants", "Manage members"),
-            (carol, "/library", "Documents you upload are private"),
+            (bob, "/library", "Selected members"),
+            (bob, "/manage-tenants", "Questions counts every question asked, not chats"),
+            (bob, "/audit?category=library", "Uploads, shares, indexing and deletions"),
+            (bob, "/profile", "Profile"),
+            (carol, "/library", "Share with my workspace admin"),
+            (carol, "/audit", "Everything about you in this workspace"),
+            (carol, "/audit?category=chats", "Chats you started, renamed or deleted"),
+            (carol, "/profile", "Your workspace admin can see these details"),
+            (alice, "/profile", "Only you can see these details"),
             (newbie, "/onboarding", "How will you use it?"),
         ]
         bodies: list[str] = []
@@ -188,6 +194,76 @@ def main() -> int:
             answer.get("outcome") in {"answered", "partial"} and answer["stats"]["verified"] >= 1,
             f"HTTP {r.status_code}, {answer.get('stats', {}).get('verified')} verified",
         )
+
+        step("One chat, many questions: continue where you left off")
+        chat_id = answer.get("conversation_id", "")
+        before = {c["id"] for c in bob.get("/api/backend/conversations").json()}
+        r = bob.post(
+            "/api/backend/queries",
+            headers={"origin": WEB},
+            json={"question": "And what must the Executive sign first?", "conversation_id": chat_id},
+        )
+        follow = r.json() if r.status_code == 200 else {}
+        check(
+            "the follow-up is added to the same chat",
+            follow.get("conversation_id") == chat_id,
+            f"HTTP {r.status_code}, searched as: {follow.get('standalone_question')}",
+        )
+        after = bob.get("/api/backend/conversations").json()
+        check("no new chat was created for the follow-up", {c["id"] for c in after} == before)
+        mine = next((c for c in after if c["id"] == chat_id), {})
+        check("the chat list shows one chat with both questions", mine.get("turns") == 2, mine.get("title", ""))
+        page = bob.get(f"/chat/{chat_id}")
+        check(
+            "the chat has its own address (/chat/<id>) to come back to",
+            page.status_code == 200,
+            f"HTTP {page.status_code}",
+        )
+        thread = bob.get(f"/api/backend/conversations/{chat_id}").json()
+        check(
+            "re-opening it returns the questions in order",
+            [t["question"] for t in thread.get("turns", [])]
+            == ["When must the severance benefit be paid?", "And what must the Executive sign first?"],
+        )
+        check(
+            "another person's chat address shows nothing (404)",
+            carol.get(f"/api/backend/conversations/{chat_id}").status_code == 404,
+        )
+        check("a malformed chat address is a 404 page", bob.get("/chat/not-a-chat").status_code == 404)
+
+        step("Profile, sharing and audit through the BFF")
+        prof = carol.get("/api/backend/profile")
+        check("a member reads her profile", prof.status_code == 200 and prof.json().get("role") == "tenant")
+        r = carol.patch("/api/backend/profile", headers={"origin": WEB}, json={"department": "Commercial disputes"})
+        check("and updates it", r.status_code == 200 and r.json().get("department") == "Commercial disputes")
+        row = next(
+            (
+                m
+                for m in bob.get("/api/backend/workspace/members").json()
+                if m["email"] == "carol@hale-partners.example"
+            ),
+            {},
+        )
+        check(
+            "her admin sees the change and her usage counts",
+            row.get("department") == "Commercial disputes" and row.get("questions", 0) >= 1,
+            f"questions={row.get('questions')} tokens≈{row.get('tokens')} shared={row.get('shared_with_you')}",
+        )
+        labels = {d["title"]: d.get("shared_by") for d in bob.get("/api/backend/documents").json()}
+        check(
+            "the admin's library labels who shared each document",
+            labels.get("Rivera witness preparation note") == "member" and labels.get("Briefing for Carol") == "you",
+        )
+        chats = carol.get("/api/backend/audit?category=chats").json()
+        check(
+            "the member's Chats audit section holds chat events only",
+            bool(chats) and all(e["action"].startswith(("query.", "conversation.")) for e in chats),
+            f"{len(chats)} events",
+        )
+        v = carol.get("/api/backend/audit/verify")
+        check("the member can verify the hash chain", v.status_code == 200 and "ok" in v.json())
+
+        step("Browser -> BFF security")
         r = bob.post("/api/backend/queries", headers={"origin": "https://evil.example"}, json={"question": "x?"})
         check("cross-site POST refused by the BFF (403)", r.status_code == 403)
         r = alice.post("/api/backend/queries", headers={"origin": WEB}, json={"question": "hello there?"})

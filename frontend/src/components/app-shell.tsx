@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, History, LogOut, MessageSquareText, ShieldCheck, UserCog, Users } from "lucide-react";
+import { CircleUserRound, FileText, History, LogOut, MessageSquareText, ShieldCheck, UserCog, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -16,6 +16,7 @@ const NAV: { href: string; label: string; icon: typeof FileText; roles: Role[] }
   { href: "/manage-tenants", label: "Manage members", icon: Users, roles: ["admin"] },
   { href: "/manage-admins", label: "Manage admins", icon: UserCog, roles: ["super_admin"] },
   { href: "/audit", label: "Audit trail", icon: History, roles: ["super_admin", "admin", "tenant"] },
+  { href: "/profile", label: "Profile", icon: CircleUserRound, roles: ["super_admin", "admin", "tenant"] },
 ];
 
 export function AppShell({ me, children }: { me: Me; children: ReactNode }) {
@@ -64,10 +65,10 @@ export function AppShell({ me, children }: { me: Me; children: ReactNode }) {
           <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-ink-800 text-xs font-semibold text-white">
             {who.slice(0, 1).toUpperCase()}
           </div>
-          <div className="min-w-0 flex-1">
+          <Link href="/profile" className="min-w-0 flex-1 rounded-md hover:bg-ink-50" title="Your profile">
             <p className="truncate text-sm font-medium text-ink-800">{who}</p>
             {me.user.email && me.user.name && <p className="truncate text-xs text-ink-500">{me.user.email}</p>}
-          </div>
+          </Link>
           {/* A full navigation, not a client-side Link: logout ends the server session and the Auth0 session. */}
           <a href="/auth/logout" className="rounded-md p-1.5 text-ink-400 hover:bg-ink-100 hover:text-ink-700" title="Sign out">
             <LogOut className="size-4" aria-label="Sign out" />

@@ -30,13 +30,13 @@ migrate: ## create roles, apply db/migrations, db/policies and db/roles
 doctor: ## check settings, database, Auth0 and Gemini (prints names, never values)
 	$(PY) python tools/doctor.py
 
-dev: ## run gateway (:8000) and frontend (:3000) with hot reload
+dev: migrate ## run gateway (:8000) and frontend (:3000) with hot reload (applies migrations first)
 	$(PY) python tools/dev.py
 
 build: ## production build of the frontend
 	$(WITHENV) pnpm --dir frontend build
 
-start: build ## run gateway and the production frontend (best for demos)
+start: migrate build ## run gateway and the production frontend (applies migrations first; best for demos)
 	$(PY) python tools/dev.py --prod
 
 corpus: ## download the real public corpus and verify every SHA-256

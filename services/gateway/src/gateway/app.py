@@ -10,6 +10,7 @@ the route's existence is not revealed; a listed role whose membership is pending
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
@@ -20,6 +21,7 @@ from fastapi.routing import APIRoute
 from pydantic import BaseModel, Field
 
 from audit import AuditService
+from gateway.conversations import Conversations
 from gateway.query_flow import QueryFlow
 from generation import GenerationService
 from identity import IdentityService
@@ -53,6 +55,18 @@ class CodeBody(BaseModel):
 
 class Ask(BaseModel):
     question: str = Field(max_length=4000)
+    conversation_id: UUID | None = None
+
+
+class Rename(BaseModel):
+    title: str = Field(max_length=200)
+
+
+class ProfileUpdate(BaseModel):
+    name: str | None = Field(default=None, max_length=200)
+    job_title: str | None = Field(default=None, max_length=200)
+    department: str | None = Field(default=None, max_length=200)
+    phone: str | None = Field(default=None, max_length=60)
 
 
 class Services:
@@ -64,6 +78,7 @@ class Services:
         self.documents, self.ingestor = create_ingestion(settings, self.db)
         self.generation = GenerationService(settings)
         self.queries = QueryFlow(settings, self.db, create_retrieval(settings, self.db), self.generation)
+        self.conversations = Conversations(self.db, self.queries)
         self.audit = AuditService(self.db)
         self.query_limit = SlidingWindow(settings.queries_per_minute, 60)
         self.upload_limit = SlidingWindow(60, 60)
@@ -81,7 +96,11 @@ def create_app(
         if resume_jobs and (n := svc.ingestor.resume_pending()):
             log.info("resumed %d pending ingestion job(s)", n)
         if not svc.generation.configured:
-            log.warning("GEMINI_API_KEY is not set: uploads and questions will fail until it is")
+            log.warning(
+                "no answer model is configured (%s): questions will fail", ", ".join(svc.generation.client.missing())
+            )
+        if not settings.gemini_api_key:
+            log.warning("GEMINI_API_KEY is not set: uploads and search (Gemini embeddings) will fail until it is")
         yield
         svc.ingestor.shutdown()
         svc.db.close()
@@ -162,11 +181,19 @@ def create_app(
     def health() -> dict[str, Any]:
         with svc.db.system() as conn:
             conn.execute("select 1")
-        return {"status": "ok", "llm_configured": svc.generation.configured, "model": settings.llm_model}
+        return {"status": "ok", "llm_configured": svc.generation.configured, "model": svc.generation.client.model}
 
     @app.get("/v1/me")
     def me(p: P) -> dict[str, Any]:
         return svc.identity.me(p)
+
+    @app.get("/v1/profile")
+    def profile(p: P) -> dict[str, Any]:
+        return svc.identity.profile(p)
+
+    @app.patch("/v1/profile")
+    def update_profile(p: P, body: ProfileUpdate) -> dict[str, Any]:
+        return svc.identity.update_profile(p, body.model_dump(exclude_unset=True))
 
     # ------------------------------------------------------------------ onboarding (blueprint 7)
     @app.post("/v1/onboarding/organization", status_code=201)
@@ -234,11 +261,12 @@ def create_app(
         file: Annotated[UploadFile, File()],
         visibility: Annotated[str | None, Form()] = None,
         title: Annotated[str | None, Form(max_length=200)] = None,
+        share_with: Annotated[list[str] | None, Form()] = None,
     ) -> dict[str, Any]:
         if svc.upload_limit.hit(p.user_id):
             raise HTTPException(429, "Too many uploads. Try again in a minute.")
         data = file.file.read(settings.upload_max_mb * 1024 * 1024 + 1)
-        return svc.documents.upload(p, file.filename or "upload", data, visibility, title)
+        return svc.documents.upload(p, file.filename or "upload", data, visibility, title, share_with)
 
     @app.get("/v1/documents/{doc_id}")
     def get_document(p: P, doc_id: UUID) -> dict[str, Any]:
@@ -248,16 +276,13 @@ def create_app(
     def delete_document(p: P, doc_id: UUID) -> None:
         svc.documents.delete(p, str(doc_id))
 
-    # ------------------------------------------------------------------ questions
+    # ------------------------------------------------------------------ questions and chats
     @app.post("/v1/queries")
     def ask(p: P, body: Ask) -> dict[str, Any]:
         if svc.query_limit.hit(p.user_id):
             raise HTTPException(429, "Too many questions. Try again in a minute.")
-        return svc.queries.ask(p, body.question)
-
-    @app.get("/v1/queries")
-    def history(p: P, limit: Annotated[int, Query(ge=1, le=100)] = 30) -> list[dict[str, Any]]:
-        return svc.queries.history(p, limit)
+        conversation = str(body.conversation_id) if body.conversation_id else None
+        return svc.queries.ask(p, body.question, conversation)
 
     @app.get("/v1/queries/{query_id}")
     def get_query(p: P, query_id: UUID) -> dict[str, Any]:
@@ -266,14 +291,38 @@ def create_app(
             raise HTTPException(404, "Not found")
         return result
 
+    @app.get("/v1/conversations")
+    def list_conversations(p: P, limit: Annotated[int, Query(ge=1, le=200)] = 50) -> list[dict[str, Any]]:
+        return svc.conversations.list(p, limit)
+
+    @app.get("/v1/conversations/{conversation_id}")
+    def get_conversation(p: P, conversation_id: UUID) -> dict[str, Any]:
+        return svc.conversations.get(p, str(conversation_id))
+
+    @app.patch("/v1/conversations/{conversation_id}")
+    def rename_conversation(p: P, conversation_id: UUID, body: Rename) -> dict[str, Any]:
+        return svc.conversations.rename(p, str(conversation_id), body.title)
+
+    @app.delete("/v1/conversations/{conversation_id}", status_code=204)
+    def delete_conversation(p: P, conversation_id: UUID) -> None:
+        svc.conversations.delete(p, str(conversation_id))
+
     # ------------------------------------------------------------------ audit
     @app.get("/v1/audit")
     def audit_events(
         p: P,
         limit: Annotated[int, Query(ge=1, le=500)] = 100,
         before: Annotated[int | None, Query(ge=1)] = None,
+        category: Annotated[str | None, Query(max_length=40)] = None,
+        action: Annotated[str | None, Query(max_length=80)] = None,
+        actor: Annotated[str | None, Query(max_length=40)] = None,
+        since: Annotated[datetime | None, Query()] = None,
+        until: Annotated[datetime | None, Query()] = None,
+        q: Annotated[str | None, Query(max_length=100)] = None,
     ) -> list[dict[str, Any]]:
-        return svc.audit.events(p, limit, before)
+        return svc.audit.events(
+            p, limit, before, category=category, action=action, actor=actor, since=since, until=until, q=q
+        )
 
     @app.get("/v1/audit/verify")
     def audit_verify(p: P) -> dict[str, Any]:

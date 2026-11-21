@@ -31,3 +31,28 @@ as $$
       and o.status = 'active' and m.role in ('admin', 'tenant')
     limit 1
 $$;
+
+-- Who the caller may share a document with: an active member of the caller's own active workspace, other than the
+-- caller. A member may share only with the workspace admin; the admin may share with any member.
+create or replace function app_share_target_ok(p_target uuid) returns boolean
+    language sql stable security definer set search_path = public, pg_temp
+as $$
+    select exists (
+        select 1
+        from memberships t
+        where t.user_id = p_target and t.user_id <> app_user_id() and t.status = 'active'
+          and t.workspace_id = app_active_workspace()
+          and (t.role = 'admin' or app_active_role() = 'admin')
+    )
+$$;
+
+-- The caller owns this document in their active workspace. A function, so that the document_shares insert policy
+-- does not expand the documents policies (which read document_shares) inside its own plan: no policy recursion.
+create or replace function app_owns_document(p_document uuid) returns boolean
+    language sql stable security definer set search_path = public, pg_temp
+as $$
+    select exists (
+        select 1 from documents d
+        where d.id = p_document and d.owner_id = app_user_id() and d.workspace_id = app_active_workspace()
+    )
+$$;

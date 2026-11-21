@@ -10,7 +10,10 @@ Per sentence of the model's draft:
                         normalized); the matched span is the highlight shown in the citation panel
   V5 critical tokens    every number in the sentence (amounts, dates, dosages, section numbers) occurs in the
                         cited chunks after normalization
-  L  lexical support    at least half of the sentence's content words occur in the cited chunks
+  L  lexical support    at least half of the sentence's key terms occur in the cited chunks (light stemming;
+                        words that describe the document, such as "contains" or "explains", are not key terms).
+                        With entailment on, a paraphrase between 25% and 50% is passed to V6 to judge its meaning
+                        instead of being removed; below 25% it is removed either way.
   V8 resolution         each citation resolves to a document, pages, section and a highlighted span
   V6 entailment         applied afterwards from the generation service's check; it can only remove sentences
 
@@ -31,6 +34,121 @@ ALIAS = re.compile(r"^S([1-9]\d?)$")
 _INLINE_TAG = re.compile(r"\s*[\[(](?:S\d+(?:\s*[,;]\s*S\d+)*)[\])]")
 _NUMBER = re.compile(r"(?<![A-Za-z])\d+(?:[.,]\d+)*")
 _WORD = re.compile(r"[a-z][a-z'-]{3,}")
+_ESCAPE = re.compile(r"\\[ntrfv]")  # literal \n, \t ... in code and data files
+_CAMEL = re.compile(r"(?<=[a-z])(?=[A-Z])")
+_SUFFIXES = (
+    "izations",
+    "ization",
+    "ations",
+    "ation",
+    "ments",
+    "ment",
+    "ings",
+    "ing",
+    "ies",
+    "ied",
+    "ers",
+    "er",
+    "ed",
+    "es",
+    "s",
+    "ly",
+)
+LEXICAL_MIN = 0.5  # below this share of key terms, the wording is not supported
+LEXICAL_FLOOR = 0.25  # below this, removed even when entailment would judge it
+# Words that describe the document or the answer rather than state a fact from it.
+_META = frozenset(
+    [
+        "contain",
+        "contains",
+        "contained",
+        "containing",
+        "include",
+        "includes",
+        "included",
+        "including",
+        "describe",
+        "describes",
+        "described",
+        "describing",
+        "discuss",
+        "discusses",
+        "discussed",
+        "discussing",
+        "mention",
+        "mentions",
+        "mentioned",
+        "mentioning",
+        "explain",
+        "explains",
+        "explained",
+        "explaining",
+        "show",
+        "shows",
+        "showed",
+        "shown",
+        "showing",
+        "demonstrate",
+        "demonstrates",
+        "demonstrated",
+        "demonstrating",
+        "illustrate",
+        "illustrates",
+        "illustrated",
+        "provide",
+        "provides",
+        "providing",
+        "outline",
+        "outlines",
+        "outlined",
+        "perform",
+        "performs",
+        "performed",
+        "performing",
+        "use",
+        "uses",
+        "used",
+        "using",
+        "utilize",
+        "utilizes",
+        "utilized",
+        "utilizing",
+        "employ",
+        "employs",
+        "employed",
+        "file",
+        "files",
+        "text",
+        "texts",
+        "code",
+        "codes",
+        "script",
+        "scripts",
+        "snippet",
+        "snippets",
+        "example",
+        "examples",
+        "part",
+        "parts",
+        "section",
+        "sections",
+        "page",
+        "pages",
+        "content",
+        "contents",
+        "discussion",
+        "overview",
+        "details",
+        "detail",
+        "various",
+        "several",
+        "following",
+        "specifically",
+        "particular",
+        "called",
+        "named",
+    ]
+)
 _STOP = frozenset(
     [
         "also",
@@ -243,9 +361,21 @@ def numbers(text: str) -> set[str]:
     return found
 
 
+def _stem(word: str) -> str:
+    """Crude, deterministic stemming: 'trains', 'training', 'trained' -> 'train'; then the first 6 letters."""
+    for suffix in _SUFFIXES:
+        if word.endswith(suffix) and len(word) - len(suffix) >= 4:
+            word = word[: -len(suffix)]
+            break
+    return word[:6]
+
+
 def content_words(text: str) -> set[str]:
-    words = _WORD.findall(text.translate(_TRANSLATE).lower())
-    return {w.strip("'-")[:6] for w in words if w not in _STOP}
+    """Key terms of a text. Splits identifiers (camelCase, snake_case, word2vec) so code and data match prose."""
+    text = _CAMEL.sub(" ", _ESCAPE.sub(" ", text.translate(_TRANSLATE)))
+    text = re.sub(r"[_\d]+", " ", text).lower()
+    words = (w.strip("'-") for w in _WORD.findall(text))
+    return {_stem(w) for w in words if w not in _STOP and w not in _META and len(w) >= 4}
 
 
 def clean_sentence(text: str) -> str:
@@ -257,8 +387,13 @@ def sha256_text(text: str) -> str:
 
 
 # ---------------------------------------------------------------------------- validation
-def validate(draft: dict[str, Any], ledger: dict[str, Source]) -> tuple[bool, list[Verdict]]:
-    """Check a model draft against the ledger. Returns (answerable flag, verdict per sentence)."""
+def validate(
+    draft: dict[str, Any], ledger: dict[str, Source], *, entailment: bool = False
+) -> tuple[bool, list[Verdict]]:
+    """Check a model draft against the ledger. Returns (answerable flag, verdict per sentence).
+
+    `entailment` says V6 will run afterwards; then a paraphrase with moderate wording overlap is left for V6 to
+    judge on meaning, rather than removed on wording alone."""
     answerable = bool(draft.get("answerable"))
     raw_sentences = draft.get("sentences")
     verdicts: list[Verdict] = []
@@ -326,12 +461,14 @@ def validate(draft: dict[str, Any], ledger: dict[str, Source]) -> tuple[bool, li
         v.passed("V5")
 
         words = content_words(text)  # L
-        if words:
-            share = len(words & content_words(cited_text)) / len(words)
-            if share < 0.5:
-                v.fail("L", f"Only {share:.0%} of the sentence's key terms appear in the cited source")
-                continue
-        v.passed("L")
+        share = len(words & content_words(cited_text)) / len(words) if words else 1.0
+        if share >= LEXICAL_MIN:
+            v.passed("L")
+        elif entailment and share >= LEXICAL_FLOOR:
+            v.passed("L", f"Paraphrased: {share:.0%} of the key terms match; meaning checked by entailment (V6)")
+        else:
+            v.fail("L", f"Only {share:.0%} of the sentence's key terms appear in the cited source")
+            continue
 
         unresolved = [a for a in v.aliases if not ledger[a].document_title or a not in v.spans]  # V8
         if unresolved:

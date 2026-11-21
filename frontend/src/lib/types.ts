@@ -28,7 +28,12 @@ export interface DocumentRow {
   structure: "detected" | "fallback" | null;
   created_at: string;
   owner: string;
+  owner_role: "admin" | "tenant";
   mine: boolean;
+  /** workspace: everyone in the workspace; shared: named people; private: the owner only. */
+  access: "workspace" | "shared" | "private";
+  shared_by: "you" | "admin" | "member" | null;
+  shared_with: { id: string; name: string; role: "admin" | "tenant" }[];
 }
 
 export interface Check {
@@ -59,6 +64,9 @@ export interface Citation {
 export interface Answer {
   id: string;
   question: string;
+  standalone_question?: string;
+  conversation_id: string;
+  conversation_title?: string;
   created_at: string;
   outcome: "answered" | "partial" | "refused";
   segments: Segment[];
@@ -72,11 +80,20 @@ export interface Answer {
   };
 }
 
-export interface HistoryItem {
+export interface ChatSummary {
   id: string;
-  question: string;
-  outcome: Answer["outcome"];
+  title: string;
   created_at: string;
+  updated_at: string;
+  turns: number;
+}
+
+export interface ChatDetail {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  turns: Answer[];
 }
 
 export interface CodeInfo {
@@ -93,6 +110,7 @@ export interface NewCode extends CodeInfo {
 
 export interface AdminRow {
   id: string;
+  user_id: string;
   status: MemberStatus;
   created_at: string;
   email: string | null;
@@ -108,12 +126,40 @@ export interface AdminRow {
 
 export interface MemberRow {
   id: string;
+  user_id: string;
   status: MemberStatus;
   created_at: string;
+  decided_at: string | null;
   email: string | null;
   name: string | null;
   last_seen_at: string | null;
+  job_title: string | null;
+  department: string | null;
+  phone: string | null;
+  profile_updated_at: string | null;
+  documents: number;
   private_documents: number;
+  shared_with_you: number;
+  shared_with_them: number;
+  shared_with_workspace: number;
+  questions: number;
+  tokens: number;
+  last_question_at: string | null;
+}
+
+export interface Profile {
+  email: string | null;
+  name: string | null;
+  job_title: string | null;
+  department: string | null;
+  phone: string | null;
+  profile_updated_at: string | null;
+  created_at: string;
+  joined_at: string;
+  approved_at: string | null;
+  role: Role;
+  organization: string;
+  workspace: string | null;
 }
 
 export interface AuditEvent {
@@ -124,6 +170,16 @@ export interface AuditEvent {
   target_id: string | null;
   payload: Record<string, unknown>;
   hash: string;
+  prev_hash: string;
   actor_email: string | null;
   actor_name: string | null;
+  actor_is_me: boolean;
+  shared_with_names?: string[];
+}
+
+export interface ChainCheck {
+  ok: boolean;
+  checked: number;
+  events_in_scope: number;
+  first_bad_id: number | null;
 }

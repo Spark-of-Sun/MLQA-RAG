@@ -46,6 +46,18 @@ AUDIENCE = "https://api.demo.local"
 CORPUS = ROOT / "corpus" / "data"
 CONTRACT = "edgar-0001104659-24-041548-tm2410073d11_ex10-2.htm"  # separation agreement (SEC EDGAR)
 DRUG_LABEL = "dailymed-5da82411.xml"  # metoprolol tartrate label (DailyMed)
+CAROL_WITNESSES = b"""Witness preparation note - Rivera Logistics
+
+Deposition of the warehouse supervisor is scheduled for 22 April 2025 at the downtown office.
+
+The supervisor will testify about the loading dock incident of 3 February 2025.
+"""
+BOB_BRIEFING = b"""Briefing for Carol - privileged
+
+The opposing counsel in the Rivera matter is Morgan & Pike LLP.
+
+Settlement authority for the Rivera matter is capped at USD 250,000 until the client meeting on 30 April 2025.
+"""
 CAROL_MEMO = b"""Client intake memo - Rivera Logistics
 
 Matter reference: RL-2025-117.
@@ -123,12 +135,22 @@ class User:
     def delete(self, path: str) -> Any:
         return self.client.delete(f"/v1{path}", headers=self.headers)
 
-    def upload(self, filename: str, data: bytes, visibility: str, title: str | None = None) -> Any:
-        form = {"visibility": visibility, **({"title": title} if title else {})}
+    def patch(self, path: str, body: dict[str, Any]) -> Any:
+        return self.client.patch(f"/v1{path}", headers=self.headers, json=body)
+
+    def upload(
+        self, filename: str, data: bytes, visibility: str, title: str | None = None, share_with: list[str] | None = None
+    ) -> Any:
+        form: dict[str, Any] = {"visibility": visibility, **({"title": title} if title else {})}
+        if share_with:
+            form["share_with"] = share_with
         return self.client.post("/v1/documents", headers=self.headers, files={"file": (filename, data)}, data=form)
 
-    def ask(self, question: str) -> dict[str, Any]:
-        resp = self.post("/queries", {"question": question})
+    def ask(self, question: str, conversation_id: str | None = None) -> dict[str, Any]:
+        body: dict[str, Any] = {"question": question}
+        if conversation_id:
+            body["conversation_id"] = conversation_id
+        resp = self.post("/queries", body)
         if resp.status_code != 200:
             print(f"   {R}query failed: HTTP {resp.status_code} {resp.text[:300]}{X}")
             return {}
@@ -382,6 +404,248 @@ def main() -> int:
             "history re-opens with citation text re-read under RLS",
             bool(reopened.get("citations")) and all(c.get("text") for c in reopened["citations"]),
         )
+
+        step("Chats: follow-ups continue a conversation, and chats stay private")
+        conv_c = a2.get("conversation_id", "")
+        conv_b = a1.get("conversation_id", "")
+        check(
+            "a new chat is created by its first message (Bob and Carol each have their own)",
+            bool(conv_c) and bool(conv_b) and conv_c != conv_b,
+            a2.get("conversation_title", ""),
+        )
+        q2b = "By what date do they intend to cure it?"
+        a2b = carol.ask(q2b, conv_c)
+        show_answer("Carol (follow-up)", q2b, a2b)
+        print(f"     {D}interpreted as: {a2b.get('standalone_question')}{X}")
+        check(
+            "the follow-up is rewritten with the earlier context",
+            "rivera" in a2b.get("standalone_question", "").lower() and a2b.get("conversation_id") == conv_c,
+        )
+        check(
+            "the follow-up is answered from the memo, with a citation",
+            any("4 April 2025" in s.get("text", "") for s in a2b.get("segments", []))
+            and any(c["document_id"] == memo["id"] for c in a2b.get("citations", [])),
+        )
+        chats_c = carol.get("/conversations").json()
+        check(
+            "Carol's chat list shows the chat with both turns",
+            any(c["id"] == conv_c and c["turns"] == 2 for c in chats_c),
+            f"{len(chats_c)} chat(s)",
+        )
+        full = carol.get(f"/conversations/{conv_c}").json()
+        check(
+            "re-opening the chat continues where she left off",
+            [t["question"] for t in full.get("turns", [])] == [q2, q2b]
+            and all(c.get("text") for t in full["turns"] for c in t["citations"]),
+        )
+        check(
+            "Bob's chat list does not include Carol's chat",
+            all(c["id"] != conv_c for c in bob.get("/conversations").json()),
+        )
+        check("Bob (her admin) cannot open Carol's chat (404)", bob.get(f"/conversations/{conv_c}").status_code == 404)
+        check(
+            "Bob cannot post into Carol's chat (404)",
+            bob.post("/queries", {"question": "What else?", "conversation_id": conv_c}).status_code == 404,
+        )
+        check("Erin (other organization) cannot open it (404)", erin.get(f"/conversations/{conv_c}").status_code == 404)
+        check("Super Admin has no route to chats (404)", alice.get("/conversations").status_code == 404)
+        renamed = carol.client.patch(
+            f"/v1/conversations/{conv_c}", headers=carol.headers, json={"title": "Rivera cure period"}
+        )
+        check(
+            "Carol can rename her chat", renamed.status_code == 200 and renamed.json()["title"] == "Rivera cure period"
+        )
+        check(
+            "Bob cannot rename it (404)",
+            bob.client.patch(f"/v1/conversations/{conv_c}", headers=bob.headers, json={"title": "x"}).status_code
+            == 404,
+        )
+        check("Bob cannot delete it (404)", bob.delete(f"/conversations/{conv_c}").status_code == 404)
+        check("Bob deletes his own chat", bob.delete(f"/conversations/{conv_b}").status_code == 204)
+        check("its questions are gone with it", bob.get(f"/queries/{a1.get('id')}").status_code == 404)
+        with psycopg.connect(settings.dsn("lmqa_app", database=DEMO_DB)) as conn:
+            with psycopg.connect(settings.dsn("lmqa_system", database=DEMO_DB)) as sys_conn:
+                bob_row = sys_conn.execute("select id from users where email = 'bob@hale-partners.example'").fetchone()
+            assert bob_row is not None
+            with conn.transaction():
+                conn.execute("select set_config('app.user_id', %s, true)", [str(bob_row[0])])
+                seen = conn.execute(
+                    "select (select count(*) from conversations where id = %s),"
+                    " (select count(*) from queries where conversation_id = %s)",
+                    [conv_c, conv_c],
+                ).fetchone()
+            check(
+                "in SQL, Bob's context sees 0 of Carol's chat rows and 0 of its questions",
+                seen is not None and seen[0] == 0 and seen[1] == 0,
+            )
+
+        step("Sharing: a member shares with the admin, the admin shares with selected members")
+        frank = User(client, idp, "Frank Lee", "frank@hale-partners.example")
+        frank.post("/onboarding/join-tenant", {"code": admin_code})
+        pending = [x for x in bob.get("/workspace/members").json() if x["status"] == "pending"]
+        bob.post(f"/workspace/members/{pending[0]['id']}/approve")
+        ids = {u.name: u.get("/me").json()["user"]["id"] for u in (bob, carol, frank)}
+        witness = carol.upload(
+            "witness-note.txt", CAROL_WITNESSES, "private", "Rivera witness preparation note", ["admin"]
+        ).json()
+        check(
+            "Carol shares a document with her admin; it is labelled 'shared by you'",
+            witness.get("access") == "shared"
+            and witness.get("shared_by") == "you"
+            and [x["role"] for x in witness.get("shared_with", [])] == ["admin"],
+        )
+        check(
+            "a member cannot share with another member (403)",
+            carol.upload("x.txt", b"some text here", "private", None, [ids["Frank Lee"]]).status_code == 403,
+        )
+        briefing = bob.upload("briefing.txt", BOB_BRIEFING, "private", "Briefing for Carol", [ids["Carol Diaz"]]).json()
+        check(
+            "Bob shares a document with Carol only",
+            briefing.get("access") == "shared"
+            and [x["id"] for x in briefing.get("shared_with", [])] == [ids["Carol Diaz"]],
+        )
+        check(
+            "the admin cannot share with someone outside the workspace (400)",
+            bob.upload("x.txt", b"some text here", "private", None, [str(uuid.uuid4())]).status_code == 400,
+        )
+        wait_ready(carol, [witness["id"], briefing["id"]])
+        docs_bob = {d["id"]: d for d in bob.get("/documents").json()}
+        docs_carol = {d["id"]: d for d in carol.get("/documents").json()}
+        ids_frank = {d["id"] for d in frank.get("/documents").json()}
+        check(
+            "Bob sees Carol's shared note, labelled 'shared by member'",
+            docs_bob.get(witness["id"], {}).get("shared_by") == "member",
+        )
+        check("Bob still does not see Carol's private memo", memo["id"] not in docs_bob)
+        check(
+            "Carol sees Bob's briefing, labelled 'shared by admin'",
+            docs_carol.get(briefing["id"], {}).get("shared_by") == "admin",
+        )
+        check(
+            "Frank sees neither (and the workspace contract is still there)",
+            witness["id"] not in ids_frank and briefing["id"] not in ids_frank and contract["id"] in ids_frank,
+        )
+        check(
+            "Frank gets 404 for the briefing; Bob cannot delete Carol's note (403)",
+            frank.get(f"/documents/{briefing['id']}").status_code == 404
+            and bob.delete(f"/documents/{witness['id']}").status_code == 403,
+        )
+        with psycopg.connect(settings.dsn("lmqa_app", database=DEMO_DB)) as conn:
+
+            def visible_chunks(user_id: str, doc_id: str) -> int:
+                with conn.transaction():
+                    conn.execute("select set_config('app.user_id', %s, true)", [user_id])
+                    row = conn.execute("select count(*) from chunks where document_id = %s", [doc_id]).fetchone()
+                return int(row[0]) if row else -1
+
+            check(
+                "in SQL, retrieval sees the shared passages: Bob gets Carol's note, Carol gets the briefing",
+                visible_chunks(ids["Bob Ortiz"], witness["id"]) > 0
+                and visible_chunks(ids["Carol Diaz"], briefing["id"]) > 0,
+            )
+            check(
+                "in SQL, Frank's context sees 0 passages of either",
+                visible_chunks(ids["Frank Lee"], witness["id"]) == 0
+                and visible_chunks(ids["Frank Lee"], briefing["id"]) == 0,
+            )
+            try:
+                with conn.transaction():
+                    conn.execute("select set_config('app.user_id', %s, true)", [ids["Frank Lee"]])
+                    with psycopg.connect(settings.dsn("lmqa_system", database=DEMO_DB)) as sc:
+                        org_ws = sc.execute("select org_id, workspace_id from documents where id = %s", [memo["id"]])
+                        org, ws = org_ws.fetchone() or (None, None)
+                    conn.execute(
+                        "insert into document_shares (org_id, workspace_id, document_id, owner_id, user_id)"
+                        " values (%s, %s, %s, %s, %s)",
+                        [org, ws, memo["id"], ids["Carol Diaz"], ids["Frank Lee"]],
+                    )
+                forged = True
+            except psycopg.Error:
+                forged = False
+            check("in SQL, Frank cannot forge a share of Carol's memo to himself", not forged)
+
+        step("Profiles: members edit their details, their admin can read them")
+        r = carol.patch("/profile", {"name": "Carol M. Diaz", "job_title": "Associate", "phone": "+1 415 555 0100"})
+        check("Carol updates her profile", r.status_code == 200 and r.json().get("job_title") == "Associate")
+        check(
+            "an invalid phone number is rejected (400)",
+            carol.patch("/profile", {"phone": "call me!"}).status_code == 400,
+        )
+        check(
+            "her edited name survives the next sign-in (Auth0 still says 'Carol Diaz')",
+            carol.get("/me").json()["user"]["name"] == "Carol M. Diaz",
+        )
+        row_c = next((x for x in bob.get("/workspace/members").json() if x["user_id"] == ids["Carol Diaz"]), {})
+        check(
+            "Bob sees Carol's profile in Manage members",
+            row_c.get("name") == "Carol M. Diaz" and row_c.get("phone") == "+1 415 555 0100",
+        )
+        check(
+            "Manage members counts questions (not chats), tokens and documents shared with Bob",
+            row_c.get("questions") == 2 and row_c.get("tokens", 0) > 0 and row_c.get("shared_with_you") == 1,
+            f"questions={row_c.get('questions')} tokens≈{row_c.get('tokens')} shared={row_c.get('shared_with_you')}",
+        )
+        check(
+            "Manage members counts Carol's private documents and the documents Bob shared with her",
+            row_c.get("private_documents") == 1
+            and row_c.get("shared_with_them") == 1
+            and row_c.get("shared_with_workspace") == 1,
+            f"private={row_c.get('private_documents')} shared by Bob={row_c.get('shared_with_them')}",
+        )
+        check(
+            "a member has no route to other members' profiles (404)", carol.get("/workspace/members").status_code == 404
+        )
+
+        step("Audit sections and filters")
+        lib_c = carol.get("/audit?category=library").json()
+        check(
+            "Carol's Library section: only document events, including Bob's briefing shared with her",
+            lib_c
+            and all(e["action"].startswith("document.") for e in lib_c)
+            and any(e["target_id"] == briefing["id"] for e in lib_c),
+            f"{len(lib_c)} events",
+        )
+        check(
+            "Frank's audit does not show the briefing shared with Carol only",
+            all(e["target_id"] != briefing["id"] for e in frank.get("/audit").json()),
+        )
+        chats_audit = carol.get("/audit?category=chats").json()
+        acts = {e["action"] for e in chats_audit}
+        check(
+            "Carol's Chats section: chat started, renamed and each question",
+            {"conversation.created", "conversation.renamed", "query.answered"} <= acts
+            and all(a.startswith(("query.", "conversation.")) for a in acts),
+        )
+        all_c = carol.get("/audit").json()
+        check(
+            "Carol's All activity includes her approval and profile change",
+            {"tenant.approve", "profile.updated"} <= {e["action"] for e in all_c},
+        )
+        vc = carol.get("/audit/verify")
+        check("a member can verify the hash chain", vc.status_code == 200 and vc.json()["ok"])
+        memo_events = [e for e in bob.get("/audit?category=library").json() if e["target_id"] == memo["id"]]
+        check(
+            "Bob's audit shows Carol's private memo without its title",
+            memo_events and all("title" not in e["payload"] for e in memo_events),
+        )
+        probe = bob.get("/audit?q=Rivera%20Logistics%20intake").json()
+        check(
+            "searching for the private memo's title finds nothing for Bob",
+            all(e["target_id"] != memo["id"] for e in probe),
+        )
+        by_carol = bob.get(f"/audit?category=members&actor={ids['Carol Diaz']}").json()
+        check(
+            "filters combine: Members section + person = Carol",
+            by_carol
+            and all(
+                e["actor_name"] == "Carol M. Diaz" and e["action"].startswith(("tenant.", "profile.")) for e in by_carol
+            ),
+        )
+        check(
+            "date filter: nothing before 2001",
+            bob.get("/audit?until=2001-01-01T00:00:00Z").json() == [],
+        )
+        check("an unknown section is rejected (400)", bob.get("/audit?category=billing").status_code == 400)
 
         step("Database is the final authority (direct SQL as the runtime role)")
         with psycopg.connect(settings.dsn("lmqa_app", database=DEMO_DB)) as conn:

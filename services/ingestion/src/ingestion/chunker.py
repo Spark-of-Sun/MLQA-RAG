@@ -147,8 +147,14 @@ def merge_small(chunks: list[Chunk], min_chars: int = 160) -> list[Chunk]:
     for c in chunks:
         if carry is not None:
             pages = [p for p in (carry.page_start, carry.page_end, c.page_start, c.page_end) if p is not None]
-            c = Chunk(0, c.kind, c.section, min(pages) if pages else None, max(pages) if pages else None,
-                      f"{carry.text}\n\n{c.text}")  # fmt: skip
+            c = Chunk(
+                0,
+                c.kind,
+                c.section,
+                min(pages) if pages else None,
+                max(pages) if pages else None,
+                f"{carry.text}\n\n{c.text}",
+            )
             carry = None
         if len(c.text) < min_chars:
             carry = c
@@ -158,8 +164,14 @@ def merge_small(chunks: list[Chunk], min_chars: int = 160) -> list[Chunk]:
         if out:
             last = out[-1]
             pages = [p for p in (last.page_start, last.page_end, carry.page_start, carry.page_end) if p is not None]
-            out[-1] = Chunk(0, last.kind, last.section, min(pages) if pages else None, max(pages) if pages else None,
-                            f"{last.text}\n\n{carry.text}")  # fmt: skip
+            out[-1] = Chunk(
+                0,
+                last.kind,
+                last.section,
+                min(pages) if pages else None,
+                max(pages) if pages else None,
+                f"{last.text}\n\n{carry.text}",
+            )
         else:
             out.append(carry)
     for i, c in enumerate(out):

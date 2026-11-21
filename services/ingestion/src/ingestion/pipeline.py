@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any
+
+import psycopg
 
 import lmqa_audit
 from ingestion.chunker import build_chunks
@@ -18,6 +21,14 @@ from lmqa_objectstore import ObjectStore
 from lmqa_vectorstore import Embedder, EmbeddingError, vector_literal
 
 log = logging.getLogger(__name__)
+
+
+def _access(conn: psycopg.Connection[Any], doc: dict[str, Any]) -> dict[str, Any]:
+    """Title and who may see the document, so the audit view can decide whether to show the title."""
+    rows = conn.execute(
+        "select user_id from document_shares where document_id = %s order by created_at", [doc["id"]]
+    ).fetchall()
+    return {"title": doc["title"], "visibility": doc["visibility"], "shared_with": [str(r["user_id"]) for r in rows]}
 
 
 class Ingestor:
@@ -112,7 +123,12 @@ class Ingestor:
                 action="document.indexed",
                 target_type="document",
                 target_id=doc_id,
-                payload={"chunks": len(chunks), "structure": structure, "pages": parsed.page_count},
+                payload={
+                    "chunks": len(chunks),
+                    "structure": structure,
+                    "pages": parsed.page_count,
+                    **_access(conn, doc),
+                },
             )
         log.info("indexed document %s: %d chunks (%s)", doc_id, len(chunks), structure)
 
@@ -120,7 +136,8 @@ class Ingestor:
         with self._db.system() as conn:
             doc = conn.execute(
                 "update documents set status = 'failed', error = %s, updated_at = now()"
-                " where id = %s and status = 'processing' returning org_id, workspace_id, owner_id",
+                " where id = %s and status = 'processing'"
+                " returning id, org_id, workspace_id, owner_id, title, visibility",
                 [message[:500], doc_id],
             ).fetchone()
             if doc:
@@ -132,5 +149,5 @@ class Ingestor:
                     action="document.failed",
                     target_type="document",
                     target_id=doc_id,
-                    payload={"reason": reason},
+                    payload={"reason": reason, **_access(conn, doc)},
                 )
