@@ -1,13 +1,56 @@
 @import "tailwindcss";
 
-:root {
-  color-scheme: light;
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+  --color-ink-50: #f6f7f9;
+  --color-ink-100: #eceef2;
+  --color-ink-200: #d5d9e2;
+  --color-ink-300: #b0b8c7;
+  --color-ink-400: #8590a6;
+  --color-ink-500: #66728a;
+  --color-ink-600: #505b71;
+  --color-ink-700: #42495c;
+  --color-ink-800: #2b3040;
+  --color-ink-900: #1a1e2a;
+  --color-ink-950: #10131b;
+  --color-brand-50: #eef4ff;
+  --color-brand-100: #dbe6fe;
+  --color-brand-200: #bfd3fe;
+  --color-brand-500: #3b6ff5;
+  --color-brand-600: #2554e6;
+  --color-brand-700: #1d42c9;
+  --color-brand-900: #172d6e;
+}
+
+html,
+body {
+  height: 100%;
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  @apply bg-ink-50 text-ink-900 antialiased;
 }
 
 :focus-visible {
-  @apply outline-2 outline-offset-2 outline-indigo-600;
+  @apply outline-2 outline-offset-2 outline-brand-500;
+}
+
+mark.cite {
+  @apply rounded-sm bg-amber-200/80 px-0.5 text-ink-950;
+}
+
+@keyframes pulse-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+.dot {
+  animation: pulse-dot 1.2s infinite ease-in-out;
 }

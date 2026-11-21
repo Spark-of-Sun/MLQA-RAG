@@ -1,27 +1,11 @@
-"""The only module that holds a Qdrant client: filter builder, reader and writer."""
+"""Vectors: embedding (Gemini) and hybrid search (pgvector + PostgreSQL full text).
 
-from lmqa_vectorstore.filters import (
-    EMERGENCY_TIER_CAP,
-    MAX_INLINE_MATTERS,
-    BuiltFilter,
-    NoFilterError,
-    VectorScope,
-    build_filter,
-    filter_mentions_scope,
-)
-from lmqa_vectorstore.store import ChunkPoint, Hit, SparseVec, VectorReader, VectorWriter
+MVP deviation (blueprint 10.5, ADR 0004 fallback): vectors live in PostgreSQL with pgvector, so the same
+row-level security that guards chunk text also guards vector search. Search functions take a `Scope`
+(an RLS-bound transaction) and have no unfiltered variant.
+"""
 
-__all__ = [
-    "EMERGENCY_TIER_CAP",
-    "MAX_INLINE_MATTERS",
-    "BuiltFilter",
-    "ChunkPoint",
-    "Hit",
-    "NoFilterError",
-    "SparseVec",
-    "VectorReader",
-    "VectorScope",
-    "VectorWriter",
-    "build_filter",
-    "filter_mentions_scope",
-]
+from lmqa_vectorstore.embeddings import Embedder, EmbeddingError
+from lmqa_vectorstore.search import hybrid_candidates, vector_literal
+
+__all__ = ["Embedder", "EmbeddingError", "hybrid_candidates", "vector_literal"]

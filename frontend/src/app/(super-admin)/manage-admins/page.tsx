@@ -1,15 +1,11 @@
-import { ManageAdmins } from "@/components/ManageAdmins";
-import { Shell } from "@/components/Shell";
-import { requireMe } from "@/lib/guard";
+import type { Metadata } from "next";
 
-export const dynamic = "force-dynamic";
+import { ManageAdmins } from "@/components/manage/manage-admins";
+import { requireMe } from "@/lib/backend";
+
+export const metadata: Metadata = { title: "Manage admins" };
 
 export default async function ManageAdminsPage() {
-  const me = await requireMe("/manage-admins");
-  return (
-    <Shell me={me}>
-      <h1 className="mb-4 text-xl font-semibold">Manage administrators</h1>
-      <ManageAdmins />
-    </Shell>
-  );
+  const me = await requireMe();
+  return <ManageAdmins orgName={me.membership?.organization.name ?? ""} />;
 }

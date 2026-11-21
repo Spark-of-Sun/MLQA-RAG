@@ -1,18 +1,13 @@
 [project]
 name = "lmqa-vectorstore"
 version = "0.1.0"
+description = "Embeddings and the only vector search code (pgvector + full text, under RLS)."
 requires-python = ">=3.14"
-dependencies = [
-  "qdrant-client>=1.20",
-  "lmqa_models"
-]
+dependencies = ["lmqa-db", "httpx>=0.28"]
+
+[tool.uv.sources]
+lmqa-db = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/lmqa_vectorstore"]
-
-[tool.uv.sources]
-lmqa_models = { workspace = true }

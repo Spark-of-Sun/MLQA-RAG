@@ -1,334 +1,300 @@
-"""The Gateway HTTP layer (doc 8.5, 8.7, 15.1): the only public API of the platform.
+"""Gateway HTTP API. Called by the Next.js BFF, which attaches the user's Auth0 access token server-side.
 
-Per request, in order: match the route in the allow-list (unknown, disabled or wrong-role is 404);
-verify the Auth0 access token (one uniform 401); resolve the principal from the DATABASE (the
-token's role claim is advisory and a mismatch is refused); require a phishing-resistant
-authentication strength for privileged roles; require a fresh authentication for step-up routes
-(RFC 9470 challenge); rate-limit; apply idempotency; then mint a one-audience 60-second context
-token and forward. The user's Auth0 token is never forwarded.
+Every /v1 route is guarded by `contracts/authz-matrix.yaml` (blueprint 5.2, 17.1): a role not listed gets 404 so
+the route's existence is not revealed; a listed role whose membership is pending or suspended gets 403
+`membership_not_active`. The app refuses to start if routes and matrix drift apart (G3.6).
 """
 
-from __future__ import annotations
+# No `from __future__ import annotations`: route signatures use the local alias `P`, which FastAPI must resolve.
 
-import asyncio
-import contextlib
 import logging
-import time
-import uuid
 from collections.abc import AsyncIterator
-from dataclasses import dataclass, field
-from typing import Any, Final
+from contextlib import asynccontextmanager
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
-import httpx
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, Response, StreamingResponse
+import psycopg
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 from pydantic import BaseModel, Field
 
-from gateway.limits import Idempotency, RateLimiter, StoredResponse
-from gateway.matrix import Matrix, Route
-from gateway.principal import Principal, PrincipalResolver
-from gateway.query import QueryDeps, run_query
-from lmqa_auth import ContextClaims, ContextSigner, TokenRejectedError, TokenVerifier, VerifiedToken
-from lmqa_auth.web import problem
-from lmqa_db import ContextRole, DbContext
+from audit import AuditService
+from gateway.query_flow import QueryFlow
+from generation import GenerationService
+from identity import IdentityService
+from identity.ratelimit import SlidingWindow
+from ingestion import create_ingestion
+from lmqa_auth import TokenVerifier, Unauthorized
+from lmqa_db import Database
+from lmqa_models.contracts import authz_matrix
+from lmqa_models.errors import ServiceError
+from lmqa_models.principal import Principal
+from lmqa_models.settings import ConfigError, Settings, load_settings
+from retrieval import create_retrieval
 
-LOG = logging.getLogger("gateway")
-STRONG: Final = frozenset({"passkey", "webauthn_mfa"})
-PRIVILEGED: Final = frozenset({"SA", "AD"})
-STEP_UP_MAX_AGE: Final = 300
-HOP_BY_HOP: Final = frozenset(
-    {"connection", "keep-alive", "transfer-encoding", "te", "upgrade", "content-length", "host"}
-)
-AUDIT_PATHS: Final = {
-    "/v1/org/audit": "/internal/v1/events",
-    "/v1/workspace/audit": "/internal/v1/events",
-    "/v1/audit/me": "/internal/v1/events",
-}
-UNAUTHORIZED: Final = {"type": "about:blank", "title": "Unauthorized", "status": 401}
+log = logging.getLogger("gateway")
+MATRIX = authz_matrix()
 
 
-class QueryIn(BaseModel):
-    """A question, optionally narrowed to matters the caller can already read."""
-
-    question: str = Field(min_length=1, max_length=2000)
-    matter_ids: list[UUID] | None = None
+class CreateOrg(BaseModel):
+    name: str = Field(max_length=200)
+    kind: Literal["legal", "medical", "both"]
 
 
-@dataclass(slots=True)
-class GatewayComponents:
-    """Everything the Gateway holds. It has no storage, vector or decryption capability."""
-
-    matrix: Matrix
-    main_verifier: TokenVerifier
-    onboarding_verifier: TokenVerifier
-    principals: PrincipalResolver
-    limiter: RateLimiter
-    idempotency: Idempotency
-    signer: ContextSigner
-    http: httpx.AsyncClient
-    query: QueryDeps
-    services: dict[str, str]
-    trust_cloudflare: bool = True
-    background: list[asyncio.Task[None]] = field(default_factory=list[asyncio.Task[None]])
+class JoinAdmin(BaseModel):
+    code: str = Field(max_length=200)
+    workspace_name: str = Field(max_length=200)
 
 
-def unauthorized(challenge: str | None = None) -> JSONResponse:
-    """The one 401 body for every authentication failure (a step-up adds only a header)."""
-    headers = {"WWW-Authenticate": challenge or "Bearer"}
-    return JSONResponse(
-        UNAUTHORIZED, status_code=401, media_type="application/problem+json", headers=headers
-    )
+class CodeBody(BaseModel):
+    code: str = Field(max_length=200)
 
 
-def step_up_challenge() -> str:
-    """The RFC 9470 challenge asking the BFF for a fresh, strong authentication."""
-    return (
-        'Bearer error="insufficient_user_authentication", '
-        'error_description="A fresh authentication is required", '
-        f"max_age={STEP_UP_MAX_AGE}"
-    )
+class Ask(BaseModel):
+    question: str = Field(max_length=4000)
 
 
-def client_ip(request: Request, *, trust_cloudflare: bool) -> str | None:
-    """The caller's address: Cloudflare's header only when we are known to sit behind it."""
-    if trust_cloudflare and (cf := request.headers.get("cf-connecting-ip")):
-        return cf
-    return request.client.host if request.client else None
+class Services:
+    def __init__(self, settings: Settings, verifier: TokenVerifier | None) -> None:
+        self.settings = settings
+        self.db = Database(settings)
+        self.verifier = verifier or TokenVerifier(settings)
+        self.identity = IdentityService(settings, self.db)
+        self.documents, self.ingestor = create_ingestion(settings, self.db)
+        self.generation = GenerationService(settings)
+        self.queries = QueryFlow(settings, self.db, create_retrieval(settings, self.db), self.generation)
+        self.audit = AuditService(self.db)
+        self.query_limit = SlidingWindow(settings.queries_per_minute, 60)
+        self.upload_limit = SlidingWindow(60, 60)
 
 
-def create_app(c: GatewayComponents) -> FastAPI:  # noqa: C901, PLR0915 - one request pipeline
-    """Build the Gateway app around constructed components."""
+def create_app(
+    settings: Settings | None = None, *, verifier: TokenVerifier | None = None, resume_jobs: bool = True
+) -> FastAPI:
+    settings = settings or load_settings()
+    svc = Services(settings, verifier)
 
-    @contextlib.asynccontextmanager
-    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-        c.background.append(asyncio.create_task(c.principals.listen()))  # revocation consumer
-        try:
-            yield
-        finally:
-            for task in c.background:
-                task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await task
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        svc.db.open()
+        if resume_jobs and (n := svc.ingestor.resume_pending()):
+            log.info("resumed %d pending ingestion job(s)", n)
+        if not svc.generation.configured:
+            log.warning("GEMINI_API_KEY is not set: uploads and questions will fail until it is")
+        yield
+        svc.ingestor.shutdown()
+        svc.db.close()
 
     app = FastAPI(
-        title="gateway", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan
+        title="LMQA Gateway",
+        version="0.1.0",
+        lifespan=lifespan,
+        docs_url="/docs" if settings.app_env == "local" else None,
+        redoc_url=None,
     )
+    app.state.services = svc
 
-    def tokens_for(principal: Principal | None, verified: VerifiedToken) -> ContextClaims:
-        if (
-            principal is None
-        ):  # onboarding: no membership yet; the Auth0 subject travels in the token
-            return ContextClaims(
-                uuid.uuid5(uuid.NAMESPACE_URL, verified.sub),
-                UUID(int=0),
-                None,
-                "onboarding",
-                verified.auth_strength,
-                "",
-                0,
-                0,
-                uuid.uuid4(),
-                "",
-                "",
-                0,
-                auth0_sub=verified.sub,
-            )
-        return ContextClaims(
-            principal.user_id,
-            principal.org_id,
-            principal.workspace_id,
-            principal.role,
-            verified.auth_strength,
-            principal.scope_hash,
-            principal.scope_version,
-            principal.principal_version,
-            uuid.uuid4(),
-            "",
-            "",
-            0,
-        )
+    # ------------------------------------------------------------------ errors
+    @app.exception_handler(ServiceError)
+    async def _service_error(_: Request, exc: ServiceError) -> JSONResponse:
+        if exc.status >= 500:
+            log.warning("unavailable: %s", exc.message)
+        return JSONResponse({"detail": exc.message}, status_code=exc.status)
 
-    async def proxy(
-        route: Route, request: Request, claims: ContextClaims, ip: str | None
-    ) -> Response:
-        base = c.services[route.service]
-        target = AUDIT_PATHS.get(route.path, "/internal" + request.url.path)
-        query = f"?{request.url.query}" if request.url.query else ""
-        headers = {
-            k: v for k, v in request.headers.items() if k.lower() in {"content-type", "accept"}
-        }
-        headers["Authorization"] = "Bearer " + await c.signer.mint(
-            audience=route.service, claims=claims
-        )
-        headers["X-Request-Id"] = str(claims.request_id)
-        if ip:
-            headers["X-Client-IP"] = ip
-        try:
-            upstream = await c.http.send(
-                c.http.build_request(
-                    request.method,
-                    base + target + query,
-                    headers=headers,
-                    content=await request.body(),
-                ),
-                stream=True,
-            )
-        except httpx.HTTPError:
-            LOG.exception("upstream %s is unavailable", route.service)
-            return problem(502, "Upstream unavailable")  # fail closed with a stable error
+    @app.exception_handler(ConfigError)
+    async def _config_error(_: Request, exc: ConfigError) -> JSONResponse:
+        return JSONResponse({"detail": str(exc)}, status_code=503)
 
-        async def body() -> AsyncIterator[bytes]:
-            try:
-                async for chunk in upstream.aiter_raw():
-                    yield chunk
-            finally:
-                await upstream.aclose()
+    @app.exception_handler(psycopg.OperationalError)
+    async def _db_down(_: Request, exc: psycopg.OperationalError) -> JSONResponse:
+        log.error("database unavailable: %s", type(exc).__name__)
+        return JSONResponse({"detail": "Database unavailable."}, status_code=503)
 
-        out = {
-            k: v
-            for k, v in upstream.headers.items()
-            if k.lower() not in HOP_BY_HOP and k.lower() != "content-encoding"
-        }
-        return StreamingResponse(body(), status_code=upstream.status_code, headers=out)
-
-    @app.get("/v1/health")
-    async def health() -> dict[str, str]:
-        return {"status": "ok"}  # liveness only: no detail
-
-    @app.api_route(
-        "/v1/{rest:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"], response_model=None
-    )
-    async def gateway(rest: str, request: Request) -> Response:  # noqa: C901, PLR0911, PLR0912
-        path = "/v1/" + rest
-        route = c.matrix.match(request.method, path)
-        not_found = problem(404, "Not Found")
-        if route is None:
-            return not_found
+    # ------------------------------------------------------------------ the route guard
+    def guard(request: Request) -> Principal | None:
+        route = request.scope.get("route")
+        roles = MATRIX.get((request.method, getattr(route, "path", "")))
+        if roles is None:
+            raise HTTPException(404, "Not found")
+        if "public" in roles:
+            return None
         header = request.headers.get("authorization", "")
-        scheme, _, token = header.partition(" ")
-        if scheme.lower() != "bearer" or not token:
-            return unauthorized()
-        verifier = c.onboarding_verifier if route.audience == "onboarding" else c.main_verifier
+        if not header.lower().startswith("bearer "):
+            raise HTTPException(401, "Unauthorized", headers={"WWW-Authenticate": "Bearer"})
+        token = header[7:].strip()
         try:
-            verified = await asyncio.to_thread(verifier.verify, token)
-        except TokenRejectedError:
-            return unauthorized()
-        ip = client_ip(request, trust_cloudflare=c.trust_cloudflare)
-        principal: Principal | None = None
-        if route.audience == "onboarding":
-            if "ON" not in route.roles:
-                return not_found
-            subject = uuid.uuid5(uuid.NAMESPACE_URL, verified.sub)
-        else:
-            principal = await c.principals.resolve(verified.sub, verified.org_id)
-            if principal is None:
-                return unauthorized()
-            if verified.advisory_role and verified.advisory_role != principal.role:
-                LOG.warning(
-                    "role claim mismatch for %s: token says %s, database says %s",
-                    principal.user_id,
-                    verified.advisory_role,
-                    principal.role,
-                )  # an alert, and a denial
-                return unauthorized()
-            role_code = principal.role_code
-            if role_code == "BLOCKED":
-                return unauthorized()  # suspended, rejected or removed: fail closed, reveal nothing
-            if (
-                role_code in PRIVILEGED
-                and route.path != "/v1/me"
-                and verified.auth_strength not in STRONG
-            ):
-                return unauthorized(
-                    step_up_challenge()
-                )  # privileged roles need a passkey or WebAuthn factor
-            if not c.matrix.allows(route, role_code):
-                return not_found
-            if route.step_up:
-                fresh = (verified.auth_time or verified.issued_at) >= time.time() - STEP_UP_MAX_AGE
-                if not fresh or (role_code in PRIVILEGED and verified.auth_strength not in STRONG):
-                    return unauthorized(step_up_challenge())
-            subject = principal.user_id
-        if not await c.limiter.allow(subject):
-            return problem(429, "Too Many Requests")
-        claims = tokens_for(principal, verified)
-        idem_key = request.headers.get("idempotency-key")
-        fingerprint = ""
-        if idem_key and route.state_changing and not route.stream:
-            fingerprint = c.idempotency.fingerprint(
-                request.method, request.url.path, await request.body()
-            )
-            state, stored = await c.idempotency.begin(subject, idem_key, fingerprint)
-            if state == "replay" and stored:
-                return Response(
-                    stored.body,
-                    status_code=stored.status,
-                    media_type=stored.content_type,
-                    headers={"Idempotent-Replay": "true"},
-                )
-            if state in {"conflict", "busy"}:
-                return problem(409 if state == "busy" else 422, "Idempotency-Key reuse conflict")
-        if route.path == "/v1/query" and principal is not None:
-            return await handle_query(request, principal)
-        response = await proxy(route, request, claims, ip)
-        if fingerprint and idem_key:
-            body = b"".join([chunk async for chunk in response.body_iterator])  # type: ignore[attr-defined]
-            await c.idempotency.finish(
-                subject,
-                idem_key,
-                fingerprint,
-                StoredResponse(
-                    response.status_code,
-                    response.headers.get("content-type", "application/json"),
-                    body,
-                ),
-            )
-            return Response(
-                body,
-                status_code=response.status_code,
-                media_type=response.headers.get("content-type"),
-            )
-        return response
+            claims = svc.verifier.verify(token)
+        except Unauthorized as exc:
+            log.info("token rejected: %s", exc)
+            raise HTTPException(401, "Unauthorized", headers={"WWW-Authenticate": "Bearer"}) from None
+        email, name = claims.email, claims.name
+        if email is None and not svc.identity.known_email(claims.sub):
+            email, name = svc.verifier.userinfo(token)
+        p = svc.identity.resolve(claims.sub, email, name or claims.name)
+        if "authenticated" in roles:
+            return p
+        m = p.membership
+        if m is None or m.role not in roles:
+            raise HTTPException(404, "Not found")
+        if not m.active:
+            raise HTTPException(403, "membership_not_active")
+        return p
 
-    async def handle_query(request: Request, principal: Principal) -> Response:
-        body = QueryIn.model_validate_json(await request.body())
-        ctx = DbContext(
-            role=ContextRole(principal.role),
-            org_id=principal.org_id,
-            workspace_id=principal.workspace_id,
-            user_id=principal.user_id,
-        )
-        last = request.headers.get("last-event-id")
-        if last:  # resume: only already released, audited sentences are replayed
-            request_id, _, number = last.rpartition(":")
-            try:
-                frames = await c.query.resume.after(
-                    UUID(request_id), principal.user_id, int(number)
-                )
-            except ValueError:
-                frames = []
+    def principal(p: Annotated[Principal | None, Depends(guard)]) -> Principal:
+        assert p is not None
+        return p
 
-            async def replay() -> AsyncIterator[bytes]:
-                for frame in frames:
-                    yield frame
+    P = Annotated[Principal, Depends(principal)]
 
-            return StreamingResponse(
-                replay(), media_type="text/event-stream", headers={"Cache-Control": "no-store"}
-            )
-        stream: AsyncIterator[bytes] = run_query(c.query, principal, ctx, body.question)
-        return StreamingResponse(
-            stream,
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-store",
-                "X-Accel-Buffering": "no",
-                "Content-Encoding": "identity",
-            },
-        )
+    def client_ip(request: Request) -> str:
+        host = request.client.host if request.client else "unknown"
+        forwarded = request.headers.get("x-forwarded-for", "")
+        if host in {"127.0.0.1", "::1"} and forwarded:  # only the local BFF may name the client
+            return forwarded.split(",")[0].strip()
+        return host
 
-    app.state.components = c
+    # Every path operation runs the guard (FastAPI caches it per request, so `P` reuses the result).
+    app.router.dependencies.append(Depends(guard))
+
+    # ------------------------------------------------------------------ health and me
+    @app.get("/v1/health")
+    def health() -> dict[str, Any]:
+        with svc.db.system() as conn:
+            conn.execute("select 1")
+        return {"status": "ok", "llm_configured": svc.generation.configured, "model": settings.llm_model}
+
+    @app.get("/v1/me")
+    def me(p: P) -> dict[str, Any]:
+        return svc.identity.me(p)
+
+    # ------------------------------------------------------------------ onboarding (blueprint 7)
+    @app.post("/v1/onboarding/organization", status_code=201)
+    def create_org(p: P, body: CreateOrg) -> dict[str, Any]:
+        return svc.identity.create_organization(p, body.name, body.kind)
+
+    @app.post("/v1/onboarding/join-admin", status_code=201)
+    def join_admin(p: P, body: JoinAdmin, request: Request) -> dict[str, Any]:
+        return svc.identity.join_admin(p, client_ip(request), body.code, body.workspace_name)
+
+    @app.post("/v1/onboarding/preview-tenant")
+    def preview_tenant(p: P, body: CodeBody, request: Request) -> dict[str, Any]:
+        return svc.identity.preview_tenant(p, client_ip(request), body.code)
+
+    @app.post("/v1/onboarding/join-tenant", status_code=201)
+    def join_tenant(p: P, body: CodeBody, request: Request) -> dict[str, Any]:
+        return svc.identity.join_tenant(p, client_ip(request), body.code)
+
+    @app.delete("/v1/onboarding/request", status_code=204)
+    def withdraw(p: P) -> None:
+        svc.identity.withdraw(p)
+
+    # ------------------------------------------------------------------ Super Admin
+    @app.get("/v1/org/admins")
+    def list_admins(p: P) -> list[dict[str, Any]]:
+        return svc.identity.list_admins(p)
+
+    @app.post("/v1/org/admins/{membership_id}/{action}")
+    def decide_admin(p: P, membership_id: UUID, action: str) -> dict[str, Any]:
+        return svc.identity.decide_admin(p, str(membership_id), action)
+
+    @app.get("/v1/org/code")
+    def org_code(p: P) -> dict[str, Any] | None:
+        return svc.identity.code_info(p, "org")
+
+    @app.post("/v1/org/code", status_code=201)
+    def rotate_org_code(p: P) -> dict[str, Any]:
+        return svc.identity.generate_code(p, "org")
+
+    # ------------------------------------------------------------------ Admin
+    @app.get("/v1/workspace/members")
+    def list_members(p: P) -> list[dict[str, Any]]:
+        return svc.identity.list_members(p)
+
+    @app.post("/v1/workspace/members/{membership_id}/{action}")
+    def decide_member(p: P, membership_id: UUID, action: str) -> dict[str, Any]:
+        return svc.identity.decide_member(p, str(membership_id), action)
+
+    @app.get("/v1/workspace/code")
+    def admin_code(p: P) -> dict[str, Any] | None:
+        return svc.identity.code_info(p, "admin")
+
+    @app.post("/v1/workspace/code", status_code=201)
+    def rotate_admin_code(p: P) -> dict[str, Any]:
+        return svc.identity.generate_code(p, "admin")
+
+    # ------------------------------------------------------------------ documents
+    @app.get("/v1/documents")
+    def list_documents(p: P) -> list[dict[str, Any]]:
+        return svc.documents.list(p)
+
+    @app.post("/v1/documents", status_code=201)
+    def upload(
+        p: P,
+        file: Annotated[UploadFile, File()],
+        visibility: Annotated[str | None, Form()] = None,
+        title: Annotated[str | None, Form(max_length=200)] = None,
+    ) -> dict[str, Any]:
+        if svc.upload_limit.hit(p.user_id):
+            raise HTTPException(429, "Too many uploads. Try again in a minute.")
+        data = file.file.read(settings.upload_max_mb * 1024 * 1024 + 1)
+        return svc.documents.upload(p, file.filename or "upload", data, visibility, title)
+
+    @app.get("/v1/documents/{doc_id}")
+    def get_document(p: P, doc_id: UUID) -> dict[str, Any]:
+        return svc.documents.get(p, str(doc_id))
+
+    @app.delete("/v1/documents/{doc_id}", status_code=204)
+    def delete_document(p: P, doc_id: UUID) -> None:
+        svc.documents.delete(p, str(doc_id))
+
+    # ------------------------------------------------------------------ questions
+    @app.post("/v1/queries")
+    def ask(p: P, body: Ask) -> dict[str, Any]:
+        if svc.query_limit.hit(p.user_id):
+            raise HTTPException(429, "Too many questions. Try again in a minute.")
+        return svc.queries.ask(p, body.question)
+
+    @app.get("/v1/queries")
+    def history(p: P, limit: Annotated[int, Query(ge=1, le=100)] = 30) -> list[dict[str, Any]]:
+        return svc.queries.history(p, limit)
+
+    @app.get("/v1/queries/{query_id}")
+    def get_query(p: P, query_id: UUID) -> dict[str, Any]:
+        result = svc.queries.get(p, str(query_id))
+        if result is None:
+            raise HTTPException(404, "Not found")
+        return result
+
+    # ------------------------------------------------------------------ audit
+    @app.get("/v1/audit")
+    def audit_events(
+        p: P,
+        limit: Annotated[int, Query(ge=1, le=500)] = 100,
+        before: Annotated[int | None, Query(ge=1)] = None,
+    ) -> list[dict[str, Any]]:
+        return svc.audit.events(p, limit, before)
+
+    @app.get("/v1/audit/verify")
+    def audit_verify(p: P) -> dict[str, Any]:
+        return svc.audit.verify(p)
+
+    _check_matrix_drift(app)
     return app
 
 
-__all__: list[Any] = ["GatewayComponents", "create_app", "step_up_challenge", "unauthorized"]
+def _check_matrix_drift(app: FastAPI) -> None:
+    """Refuse to start when code and contracts/authz-matrix.yaml disagree (G3.6)."""
+    in_code = {
+        (method, r.path)
+        for r in app.routes
+        if isinstance(r, APIRoute) and r.path.startswith("/v1")
+        for method in r.methods
+    }
+    in_matrix = set(MATRIX)
+    if in_code != in_matrix:
+        missing = sorted(in_code - in_matrix)
+        extra = sorted(in_matrix - in_code)
+        raise RuntimeError(
+            f"authz-matrix drift: routes without a matrix entry {missing}; matrix entries without a route {extra}"
+        )

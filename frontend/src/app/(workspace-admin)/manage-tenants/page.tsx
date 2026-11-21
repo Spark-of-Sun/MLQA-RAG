@@ -1,15 +1,11 @@
-import { ManageTenants } from "@/components/ManageTenants";
-import { Shell } from "@/components/Shell";
-import { requireMe } from "@/lib/guard";
+import type { Metadata } from "next";
 
-export const dynamic = "force-dynamic";
+import { ManageTenants } from "@/components/manage/manage-tenants";
+import { requireMe } from "@/lib/backend";
+
+export const metadata: Metadata = { title: "Manage members" };
 
 export default async function ManageTenantsPage() {
-  const me = await requireMe("/manage-tenants");
-  return (
-    <Shell me={me}>
-      <h1 className="mb-4 text-xl font-semibold">Manage your team</h1>
-      <ManageTenants />
-    </Shell>
-  );
+  const me = await requireMe();
+  return <ManageTenants workspaceName={me.membership?.workspace?.name ?? ""} />;
 }

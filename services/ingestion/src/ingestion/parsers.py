@@ -1,433 +1,420 @@
-"""Format verification and parsers (doc 11.1 steps 3 and 4).
+"""Turn an uploaded file into ordered text blocks with page numbers and heading flags (blueprint 11.1).
 
-Magic bytes are checked against the declared type before any parser runs. Structured sources are
-preferred (JATS, SPL, eCFR XML, DOCX, sanitized HTML); PDFs use the text layer, and a page with
-no usable text layer is flagged ``extraction='none'`` so the pipeline quarantines it (OCR review)
-rather than embedding nothing. Every parser is deterministic so text can be re-extracted.
+Structured sources keep their structure: DOCX heading styles, HTML <h1>-<h6>, and section titles in JATS
+(PubMed Central), SPL (DailyMed drug labels) and eCFR XML. PDFs use the text layer; a page without one is
+counted, never guessed at (OCR is a later stage), and a PDF with no text at all is rejected.
 """
 
 from __future__ import annotations
 
 import io
+import logging
 import re
 import zipfile
-from typing import TYPE_CHECKING, Any, Final, cast
+from dataclasses import dataclass, field
+from html.parser import HTMLParser
+from xml.etree.ElementTree import Element
 
-import pypdfium2 as pdfium
-from lxml import etree, html
+import defusedxml.ElementTree as SafeET
+from defusedxml.common import DefusedXmlException
 
-from ingestion.headings import classify_line
-from ingestion.model import Block, PageText, ParsedDocument
+_WS = re.compile(r"\s+")
+# pypdf logs one warning per font per page for some PDFs (for example "fontTools is required ...").
+# They are not errors; keep real errors visible and the server log readable.
+logging.getLogger("pypdf").setLevel(logging.ERROR)
 
-if TYPE_CHECKING:
-    from lxml.html import HtmlElement
 
-MAX_PAGES: Final = 5000
-MAX_BYTES: Final = 200 * 1024 * 1024
-MIN_USABLE_CHARS: Final = 25
-_PAGE_BREAK: Final = re.compile(r"page-break-(?:before|after)\s*:\s*always", re.IGNORECASE)
-_BLOCK_TAGS: Final = {
+class ParseError(ValueError):
+    """The file cannot be turned into searchable text. The message is shown to the uploader."""
+
+
+@dataclass
+class Block:
+    text: str
+    page: int | None = None
+    heading: bool = False
+
+
+@dataclass
+class ParsedDocument:
+    blocks: list[Block]
+    page_count: int | None = None
+    title: str | None = None
+    pages_without_text: list[int] = field(default_factory=list)
+
+
+def clean(text: str) -> str:
+    return _WS.sub(" ", text.replace("\u00ad", "")).strip()
+
+
+FILE_TYPES = {
+    ".pdf": "pdf",
+    ".docx": "docx",
+    ".html": "html",
+    ".htm": "html",
+    ".xml": "xml",
+    ".txt": "txt",
+    ".md": "txt",
+}
+
+
+def detect_type(filename: str, data: bytes) -> str:
+    """File type from the extension, confirmed by magic bytes (blueprint 11.1 step 3)."""
+    ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    kind = FILE_TYPES.get(ext)
+    if kind is None:
+        raise ParseError("Unsupported file type. Upload PDF, DOCX, HTML, XML, TXT or MD.")
+    head = data[:1024].lstrip()
+    if kind == "pdf" and not data.startswith(b"%PDF-"):
+        raise ParseError("The file is not a valid PDF.")
+    if kind == "docx" and not data.startswith(b"PK"):
+        raise ParseError("The file is not a valid DOCX.")
+    if kind in {"txt", "html", "xml"}:
+        if b"\x00" in data[:4096]:
+            raise ParseError("The file looks binary, not text.")
+        if kind == "xml" and not head.startswith(b"<"):
+            raise ParseError("The file is not valid XML.")
+    return kind
+
+
+def parse(kind: str, data: bytes) -> ParsedDocument:
+    parser = {"pdf": parse_pdf, "docx": parse_docx, "html": parse_html, "xml": parse_xml, "txt": parse_text}
+    doc = parser[kind](data)
+    doc.blocks = [b for b in doc.blocks if b.text]
+    if not doc.blocks:
+        if kind == "pdf":
+            raise ParseError("This PDF has no text layer (scanned). OCR is not available yet.")
+        raise ParseError("No text found in the file.")
+    return doc
+
+
+# ---------------------------------------------------------------------------- text and markdown
+def _decode(data: bytes) -> str:
+    for enc in ("utf-8-sig", "cp1252"):
+        try:
+            return data.decode(enc)
+        except UnicodeDecodeError:
+            continue
+    return data.decode("utf-8", errors="replace")
+
+
+def parse_text(data: bytes) -> ParsedDocument:
+    blocks: list[Block] = []
+    for para in re.split(r"\n\s*\n", _decode(data)):
+        stripped = para.strip()
+        if not stripped:
+            continue
+        md = re.match(r"^#{1,6}\s+(.+)$", stripped)
+        if md and "\n" not in stripped:
+            blocks.append(Block(clean(md.group(1)), heading=True))
+        else:
+            blocks.append(Block(clean(stripped)))
+    return ParsedDocument(blocks=blocks)
+
+
+# ---------------------------------------------------------------------------- PDF
+def parse_pdf(data: bytes) -> ParsedDocument:
+    from pypdf import PdfReader
+    from pypdf.errors import PdfReadError
+
+    try:
+        reader = PdfReader(io.BytesIO(data))
+        if reader.is_encrypted:
+            raise ParseError("The PDF is password-protected.")
+        pages = list(reader.pages)
+    except PdfReadError as exc:
+        raise ParseError("The PDF could not be read.") from exc
+    if len(pages) > 2000:
+        raise ParseError("The PDF has more than 2,000 pages.")
+    title = None
+    try:
+        meta_title = reader.metadata.title if reader.metadata else None
+        title = clean(str(meta_title)) if meta_title else None
+    except PdfReadError, ValueError, TypeError:
+        title = None
+    blocks: list[Block] = []
+    empty: list[int] = []
+    for number, page in enumerate(pages, start=1):
+        try:
+            text = page.extract_text() or ""
+        except PdfReadError, ValueError, KeyError, TypeError:
+            text = ""
+        if len(text.strip()) < 20:
+            empty.append(number)
+            continue
+        blocks.extend(Block(p, page=number) for p in _pdf_paragraphs(text))
+    return ParsedDocument(blocks=blocks, page_count=len(pages), title=title, pages_without_text=empty)
+
+
+def _pdf_paragraphs(text: str) -> list[str]:
+    """Rejoin PDF lines into paragraphs: break on blank lines, headings, or a short line ending a sentence."""
+    lines = [ln.rstrip() for ln in text.splitlines()]
+    widths = sorted(len(ln) for ln in lines if ln.strip())
+    typical = widths[int(len(widths) * 0.8)] if widths else 80
+    paras: list[str] = []
+    current: list[str] = []
+
+    def flush() -> None:
+        if current:
+            paras.append(clean(" ".join(current)))
+            current.clear()
+
+    for line in lines:
+        s = line.strip()
+        if not s:
+            flush()
+            continue
+        if looks_like_heading(s):
+            flush()
+            paras.append(clean(s))
+            continue
+        current.append(s)
+        if s[-1:] in ".:;?!" and len(s) < 0.75 * typical:
+            flush()
+    flush()
+    return [p for p in paras if p]
+
+
+# ---------------------------------------------------------------------------- DOCX
+def parse_docx(data: bytes) -> ParsedDocument:
+    import docx
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
+
+    try:
+        document = docx.Document(io.BytesIO(data))
+    except (zipfile.BadZipFile, KeyError, ValueError) as exc:
+        raise ParseError("The DOCX could not be read.") from exc
+    blocks: list[Block] = []
+    for item in document.iter_inner_content():
+        if isinstance(item, Paragraph):
+            text = clean(item.text)
+            style = (item.style.name if item.style is not None else "") or ""
+            blocks.append(Block(text, heading=style.startswith(("Heading", "Title"))))
+        elif isinstance(item, Table):
+            for row in item.rows:
+                cells: list[str] = []
+                for cell in row.cells:
+                    value = clean(cell.text)
+                    if value and (not cells or cells[-1] != value):
+                        cells.append(value)
+                if cells:
+                    blocks.append(Block(" | ".join(cells)))
+    title = clean(document.core_properties.title or "") or None
+    return ParsedDocument(blocks=blocks, title=title)
+
+
+# ---------------------------------------------------------------------------- HTML
+_BLOCK_TAGS = {
     "p",
     "div",
+    "br",
     "li",
+    "tr",
+    "table",
+    "section",
+    "article",
+    "blockquote",
+    "pre",
+    "ul",
+    "ol",
+    "dd",
+    "dt",
     "h1",
     "h2",
     "h3",
     "h4",
     "h5",
     "h6",
-    "blockquote",
-    "pre",
+    "header",
+    "footer",
     "center",
+    "hr",
 }
-_SPL_CODES: Final = {
-    "34067-9": "Indications and usage",
-    "34068-7": "Dosage and administration",
-    "34070-3": "Contraindications",
-    "34071-1": "Warnings",
-    "43685-7": "Warnings and precautions",
-    "34084-4": "Adverse reactions",
-    "34073-7": "Drug interactions",
-    "34090-1": "Clinical pharmacology",
-}
+_SKIP_TAGS = {"script", "style", "head", "noscript", "template", "svg"}
 
 
-class UnsupportedFormatError(ValueError):
-    """The bytes do not match the declared type, or the type is not supported."""
-
-
-def detect_format(data: bytes, declared: str) -> str:
-    """Verify magic bytes against the declared type and return the canonical format name."""
-    if len(data) > MAX_BYTES:
-        msg = "file exceeds the size limit"
-        raise UnsupportedFormatError(msg)
-    head = data[:2048].lstrip()
-    declared = declared.lower().lstrip(".")
-    if data[:5] == b"%PDF-":
-        found = "pdf"
-    elif data[:4] == b"PK\x03\x04" and zipfile.is_zipfile(io.BytesIO(data)):
-        with zipfile.ZipFile(io.BytesIO(data)) as z:
-            found = "docx" if "word/document.xml" in z.namelist() else "zip"
-    elif head.startswith((b"<?xml", b"<article", b"<document", b"<ECFR", b"<DIV")) or (
-        head[:9].lower() == b"<!doctype" and b"html" not in head[:30].lower()
-    ):
-        found = "xml"  # JATS opens with <!DOCTYPE article PUBLIC ...>; the DTD is never loaded
-    elif b"<html" in data[:4096].lower() or head.lower().startswith(b"<!doctype html"):
-        found = "html"  # includes the SEC EDGAR <DOCUMENT><TEXT><HTML> submission wrapper
-    elif b"\x00" not in data[:4096]:
-        found = "txt"
-    else:
-        found = "binary"
-    allowed = {
-        "pdf": {"pdf"},
-        "docx": {"docx"},
-        "xml": {"xml", "jats", "spl", "ecfr"},
-        "html": {"html", "htm"},
-        "txt": {"txt", "text", "md"},
-    }
-    if found not in allowed or declared not in allowed[found]:
-        msg = f"content looks like {found!r} but the declared type is {declared!r}"
-        raise UnsupportedFormatError(msg)
-    return found
-
-
-# ---------------------------------------------------------------- shared builder
-class _Builder:
-    """Accumulates one page's text and the blocks inside it."""
-
+class _HTMLText(HTMLParser):
     def __init__(self) -> None:
-        self.pages: list[PageText] = []
+        super().__init__(convert_charrefs=True)
         self.blocks: list[Block] = []
-        self._text: list[str] = []
-        self._len = 0
-        self._page_blocks: list[
-            tuple[int, int, str, int, int | None, str, str | None, str | None]
-        ] = []
+        self.title: str | None = None
+        self._buf: list[str] = []
+        self._skip = 0
+        self._heading = 0
+        self._in_title = False
+        self._cell = False
 
-    def add(  # noqa: PLR0913 - a block genuinely has this many structural attributes
-        self,
-        text: str,
-        kind: str = "paragraph",
-        *,
-        level: int = 0,
-        table_id: int | None = None,
-        section_path: str = "",
-        clause_no: str | None = None,
-        heading: str | None = None,
-    ) -> None:
-        text = text.strip()
-        if not text:
+    def _flush(self) -> None:
+        text = clean("".join(self._buf))
+        self._buf.clear()
+        if text:
+            self.blocks.append(Block(text, heading=self._heading > 0))
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "title":
+            self._in_title = True
+        if tag in _SKIP_TAGS:
+            self._skip += 1
             return
-        start = self._len
-        self._text.append(text)
-        self._len += len(text)
-        self._page_blocks.append(
-            (start, self._len, kind, level, table_id, section_path, clause_no, heading)
-        )
-        self._text.append("\n")
-        self._len += 1
+        if tag in {"td", "th"}:
+            if self._cell:
+                self._buf.append(" | ")
+            self._cell = True
+        if tag in _BLOCK_TAGS:
+            self._flush()
+            if tag == "tr":
+                self._cell = False
+        if tag in {"h1", "h2", "h3", "h4", "h5", "h6"}:
+            self._heading += 1
 
-    def end_page(self, *, extraction: str = "structured", force: bool = False) -> None:
-        if not self._page_blocks and not force:
-            return  # a page break with nothing before it does not create an empty page
-        number = len(self.pages) + 1
-        self.pages.append(PageText(number, "".join(self._text), extraction))
-        for s, e, kind, level, table_id, path, clause, heading in self._page_blocks:
-            self.blocks.append(Block(number, s, e, kind, level, table_id, path, clause, heading))
-        self._text, self._len, self._page_blocks = [], 0, []
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "title":
+            self._in_title = False
+        if tag in _SKIP_TAGS:
+            self._skip = max(0, self._skip - 1)
+            return
+        if tag in _BLOCK_TAGS:
+            self._flush()
+        if tag in {"h1", "h2", "h3", "h4", "h5", "h6"}:
+            self._heading = max(0, self._heading - 1)
 
-    def build(self, fmt: str, domain: str) -> ParsedDocument:
-        if self._page_blocks:
-            self.end_page()
-        detected = any(b.kind == "heading" for b in self.blocks)
-        return ParsedDocument(
-            tuple(self.pages),
-            tuple(self.blocks),
-            fmt,
-            "detected" if detected else "fallback",
-            domain,
-        )
+    def handle_data(self, data: str) -> None:
+        if self._in_title:
+            self.title = clean((self.title or "") + " " + data) or None
+        if self._skip:
+            return
+        self._buf.append(data)
 
-
-def _line_blocks(builder: _Builder, lines: list[str], path_stack: list[str]) -> None:
-    """Classify each line as heading or body; grouping into units is the chunker's job."""
-    for line in lines:
-        cls = classify_line(line)
-        if cls is None:
-            builder.add(line, "paragraph", section_path=" > ".join(path_stack))
-            continue
-        del path_stack[cls.level :]
-        path_stack.append(cls.label)
-        builder.add(
-            line,
-            "heading",
-            level=cls.level,
-            section_path=" > ".join(path_stack),
-            clause_no=cls.number,
-            heading=cls.title,
-        )
-
-
-# ---------------------------------------------------------------- PDF
-def parse_pdf(data: bytes) -> ParsedDocument:
-    """Use the text layer per page; a page without usable text is flagged for OCR review."""
-    pdf = pdfium.PdfDocument(data)
-    try:
-        if len(pdf) > MAX_PAGES:
-            msg = "page limit exceeded"
-            raise UnsupportedFormatError(msg)
-        builder, stack = _Builder(), []
-        for index in range(len(pdf)):
-            textpage = pdf[index].get_textpage()
-            raw = textpage.get_text_range()
-            textpage.close()
-            lines = [ln.strip() for ln in raw.replace("\r", "\n").split("\n") if ln.strip()]
-            usable = sum(len(ln) for ln in lines) >= MIN_USABLE_CHARS
-            if usable:
-                _line_blocks(builder, lines, stack)
-            builder.end_page(extraction="text_layer" if usable else "none", force=True)
-        return builder.build("pdf", "legal")
-    finally:
-        pdf.close()
-
-
-# ---------------------------------------------------------------- HTML
-def _text_of(el: HtmlElement) -> str:
-    return " ".join(" ".join(el.itertext()).split())
-
-
-def _walk_html(el: HtmlElement, builder: _Builder, stack: list[str], tables: list[int]) -> None:
-    style = (el.get("style") or "").lower()
-    forced = bool(_PAGE_BREAK.search(style))
-    if forced and "before" in style:
-        builder.end_page()
-    if el.tag == "table":
-        tables.append(len(tables))
-        for row in el.iter("tr"):
-            cells = [t for t in (_text_of(c) for c in row if c.tag in {"td", "th"}) if t]
-            if cells:
-                builder.add(
-                    " | ".join(cells),
-                    "table_row",
-                    table_id=tables[-1],
-                    section_path=" > ".join(stack),
-                )
-    else:
-        has_block_children = any(
-            isinstance(c.tag, str) and (c.tag in _BLOCK_TAGS or c.tag == "table") for c in el
-        )
-        if el.tag in _BLOCK_TAGS and not has_block_children:
-            _line_blocks(builder, [_text_of(el)], stack)
-        else:
-            if el.tag in _BLOCK_TAGS and el.text and el.text.strip():
-                _line_blocks(builder, [" ".join(el.text.split())], stack)
-            for child in el:
-                if isinstance(child.tag, str):
-                    _walk_html(child, builder, stack, tables)
-    if forced and "after" in style:
-        builder.end_page()
+    def close(self) -> None:
+        super().close()
+        self._flush()
 
 
 def parse_html(data: bytes) -> ParsedDocument:
-    """Sanitized HTML (scripts, styles and active content removed before text extraction)."""
-    root = html.fromstring(data)
-    unwanted = cast(
-        "list[HtmlElement]", root.xpath("//script|//style|//iframe|//object|//embed|//form")
-    )
-    for bad in unwanted:
-        parent = bad.getparent()
-        if parent is not None:
-            parent.remove(bad)
-    builder = _Builder()
-    _walk_html(root, builder, [], [])
-    return builder.build("html", "legal")
+    parser = _HTMLText()
+    parser.feed(_decode(data))
+    parser.close()
+    return ParsedDocument(blocks=parser.blocks, title=parser.title)
 
 
-# ---------------------------------------------------------------- plain text and DOCX
-def parse_text(data: bytes) -> ParsedDocument:
-    """UTF-8 text; pages are not defined, so the whole text is one page."""
-    builder, stack = _Builder(), []
-    _line_blocks(
-        builder,
-        [ln.strip() for ln in data.decode("utf-8", errors="replace").splitlines() if ln.strip()],
-        stack,
-    )
-    return builder.build("txt", "legal")
-
-
-def parse_docx(data: bytes) -> ParsedDocument:
-    """DOCX through python-docx: heading styles become headings, table rows stay together."""
-    import docx  # noqa: PLC0415 - optional heavy import
-
-    document = docx.Document(io.BytesIO(data))
-    builder, stack, table_no = _Builder(), [], 0
-    body = cast("Any", document.element).body  # python-docx types the body loosely
-    paragraphs = {p._p: p for p in document.paragraphs}  # noqa: SLF001
-    tables = {t._tbl: t for t in document.tables}  # noqa: SLF001
-    for child in body.iterchildren():
-        if child in paragraphs:
-            p = paragraphs[child]
-            style = (p.style.name or "").lower() if p.style is not None else ""
-            if style.startswith("heading"):
-                level = int(re.sub(r"\D", "", style) or 1) - 1
-                del stack[level:]
-                stack.append(p.text.strip())
-                builder.add(
-                    p.text,
-                    "heading",
-                    level=level,
-                    section_path=" > ".join(stack),
-                    heading=p.text.strip(),
-                )
-            elif p.text.strip():
-                _line_blocks(builder, [p.text], stack)
-        elif child in tables:
-            table_no += 1
-            for row in tables[child].rows:
-                cells = [c.text.strip() for c in row.cells if c.text.strip()]
-                if cells:
-                    builder.add(
-                        " | ".join(cells),
-                        "table_row",
-                        table_id=table_no,
-                        section_path=" > ".join(stack),
-                    )
-    return builder.build("docx", "legal")
-
-
-# XML parsers: JATS articles, SPL drug labels and eCFR sections
-def _xml_text(el: etree._Element) -> str:
-    return " ".join(" ".join(str(t) for t in el.itertext()).split())
+# ---------------------------------------------------------------------------- XML (JATS, SPL, eCFR)
+_XML_HEADING = {"article-title", "title", "head", "hed", "subject"}
+_XML_LEAF = {"p", "paragraph", "item", "li", "caption", "tr", "fp", "td", "list-item", "def", "term", "label"}
+_XML_SKIP = {
+    "ref-list",
+    "contrib-group",
+    "aff",
+    "author-notes",
+    "permissions",
+    "history",
+    "funding-group",
+    "kwd-group",
+    "counts",
+    "journal-meta",
+    "pub-date",
+    "article-id",
+    "custom-meta-group",
+    "object-id",
+    "fn-group",
+    "author",
+    "representedorganization",
+    "manufacturedproduct",
+    "code",
+    "id",
+    "effectivetime",
+    "setid",
+    "versionnumber",
+    "xref",
+    "ext-link",
+    "uri",
+    "cfrtoc",
+    "auth",
+    "source",
+    "edno",
+    "fr",
+}
 
 
 def _local(tag: object) -> str:
-    return etree.QName(tag).localname if isinstance(tag, str) else ""
+    return str(tag).rsplit("}", 1)[-1].lower() if isinstance(tag, str) else ""
 
 
 def parse_xml(data: bytes) -> ParsedDocument:
-    """JATS articles, SPL drug labels and eCFR sections (the root element decides)."""
-    parser = etree.XMLParser(
-        resolve_entities=False, no_network=True, huge_tree=False, recover=False
-    )
-    root = etree.fromstring(data, parser)
-    name = _local(root.tag)
-    if name == "article":
-        return _parse_jats(root)
-    if name == "document":
-        return _parse_spl(root)
-    return _parse_ecfr(root)
+    try:
+        root = SafeET.fromstring(data)
+    except (SafeET.ParseError, DefusedXmlException) as exc:
+        raise ParseError("The XML could not be parsed safely.") from exc
+    blocks: list[Block] = []
+    title: str | None = None
+
+    def text_of(el: Element) -> str:
+        parts: list[str] = []
+        for node in el.iter():
+            if _local(node.tag) in _XML_SKIP and node is not el:
+                continue
+            if node.text:
+                parts.append(node.text)
+            if node.tail and node is not el:
+                parts.append(node.tail)
+        return clean(" ".join(parts))
+
+    def walk(el: Element) -> None:
+        nonlocal title
+        tag = _local(el.tag)
+        if tag in _XML_SKIP:
+            return
+        if tag in _XML_HEADING:
+            text = text_of(el)
+            if text:
+                if title is None and tag in {"article-title", "title"}:
+                    title = text
+                blocks.append(Block(text, heading=True))
+            return
+        if tag in _XML_LEAF:
+            if tag == "tr":
+                cells = [text_of(c) for c in el if _local(c.tag) in {"td", "th"}]
+                text = " | ".join(c for c in cells if c)
+            else:
+                text = text_of(el)
+            if text:
+                blocks.append(Block(text))
+            return
+        for child in el:
+            walk(child)
+
+    walk(root)
+    return ParsedDocument(blocks=blocks, title=title)
 
 
-def _table_rows(builder: _Builder, table: etree._Element, number: int, path: str) -> None:
-    for row in table.iter():
-        if _local(row.tag) == "tr":
-            cells = [t for t in (_xml_text(c) for c in row if _local(c.tag) in {"td", "th"}) if t]
-            if cells:
-                builder.add(" | ".join(cells), "table_row", table_id=number, section_path=path)
+# ---------------------------------------------------------------------------- heading heuristics
+_CLAUSE = re.compile(
+    r"^(?:(?:ARTICLE|Article|SECTION|Section|SCHEDULE|Schedule|EXHIBIT|Exhibit|PART|Part)\s+[\dIVXLC]+[A-Za-z]?"
+    r"(?:\.\d+)*|§+\s*\d+(?:\.\d+)*|\d{1,2}(?:\.\d{1,2}){0,3}\.?)\s+\S"
+)
+_MEDICAL = re.compile(
+    r"^(?:Subjective|Objective|Assessment|Plan|History of Present Illness|HPI|Medications|Allergies|"
+    r"Impression|Diagnosis|Findings|Chief Complaint|Physical Exam(?:ination)?|Past Medical History)\s*:?\s*$",
+    re.IGNORECASE,
+)
 
 
-def _walk_jats_section(
-    builder: _Builder, tables: list[int], sec: etree._Element, stack: list[str]
-) -> None:
-    heading = sec.find("title")
-    label = _xml_text(heading) if heading is not None else ""
-    here = [*stack, label] if label else stack
-    path = " > ".join(here)
-    if label:
-        builder.add(label, "heading", level=len(here) - 1, section_path=path, heading=label)
-    for child in sec:
-        tag = _local(child.tag)
-        if tag == "p":
-            builder.add(_xml_text(child), "paragraph", section_path=path)
-        elif tag == "sec":
-            _walk_jats_section(builder, tables, child, here)
-        elif tag == "table-wrap":
-            tables[0] += 1
-            for table in child.iter("table"):
-                _table_rows(builder, table, tables[0], path)
+def looks_like_heading(line: str) -> bool:
+    s = line.strip()
+    if not s or len(s) > 90:
+        return False
+    if _MEDICAL.match(s):
+        return True
+    letters = [c for c in s if c.isalpha()]
+    if len(letters) >= 4 and sum(c.isupper() for c in letters) / len(letters) > 0.85 and len(s.split()) <= 12:
+        return not s.endswith((",", ";"))
+    return bool(_CLAUSE.match(s)) and len(s) <= 70 and not s.rstrip().endswith((",", ";"))
 
 
-def _parse_jats(root: etree._Element) -> ParsedDocument:
-    builder, tables = _Builder(), [0]
-    title = root.find(".//article-title")
-    if title is not None:
-        builder.add(
-            _xml_text(title),
-            "heading",
-            level=0,
-            section_path=_xml_text(title),
-            heading=_xml_text(title),
-        )
-    abstract = root.find(".//abstract")
-    if abstract is not None:
-        for p in abstract.iter("p"):
-            builder.add(_xml_text(p), "paragraph", section_path="Abstract")
-    body = root.find(".//body")
-    if body is not None:
-        for sec in body.findall("sec"):
-            _walk_jats_section(builder, tables, sec, [])
-    return builder.build("jats", "medical")
-
-
-def _parse_spl(root: etree._Element) -> ParsedDocument:
-    ns = {"h": "urn:hl7-org:v3"}
-    builder, tables = _Builder(), [0]
-    title = root.find("h:title", ns)
-    if title is not None:
-        builder.add(_xml_text(title), "paragraph", section_path="Label")
-    for section in root.iterfind(".//h:component/h:section", ns):
-        code = section.find("h:code", ns)
-        code_value = code.get("code") if code is not None else None
-        sec_title = section.find("h:title", ns)
-        label = (
-            _xml_text(sec_title)
-            if sec_title is not None
-            else (_SPL_CODES.get(code_value or "", "") or "")
-        )
-        if not label:
-            continue
-        path = f"{label} [{code_value}]" if code_value else label
-        builder.add(
-            label, "heading", level=0, section_path=path, clause_no=code_value, heading=label
-        )
-        text = section.find("h:text", ns)
-        if text is None:
-            continue
-        for child in text:
-            tag = _local(child.tag)
-            if tag == "table":
-                tables[0] += 1
-                _table_rows(builder, child, tables[0], path)
-            elif _xml_text(child):
-                builder.add(_xml_text(child), "paragraph", section_path=path)
-    return builder.build("spl", "medical")
-
-
-def _parse_ecfr(root: etree._Element) -> ParsedDocument:
-    builder = _Builder()
-    for div in root.iter():
-        if _local(div.tag).startswith("DIV") and div.get("TYPE") == "SECTION":
-            number = (div.get("N") or "").strip()
-            head = div.find("HEAD")
-            title = _xml_text(head) if head is not None else number
-            path = title
-            builder.add(
-                title, "heading", level=0, section_path=path, clause_no=number, heading=title
-            )
-            for p in div.iter("P"):
-                builder.add(_xml_text(p), "paragraph", section_path=path, clause_no=number)
-    return builder.build("ecfr", "legal")
-
-
-def parse(data: bytes, declared: str) -> ParsedDocument:
-    """Verify the type, then parse. The caller handles scanning and size limits first."""
-    kind = detect_format(data, declared)
-    if kind == "pdf":
-        return parse_pdf(data)
-    if kind == "html":
-        return parse_html(data)
-    if kind == "xml":
-        return parse_xml(data)
-    if kind == "docx":
-        return parse_docx(data)
-    return parse_text(data)
+def clause_label(text: str) -> str | None:
+    """A paragraph that opens a numbered clause ("Section 4.2 Termination. ...") names its section."""
+    m = _CLAUSE.match(text)
+    if not m:
+        return None
+    head = re.split(r"(?<=[a-z\)])\.\s|:\s", text, maxsplit=1)[0]
+    return head[:100].strip() or None

@@ -1,19 +1,5 @@
-"""Scoped database access, boot self-test and bootstrap helpers."""
+"""Database access. `Database.scoped()` is the only way to read content (blueprint 10.3)."""
 
-from lmqa_db.bootstrap import LOGIN_ROLES, bootstrap_database, set_role_passwords
-from lmqa_db.context import ContextRole, DbContext, MissingContextError
-from lmqa_db.selftest import SelfTestError, boot_self_test
-from lmqa_db.session import Database, to_async_url
+from lmqa_db.database import Database, Row, Scope
 
-__all__ = [
-    "LOGIN_ROLES",
-    "ContextRole",
-    "Database",
-    "DbContext",
-    "MissingContextError",
-    "SelfTestError",
-    "boot_self_test",
-    "bootstrap_database",
-    "set_role_passwords",
-    "to_async_url",
-]
+__all__ = ["Database", "Row", "Scope"]
