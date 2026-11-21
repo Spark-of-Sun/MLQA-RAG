@@ -1,11 +1,9 @@
 [project]
-name = "lmqa_models"
+name = "lmqa-models"
 version = "0.1.0"
-description = "lmqa_models package"
+description = "Shared models: settings, principal, RAG types, contract loaders (authz matrix, state machines)."
 requires-python = ">=3.14"
-dependencies = [
-    "pydantic>=2.10.0",
-]
+dependencies = ["pyyaml>=6.0.3"]
 
 [build-system]
 requires = ["hatchling"]

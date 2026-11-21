@@ -1,27 +1,46 @@
-# contracts/authz-matrix.yaml
-# Role × Route × Step-Up Authorization Matrix
-
-roles:
-  - super_admin
-  - admin
-  - legal_reviewer
-  - medical_reviewer
-  - member
-  - auditor
-  - operator
-
+# Role x route allow-list (blueprint 5.2, 5.3, 15, 17.1). The gateway builds its route guard from this file and
+# refuses to start if a route exists in code but not here, or here but not in code (G3.6 drift check).
+#
+# roles:
+#   authenticated  any valid Auth0 user, with or without a membership (onboarding)
+#   super_admin    organization owner: control plane only, never documents or questions
+#   admin          one workspace: manages its tenants, uploads, asks
+#   tenant         member of one workspace
+# A role not listed for a route gets 404, so the route's existence is not revealed. Listed roles whose
+# membership is pending or suspended get 403 `membership_not_active`.
+version: 1
 routes:
-  - path: /v1/documents
-    methods:
-      GET: [super_admin, admin, legal_reviewer, medical_reviewer, member, auditor]
-      POST: [super_admin, admin]
-  - path: /v1/query
-    methods:
-      POST: [super_admin, admin, legal_reviewer, medical_reviewer, member]
-  - path: /v1/audit
-    methods:
-      GET: [super_admin, auditor]
-  - path: /v1/walls
-    methods:
-      GET: [super_admin, admin]
-      POST: [super_admin]
+  - { method: GET,    path: /v1/health,                               roles: [public] }
+  - { method: GET,    path: /v1/me,                                   roles: [authenticated] }
+
+  # onboarding (blueprint 7)
+  - { method: POST,   path: /v1/onboarding/organization,              roles: [authenticated] }
+  - { method: POST,   path: /v1/onboarding/join-admin,                roles: [authenticated] }
+  - { method: POST,   path: /v1/onboarding/preview-tenant,            roles: [authenticated] }
+  - { method: POST,   path: /v1/onboarding/join-tenant,               roles: [authenticated] }
+  - { method: DELETE, path: /v1/onboarding/request,                   roles: [authenticated] }
+
+  # Super Admin: Manage Admins and the Organization Code
+  - { method: GET,    path: /v1/org/admins,                           roles: [super_admin] }
+  - { method: POST,   path: "/v1/org/admins/{membership_id}/{action}", roles: [super_admin] }
+  - { method: GET,    path: /v1/org/code,                             roles: [super_admin] }
+  - { method: POST,   path: /v1/org/code,                             roles: [super_admin] }
+
+  # Admin: Manage Tenants and the Admin Code
+  - { method: GET,    path: /v1/workspace/members,                    roles: [admin] }
+  - { method: POST,   path: "/v1/workspace/members/{membership_id}/{action}", roles: [admin] }
+  - { method: GET,    path: /v1/workspace/code,                       roles: [admin] }
+  - { method: POST,   path: /v1/workspace/code,                       roles: [admin] }
+
+  # Documents and questions: data plane, no route for the Super Admin (blueprint 5.3)
+  - { method: GET,    path: /v1/documents,                            roles: [admin, tenant] }
+  - { method: POST,   path: /v1/documents,                            roles: [admin, tenant] }
+  - { method: GET,    path: "/v1/documents/{doc_id}",                 roles: [admin, tenant] }
+  - { method: DELETE, path: "/v1/documents/{doc_id}",                 roles: [admin, tenant] }
+  - { method: POST,   path: /v1/queries,                              roles: [admin, tenant] }
+  - { method: GET,    path: /v1/queries,                              roles: [admin, tenant] }
+  - { method: GET,    path: "/v1/queries/{query_id}",                 roles: [admin, tenant] }
+
+  # Audit: content scoped by role (org-level / workspace / own)
+  - { method: GET,    path: /v1/audit,                                roles: [super_admin, admin, tenant] }
+  - { method: GET,    path: /v1/audit/verify,                         roles: [super_admin, admin] }

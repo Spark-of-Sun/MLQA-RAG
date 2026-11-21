@@ -1,143 +1,36 @@
+# uv workspace root (blueprint 18): one lockfile, src/ layout per package, shared ruff config.
 [project]
 name = "legal-medical-qa"
 version = "0.1.0"
-description = "Multi-tenant legal and medical document Q&A system"
+description = "Cited, verified question answering over legal and medical documents (MVP)."
 requires-python = ">=3.14"
-dependencies = [
-    "lmqa-models",
-    "lmqa-auth",
-    "lmqa-db",
-    "lmqa-keys",
-    "lmqa-security",
-    "lmqa-vectorstore",
-    "lmqa-objectstore",
-    "lmqa-audit",
-    "lmqa-logging",
-    "lmqa-telemetry",
-    "lmqa-testing",
-    "lmqa-release",
-    "gateway",
-    "identity",
-    "ingestion",
-    "retrieval",
-    "generation",
-    "citation-validator",
-    "audit",
-    "ops",
-]
-
-[tool.uv.workspace]
-members = [
-    "libs/*",
-    "services/*",
-]
-
-[tool.uv.sources]
-lmqa-models = { workspace = true }
-lmqa-auth = { workspace = true }
-lmqa-db = { workspace = true }
-lmqa-keys = { workspace = true }
-lmqa-security = { workspace = true }
-lmqa-vectorstore = { workspace = true }
-lmqa-objectstore = { workspace = true }
-lmqa-audit = { workspace = true }
-lmqa-logging = { workspace = true }
-lmqa-telemetry = { workspace = true }
-lmqa-testing = { workspace = true }
-lmqa-release = { workspace = true }
-gateway = { workspace = true }
-identity = { workspace = true }
-ingestion = { workspace = true }
-retrieval = { workspace = true }
-generation = { workspace = true }
-citation-validator = { workspace = true }
-audit = { workspace = true }
-ops = { workspace = true }
+dependencies = ["gateway"]
 
 [dependency-groups]
-dev = [
-    "pytest>=9.1.0",
-    "pytest-asyncio>=0.25.0",
-    "pytest-randomly>=3.16.0",
-    "pytest-timeout>=2.3.1",
-    "ruff>=0.16.0",
-    "pyright>=1.1.390",
-    "import-linter>=2.2",
-    "pip-audit>=2.8.0",
-    "asyncpg-stubs>=0.32.0",
-]
+dev = ["ruff>=0.17"]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["libs/*", "services/*"]
+
+[tool.uv.sources]
+gateway = { workspace = true }
 
 [tool.ruff]
+line-length = 120
 target-version = "py314"
-line-length = 100
-extend-exclude = ["db/migrations/versions", "corpus/data"]
 
 [tool.ruff.lint]
-select = ["ALL"]
-ignore = [
-    "COM812", "ISC001",      # conflict with the formatter
-    "D203", "D213",          # conflicting docstring styles
-    "CPY", "FIX", "TD",      # policies handled in review
-]
-
-[tool.ruff.lint.flake8-type-checking]
-runtime-evaluated-base-classes = ["pydantic.BaseModel"]
-
-[tool.ruff.lint.pydocstyle]
-convention = "google"
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "TID"]
+ignore = ["S101", "S311", "S608", "RUF001", "RUF002", "RUF003"]
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
-"unittest.mock".msg = "R2: use real systems"
-"pytest_mock".msg = "R2: use real systems"
-"respx".msg = "R2: use real systems"
-"responses".msg = "R2: use real systems"
-"faker".msg = "R1: no fake data"
-"factory".msg = "R1: no fake data"
-"freezegun".msg = "R7: time acceleration through configuration only"
-"pydantic.v1".msg = "Pydantic v2 only"
-"sqlalchemy.create_engine".msg = "use lmqa_db scoped session"
-"psycopg.connect".msg = "use lmqa_db scoped session"
+"unittest.mock".msg = "No mocks (blueprint 19.1): verify against real PostgreSQL, real documents and real Gemini."
 
-[tool.ruff.lint.per-file-ignores]
-"**/tests/**" = ["S101", "PLR2004", "ANN", "D", "S105", "S106", "ASYNC240"]
-"db/migrations/**" = ["E501", "D"]
-"libs/lmqa_db/**" = ["TID251"]
-"tools/**" = ["T201", "S603", "S607", "ASYNC240"]
-"eval/**" = ["T201", "S603", "S607", "ASYNC240", "PLR0912", "PLR0915", "C901", "PLR2004"]
-
-[tool.pytest.ini_options]
-minversion = "9.1"
-addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
-pythonpath = ["."]
-xfail_strict = true
-asyncio_mode = "strict"
-timeout = 180
-filterwarnings = ["error"]
-markers = [
-    "unit", "integration", "contract", "e2e", "isolation", "perf", "chaos",
-    "live_auth0", "live_kms", "live_llm", "control",
-    "stage0", "stage1", "stage2", "stage3", "stage4", "stage5", "stage6",
-    "stage7", "stage8", "stage9", "stage10", "stage11",
-]
-
-[tool.pyright]
-pythonVersion = "3.14"
-typeCheckingMode = "standard"
-include = ["libs", "services", "tools"]
-strict = [
-    "libs/lmqa_models",
-    "libs/lmqa_auth",
-    "libs/lmqa_db",
-    "libs/lmqa_keys",
-    "libs/lmqa_security",
-    "libs/lmqa_vectorstore",
-    "libs/lmqa_objectstore",
-    "libs/lmqa_audit",
-    "libs/lmqa_logging",
-    "libs/lmqa_telemetry",
-    "libs/lmqa_testing",
-    "libs/lmqa_release",
-    "services/gateway",
-    "services/identity",
-    "services/citation_validator",
+[tool.ruff.lint.isort]
+known-first-party = [
+    "lmqa_models", "lmqa_db", "lmqa_audit", "lmqa_auth", "lmqa_security", "lmqa_vectorstore", "lmqa_objectstore",
+    "gateway", "identity", "ingestion", "retrieval", "generation", "citation_validator", "audit",
 ]

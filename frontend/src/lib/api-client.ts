@@ -1,51 +1,52 @@
-/**
- * Gateway API client wrapper for Next.js BFF handlers.
- * Implements Master System Design §17.3.
- */
+"use client";
 
-const GATEWAY_URL = process.env.GATEWAY_URL || "http://localhost:8000";
-
-export interface GatewayClientOptions {
-  accessToken?: string;
-  contextToken?: string;
-}
-
-export class GatewayClient {
-  private baseUrl: string;
-
-  constructor(baseUrl: string = GATEWAY_URL) {
-    this.baseUrl = baseUrl.replace(/\/$/, "");
-  }
-
-  async fetch(
-    path: string,
-    options: RequestInit = {},
-    clientOptions: GatewayClientOptions = {},
-  ): Promise<Response> {
-    const headers = new Headers(options.headers);
-    headers.set("Content-Type", "application/json");
-
-    if (clientOptions.accessToken) {
-      headers.set("Authorization", `Bearer ${clientOptions.accessToken}`);
-    }
-    if (clientOptions.contextToken) {
-      headers.set("X-Context-Token", clientOptions.contextToken);
-    }
-
-    const url = `${this.baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
-    return globalThis.fetch(url, {
-      ...options,
-      headers,
-    });
-  }
-
-  async getHealth(): Promise<{ status: string }> {
-    const res = await this.fetch("/healthz");
-    if (!res.ok) {
-      throw new Error(`Health check failed with status: ${res.status}`);
-    }
-    return res.json();
+// The only code that calls the backend from the browser; it goes through the BFF at /api/backend (blueprint 17.3).
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message);
   }
 }
 
-export const gatewayClient = new GatewayClient();
+function detailOf(body: unknown, status: number): string {
+  if (body && typeof body === "object" && "detail" in body) {
+    const detail = (body as { detail: unknown }).detail;
+    if (typeof detail === "string") return detail;
+    if (Array.isArray(detail)) return "Please check the form and try again.";
+  }
+  return `Request failed (${status}).`;
+}
+
+async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const init: RequestInit = { method, headers: {} };
+  if (body instanceof FormData) {
+    init.body = body;
+  } else if (body !== undefined) {
+    init.body = JSON.stringify(body);
+    init.headers = { "content-type": "application/json" };
+  }
+  const response = await fetch(`/api/backend/${path.replace(/^\//, "")}`, init);
+  if (response.status === 401) {
+    window.location.href = `/auth/login?returnTo=${encodeURIComponent(window.location.pathname)}`;
+    throw new ApiError(401, "Your session has ended. Signing you in again…");
+  }
+  if (!response.ok) {
+    const parsed: unknown = await response.json().catch(() => null);
+    throw new ApiError(response.status, detailOf(parsed, response.status));
+  }
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
+}
+
+export const api = {
+  get: <T>(path: string) => call<T>("GET", path),
+  post: <T>(path: string, body?: unknown) => call<T>("POST", path, body ?? {}),
+  del: <T = void>(path: string) => call<T>("DELETE", path),
+  upload: <T>(path: string, form: FormData) => call<T>("POST", path, form),
+};
+
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Something went wrong.";
+}

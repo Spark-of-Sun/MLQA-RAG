@@ -1,0 +1,300 @@
+"""Gateway HTTP API. Called by the Next.js BFF, which attaches the user's Auth0 access token server-side.
+
+Every /v1 route is guarded by `contracts/authz-matrix.yaml` (blueprint 5.2, 17.1): a role not listed gets 404 so
+the route's existence is not revealed; a listed role whose membership is pending or suspended gets 403
+`membership_not_active`. The app refuses to start if routes and matrix drift apart (G3.6).
+"""
+
+# No `from __future__ import annotations`: route signatures use the local alias `P`, which FastAPI must resolve.
+
+import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from typing import Annotated, Any, Literal
+from uuid import UUID
+
+import psycopg
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
+from pydantic import BaseModel, Field
+
+from audit import AuditService
+from gateway.query_flow import QueryFlow
+from generation import GenerationService
+from identity import IdentityService
+from identity.ratelimit import SlidingWindow
+from ingestion import create_ingestion
+from lmqa_auth import TokenVerifier, Unauthorized
+from lmqa_db import Database
+from lmqa_models.contracts import authz_matrix
+from lmqa_models.errors import ServiceError
+from lmqa_models.principal import Principal
+from lmqa_models.settings import ConfigError, Settings, load_settings
+from retrieval import create_retrieval
+
+log = logging.getLogger("gateway")
+MATRIX = authz_matrix()
+
+
+class CreateOrg(BaseModel):
+    name: str = Field(max_length=200)
+    kind: Literal["legal", "medical", "both"]
+
+
+class JoinAdmin(BaseModel):
+    code: str = Field(max_length=200)
+    workspace_name: str = Field(max_length=200)
+
+
+class CodeBody(BaseModel):
+    code: str = Field(max_length=200)
+
+
+class Ask(BaseModel):
+    question: str = Field(max_length=4000)
+
+
+class Services:
+    def __init__(self, settings: Settings, verifier: TokenVerifier | None) -> None:
+        self.settings = settings
+        self.db = Database(settings)
+        self.verifier = verifier or TokenVerifier(settings)
+        self.identity = IdentityService(settings, self.db)
+        self.documents, self.ingestor = create_ingestion(settings, self.db)
+        self.generation = GenerationService(settings)
+        self.queries = QueryFlow(settings, self.db, create_retrieval(settings, self.db), self.generation)
+        self.audit = AuditService(self.db)
+        self.query_limit = SlidingWindow(settings.queries_per_minute, 60)
+        self.upload_limit = SlidingWindow(60, 60)
+
+
+def create_app(
+    settings: Settings | None = None, *, verifier: TokenVerifier | None = None, resume_jobs: bool = True
+) -> FastAPI:
+    settings = settings or load_settings()
+    svc = Services(settings, verifier)
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        svc.db.open()
+        if resume_jobs and (n := svc.ingestor.resume_pending()):
+            log.info("resumed %d pending ingestion job(s)", n)
+        if not svc.generation.configured:
+            log.warning("GEMINI_API_KEY is not set: uploads and questions will fail until it is")
+        yield
+        svc.ingestor.shutdown()
+        svc.db.close()
+
+    app = FastAPI(
+        title="LMQA Gateway",
+        version="0.1.0",
+        lifespan=lifespan,
+        docs_url="/docs" if settings.app_env == "local" else None,
+        redoc_url=None,
+    )
+    app.state.services = svc
+
+    # ------------------------------------------------------------------ errors
+    @app.exception_handler(ServiceError)
+    async def _service_error(_: Request, exc: ServiceError) -> JSONResponse:
+        if exc.status >= 500:
+            log.warning("unavailable: %s", exc.message)
+        return JSONResponse({"detail": exc.message}, status_code=exc.status)
+
+    @app.exception_handler(ConfigError)
+    async def _config_error(_: Request, exc: ConfigError) -> JSONResponse:
+        return JSONResponse({"detail": str(exc)}, status_code=503)
+
+    @app.exception_handler(psycopg.OperationalError)
+    async def _db_down(_: Request, exc: psycopg.OperationalError) -> JSONResponse:
+        log.error("database unavailable: %s", type(exc).__name__)
+        return JSONResponse({"detail": "Database unavailable."}, status_code=503)
+
+    # ------------------------------------------------------------------ the route guard
+    def guard(request: Request) -> Principal | None:
+        route = request.scope.get("route")
+        roles = MATRIX.get((request.method, getattr(route, "path", "")))
+        if roles is None:
+            raise HTTPException(404, "Not found")
+        if "public" in roles:
+            return None
+        header = request.headers.get("authorization", "")
+        if not header.lower().startswith("bearer "):
+            raise HTTPException(401, "Unauthorized", headers={"WWW-Authenticate": "Bearer"})
+        token = header[7:].strip()
+        try:
+            claims = svc.verifier.verify(token)
+        except Unauthorized as exc:
+            log.info("token rejected: %s", exc)
+            raise HTTPException(401, "Unauthorized", headers={"WWW-Authenticate": "Bearer"}) from None
+        email, name = claims.email, claims.name
+        if email is None and not svc.identity.known_email(claims.sub):
+            email, name = svc.verifier.userinfo(token)
+        p = svc.identity.resolve(claims.sub, email, name or claims.name)
+        if "authenticated" in roles:
+            return p
+        m = p.membership
+        if m is None or m.role not in roles:
+            raise HTTPException(404, "Not found")
+        if not m.active:
+            raise HTTPException(403, "membership_not_active")
+        return p
+
+    def principal(p: Annotated[Principal | None, Depends(guard)]) -> Principal:
+        assert p is not None
+        return p
+
+    P = Annotated[Principal, Depends(principal)]
+
+    def client_ip(request: Request) -> str:
+        host = request.client.host if request.client else "unknown"
+        forwarded = request.headers.get("x-forwarded-for", "")
+        if host in {"127.0.0.1", "::1"} and forwarded:  # only the local BFF may name the client
+            return forwarded.split(",")[0].strip()
+        return host
+
+    # Every path operation runs the guard (FastAPI caches it per request, so `P` reuses the result).
+    app.router.dependencies.append(Depends(guard))
+
+    # ------------------------------------------------------------------ health and me
+    @app.get("/v1/health")
+    def health() -> dict[str, Any]:
+        with svc.db.system() as conn:
+            conn.execute("select 1")
+        return {"status": "ok", "llm_configured": svc.generation.configured, "model": settings.llm_model}
+
+    @app.get("/v1/me")
+    def me(p: P) -> dict[str, Any]:
+        return svc.identity.me(p)
+
+    # ------------------------------------------------------------------ onboarding (blueprint 7)
+    @app.post("/v1/onboarding/organization", status_code=201)
+    def create_org(p: P, body: CreateOrg) -> dict[str, Any]:
+        return svc.identity.create_organization(p, body.name, body.kind)
+
+    @app.post("/v1/onboarding/join-admin", status_code=201)
+    def join_admin(p: P, body: JoinAdmin, request: Request) -> dict[str, Any]:
+        return svc.identity.join_admin(p, client_ip(request), body.code, body.workspace_name)
+
+    @app.post("/v1/onboarding/preview-tenant")
+    def preview_tenant(p: P, body: CodeBody, request: Request) -> dict[str, Any]:
+        return svc.identity.preview_tenant(p, client_ip(request), body.code)
+
+    @app.post("/v1/onboarding/join-tenant", status_code=201)
+    def join_tenant(p: P, body: CodeBody, request: Request) -> dict[str, Any]:
+        return svc.identity.join_tenant(p, client_ip(request), body.code)
+
+    @app.delete("/v1/onboarding/request", status_code=204)
+    def withdraw(p: P) -> None:
+        svc.identity.withdraw(p)
+
+    # ------------------------------------------------------------------ Super Admin
+    @app.get("/v1/org/admins")
+    def list_admins(p: P) -> list[dict[str, Any]]:
+        return svc.identity.list_admins(p)
+
+    @app.post("/v1/org/admins/{membership_id}/{action}")
+    def decide_admin(p: P, membership_id: UUID, action: str) -> dict[str, Any]:
+        return svc.identity.decide_admin(p, str(membership_id), action)
+
+    @app.get("/v1/org/code")
+    def org_code(p: P) -> dict[str, Any] | None:
+        return svc.identity.code_info(p, "org")
+
+    @app.post("/v1/org/code", status_code=201)
+    def rotate_org_code(p: P) -> dict[str, Any]:
+        return svc.identity.generate_code(p, "org")
+
+    # ------------------------------------------------------------------ Admin
+    @app.get("/v1/workspace/members")
+    def list_members(p: P) -> list[dict[str, Any]]:
+        return svc.identity.list_members(p)
+
+    @app.post("/v1/workspace/members/{membership_id}/{action}")
+    def decide_member(p: P, membership_id: UUID, action: str) -> dict[str, Any]:
+        return svc.identity.decide_member(p, str(membership_id), action)
+
+    @app.get("/v1/workspace/code")
+    def admin_code(p: P) -> dict[str, Any] | None:
+        return svc.identity.code_info(p, "admin")
+
+    @app.post("/v1/workspace/code", status_code=201)
+    def rotate_admin_code(p: P) -> dict[str, Any]:
+        return svc.identity.generate_code(p, "admin")
+
+    # ------------------------------------------------------------------ documents
+    @app.get("/v1/documents")
+    def list_documents(p: P) -> list[dict[str, Any]]:
+        return svc.documents.list(p)
+
+    @app.post("/v1/documents", status_code=201)
+    def upload(
+        p: P,
+        file: Annotated[UploadFile, File()],
+        visibility: Annotated[str | None, Form()] = None,
+        title: Annotated[str | None, Form(max_length=200)] = None,
+    ) -> dict[str, Any]:
+        if svc.upload_limit.hit(p.user_id):
+            raise HTTPException(429, "Too many uploads. Try again in a minute.")
+        data = file.file.read(settings.upload_max_mb * 1024 * 1024 + 1)
+        return svc.documents.upload(p, file.filename or "upload", data, visibility, title)
+
+    @app.get("/v1/documents/{doc_id}")
+    def get_document(p: P, doc_id: UUID) -> dict[str, Any]:
+        return svc.documents.get(p, str(doc_id))
+
+    @app.delete("/v1/documents/{doc_id}", status_code=204)
+    def delete_document(p: P, doc_id: UUID) -> None:
+        svc.documents.delete(p, str(doc_id))
+
+    # ------------------------------------------------------------------ questions
+    @app.post("/v1/queries")
+    def ask(p: P, body: Ask) -> dict[str, Any]:
+        if svc.query_limit.hit(p.user_id):
+            raise HTTPException(429, "Too many questions. Try again in a minute.")
+        return svc.queries.ask(p, body.question)
+
+    @app.get("/v1/queries")
+    def history(p: P, limit: Annotated[int, Query(ge=1, le=100)] = 30) -> list[dict[str, Any]]:
+        return svc.queries.history(p, limit)
+
+    @app.get("/v1/queries/{query_id}")
+    def get_query(p: P, query_id: UUID) -> dict[str, Any]:
+        result = svc.queries.get(p, str(query_id))
+        if result is None:
+            raise HTTPException(404, "Not found")
+        return result
+
+    # ------------------------------------------------------------------ audit
+    @app.get("/v1/audit")
+    def audit_events(
+        p: P,
+        limit: Annotated[int, Query(ge=1, le=500)] = 100,
+        before: Annotated[int | None, Query(ge=1)] = None,
+    ) -> list[dict[str, Any]]:
+        return svc.audit.events(p, limit, before)
+
+    @app.get("/v1/audit/verify")
+    def audit_verify(p: P) -> dict[str, Any]:
+        return svc.audit.verify(p)
+
+    _check_matrix_drift(app)
+    return app
+
+
+def _check_matrix_drift(app: FastAPI) -> None:
+    """Refuse to start when code and contracts/authz-matrix.yaml disagree (G3.6)."""
+    in_code = {
+        (method, r.path)
+        for r in app.routes
+        if isinstance(r, APIRoute) and r.path.startswith("/v1")
+        for method in r.methods
+    }
+    in_matrix = set(MATRIX)
+    if in_code != in_matrix:
+        missing = sorted(in_code - in_matrix)
+        extra = sorted(in_matrix - in_code)
+        raise RuntimeError(
+            f"authz-matrix drift: routes without a matrix entry {missing}; matrix entries without a route {extra}"
+        )

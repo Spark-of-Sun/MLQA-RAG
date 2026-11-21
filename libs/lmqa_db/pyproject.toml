@@ -1,12 +1,12 @@
 [project]
-name = "lmqa_db"
+name = "lmqa-db"
 version = "0.1.0"
-description = "lmqa_db package"
+description = "The only code that opens database connections: scoped (RLS) and system sessions, migrations."
 requires-python = ">=3.14"
-dependencies = [
-    "asyncpg>=0.30.0",
-    "sqlalchemy[asyncio]>=2.0.36",
-]
+dependencies = ["lmqa-models", "psycopg[binary]>=3.3", "psycopg-pool>=3.3"]
+
+[tool.uv.sources]
+lmqa-models = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

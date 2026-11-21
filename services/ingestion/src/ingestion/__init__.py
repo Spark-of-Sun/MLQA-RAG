@@ -1,26 +1,20 @@
-"""LMQA Ingestion service: uploads, scan, parse, chunk, store, and index."""
+"""Ingestion service (blueprint 11.1)."""
 
 from __future__ import annotations
 
-from ingestion.api import app
-from ingestion.chunker import StructuralChunker
-from ingestion.config import IngestionConfig
-from ingestion.models import DocumentTarget, IngestionRequest
-from ingestion.parser import DocumentParser, OcrDisabledError, PageText, ParseError
-from ingestion.pipeline import IngestionPipeline
-from ingestion.scanner import DocumentScanner, ScanValidationError
+from ingestion.documents import DocumentService
+from ingestion.pipeline import Ingestor
+from lmqa_db import Database
+from lmqa_models.settings import Settings
+from lmqa_objectstore import ObjectStore
+from lmqa_vectorstore import Embedder
 
-__all__ = [
-    "DocumentParser",
-    "DocumentScanner",
-    "DocumentTarget",
-    "IngestionConfig",
-    "IngestionPipeline",
-    "IngestionRequest",
-    "OcrDisabledError",
-    "PageText",
-    "ParseError",
-    "ScanValidationError",
-    "StructuralChunker",
-    "app",
-]
+
+def create_ingestion(settings: Settings, db: Database, *, workers: int = 2) -> tuple[DocumentService, Ingestor]:
+    """Build the service with its own object store and embedder (the gateway never holds either)."""
+    store = ObjectStore(settings.data_dir / "objects")
+    ingestor = Ingestor(db, store, Embedder(settings), workers=workers)
+    return DocumentService(settings, db, store, ingestor), ingestor
+
+
+__all__ = ["DocumentService", "Ingestor", "create_ingestion"]

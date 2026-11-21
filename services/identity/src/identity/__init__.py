@@ -1,7 +1,5 @@
-"""identity package providing onboarding and organization management."""
+"""Identity service (blueprint 4, 7)."""
 
-from __future__ import annotations
+from identity.service import IdentityService
 
-from identity.config import IdentityConfig
-
-__all__ = ["IdentityConfig"]
+__all__ = ["IdentityService"]

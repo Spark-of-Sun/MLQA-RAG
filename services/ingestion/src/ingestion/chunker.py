@@ -1,193 +1,167 @@
-"""Legal structural chunker with preamble detection and token bounds."""
+"""Structure-aware chunking (blueprint 11.1 step 7, 11.2).
+
+Chunks follow structural units: a new chunk starts at every heading and every numbered clause. Text
+before the first structural boundary becomes a `preamble` chunk (parties, recitals, effective date), so
+it is never dropped. Without any detected structure the chunker packs paragraphs and records
+`structure = fallback`, which the library shows. Chunk text is source text with whitespace collapsed;
+nothing is rewritten, so every chunk can be found again in the original.
+"""
 
 from __future__ import annotations
 
+import hashlib
 import re
-import uuid
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
 
-from lmqa_models import Chunk, ChunkMetadata
+from ingestion.parsers import Block, clause_label, looks_like_heading
 
-if TYPE_CHECKING:
-    from ingestion.models import DocumentTarget
-
-# Regex matching legal headings (Articles, Sections, Clauses, Exhibits)
-HEADING_PATTERN = re.compile(
-    r"(?m)^(ARTICLE\s+[IVXLCDM\d]+|SECTION\s+\d+[\.\d+]*|CLAUSE\s+\d+|SCHEDULE\s+[A-Z\d]+|EXHIBIT\s+[A-Z\d]+)\b[.:\s]*(.*)$",
-    re.IGNORECASE,
-)
+TARGET_CHARS = 1600  # about 400 tokens
+MAX_CHARS = 2800  # about 700 tokens
+MIN_CHARS = 200
 
 
-class StructuralChunker:
-    """Segments legal text into structural chunks complying with token bounds."""
+@dataclass
+class Chunk:
+    ordinal: int
+    kind: str  # preamble | section | paragraph
+    section: str | None
+    page_start: int | None
+    page_end: int | None
+    text: str
 
-    def __init__(
-        self,
-        min_tokens: int = 40,
-        target_min: int = 300,
-        target_max: int = 700,
-        max_tokens: int = 1200,
-    ) -> None:
-        """Initialize chunker bounds."""
-        self.min_tokens = min_tokens
-        self.target_min = target_min
-        self.target_max = target_max
-        self.max_tokens = max_tokens
+    @property
+    def sha256(self) -> str:
+        return sha256_text(self.text)
 
-    def chunk_document(
-        self,
-        target: DocumentTarget,
-        pages: list[tuple[int, str]],
-    ) -> list[Chunk]:
-        """Chunk document text into structural units, guaranteeing a preamble chunk."""
-        combined_text = "\n\n".join(text for _, text in pages if text.strip())
-        if not combined_text.strip():
-            msg = "Cannot chunk empty document text"
-            raise ValueError(msg)
+    @property
+    def token_count(self) -> int:
+        return estimate_tokens(self.text)
 
-        chunks: list[Chunk] = []
-        ordinal = 0
 
-        # Find heading positions
-        matches = list(HEADING_PATTERN.finditer(combined_text))
+def sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
-        if not matches:
-            # Entire text treated as preamble or fallback
-            sub_texts = self._split_if_overlong(combined_text, self.max_tokens)
-            for sub in sub_texts:
-                meta = ChunkMetadata(
-                    doc_id=target.doc_id,
-                    doc_version=target.doc_version,
-                    ordinal=ordinal,
-                    title=target.title,
-                    page="1",
-                    section="Preamble",
-                    kind="preamble",
-                )
-                chunk = Chunk.create(
-                    chunk_id=uuid.uuid5(target.doc_id, f"chunk_{ordinal}"),
-                    org_id=target.org_id,
-                    workspace_id=target.workspace_id,
-                    metadata=meta,
-                    text=sub,
-                )
-                chunks.append(chunk)
-                ordinal += 1
-            return chunks
 
-        # 1. Preamble chunk: text prior to the first heading
-        first_match = matches[0]
-        preamble_text = combined_text[: first_match.start()].strip()
-        if preamble_text:
-            sub_preambles = self._split_if_overlong(preamble_text, self.max_tokens)
-            for sub in sub_preambles:
-                meta = ChunkMetadata(
-                    doc_id=target.doc_id,
-                    doc_version=target.doc_version,
-                    ordinal=ordinal,
-                    title=target.title,
-                    page="1",
-                    section="Preamble / Recitals",
-                    kind="preamble",
-                )
-                chunks.append(
-                    Chunk.create(
-                        chunk_id=uuid.uuid5(target.doc_id, f"chunk_{ordinal}"),
-                        org_id=target.org_id,
-                        workspace_id=target.workspace_id,
-                        metadata=meta,
-                        text=sub,
-                    )
-                )
-                ordinal += 1
+def estimate_tokens(text: str) -> int:
+    return max(1, len(text) // 4)
+
+
+def split_long(text: str) -> list[str]:
+    """Split an overlong paragraph on sentence boundaries; hard-wrap on spaces as a last resort."""
+    sentences = re.split(r"(?<=[.;:!?])\s+(?=[A-Z(\"'\d])", text)
+    pieces: list[str] = []
+    current = ""
+    for sentence in sentences:
+        while len(sentence) > MAX_CHARS:
+            cut = sentence.rfind(" ", 0, TARGET_CHARS)
+            cut = cut if cut > 0 else TARGET_CHARS
+            if current:
+                pieces.append(current)
+                current = ""
+            pieces.append(sentence[:cut].strip())
+            sentence = sentence[cut:].strip()
+        if current and len(current) + 1 + len(sentence) > TARGET_CHARS:
+            pieces.append(current)
+            current = sentence
         else:
-            # If document starts with heading, create synthetic preamble
-            meta = ChunkMetadata(
-                doc_id=target.doc_id,
-                doc_version=target.doc_version,
-                ordinal=ordinal,
-                title=target.title,
-                page="1",
-                section="Preamble",
-                kind="preamble",
-            )
+            current = f"{current} {sentence}".strip()
+    if current:
+        pieces.append(current)
+    return [p for p in pieces if p]
+
+
+def build_chunks(blocks: list[Block]) -> tuple[list[Chunk], str]:
+    has_structure = any(b.heading or looks_like_heading(b.text) or clause_label(b.text) for b in blocks)
+    chunks: list[Chunk] = []
+    parts: list[tuple[str, bool]] = []  # (text, is_heading)
+    pages: list[int] = []
+    heading_path: str | None = None
+    section: str | None = None
+    started = False  # True once the first structural unit after the preamble has begun
+    prev_heading = False
+
+    def has_body() -> bool:
+        return any(not is_h for _, is_h in parts)
+
+    def size() -> int:
+        return sum(len(t) + 2 for t, _ in parts)
+
+    def flush() -> None:
+        if not parts:
+            return
+        text = "\n\n".join(t for t, _ in parts).strip()
+        kind = "paragraph" if not has_structure else ("section" if started else "preamble")
+        label = section or ("Preamble" if kind == "preamble" else None)
+        if text:
             chunks.append(
-                Chunk.create(
-                    chunk_id=uuid.uuid5(target.doc_id, f"chunk_{ordinal}"),
-                    org_id=target.org_id,
-                    workspace_id=target.workspace_id,
-                    metadata=meta,
-                    text=f"{target.title} - Agreement Preamble",
+                Chunk(
+                    ordinal=len(chunks),
+                    kind=kind,
+                    section=label,
+                    page_start=min(pages) if pages else None,
+                    page_end=max(pages) if pages else None,
+                    text=text,
                 )
             )
-            ordinal += 1
+        parts.clear()
+        pages.clear()
 
-        # 2. Structural sections
-        for idx, match in enumerate(matches):
-            heading = match.group(0).strip()
-            start_pos = match.start()
-            end_pos = matches[idx + 1].start() if idx + 1 < len(matches) else len(combined_text)
-            section_body = combined_text[start_pos:end_pos].strip()
+    for block in blocks:
+        text = block.text
+        is_heading = has_structure and (block.heading or looks_like_heading(text))
+        label = None if (is_heading or not has_structure) else clause_label(text)
 
-            if not section_body:
-                continue
+        if is_heading:
+            if has_body():
+                flush()
+                started = True
+            stacked = prev_heading and heading_path and parts
+            heading_path = (f"{heading_path} › {text}" if stacked else text)[:160]
+            section = heading_path
+        elif label:
+            if has_body():
+                flush()
+            started = True
+            section = (f"{heading_path} › {label}" if heading_path else label)[:160]
+        prev_heading = is_heading
 
-            sub_sections = self._split_if_overlong(section_body, self.max_tokens)
-            for sub in sub_sections:
-                kind = "clause" if "clause" in heading.lower() else "section"
-                meta = ChunkMetadata(
-                    doc_id=target.doc_id,
-                    doc_version=target.doc_version,
-                    ordinal=ordinal,
-                    title=target.title,
-                    page="1",
-                    section=heading[:100],
-                    kind=kind,
-                )
-                chunks.append(
-                    Chunk.create(
-                        chunk_id=uuid.uuid5(target.doc_id, f"chunk_{ordinal}"),
-                        org_id=target.org_id,
-                        workspace_id=target.workspace_id,
-                        metadata=meta,
-                        text=sub,
-                    )
-                )
-                ordinal += 1
+        for piece in split_long(text) if len(text) > MAX_CHARS else [text]:
+            if has_body() and size() + len(piece) > TARGET_CHARS and size() >= MIN_CHARS:
+                flush()
+                started = started or has_structure
+            parts.append((piece, is_heading))
+            if block.page is not None:
+                pages.append(block.page)
 
-        return chunks
+    flush()
+    return merge_small(chunks), "detected" if has_structure else "fallback"
 
-    def _estimate_tokens(self, text: str) -> int:
-        return max(1, len(text.split()))
 
-    def _split_if_overlong(self, text: str, max_tokens: int) -> list[str]:
-        """Split text exceeding max_tokens on paragraph boundaries with ~10% overlap."""
-        tokens = self._estimate_tokens(text)
-        if tokens <= max_tokens:
-            return [text]
+def merge_small(chunks: list[Chunk], min_chars: int = 160) -> list[Chunk]:
+    """Fold chunks under ~40 tokens (blueprint 11.1 minimum) into the next chunk, or the previous one at the end.
 
-        paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
-        if len(paragraphs) <= 1:
-            # Fallback split on sentences
-            paragraphs = [s.strip() for s in text.split(". ") if s.strip()]
-
-        parts: list[str] = []
-        current: list[str] = []
-        curr_tokens = 0
-
-        for p in paragraphs:
-            p_tokens = self._estimate_tokens(p)
-            if curr_tokens + p_tokens > max_tokens and current:
-                parts.append("\n\n".join(current))
-                # 10% overlap: keep the last item
-                overlap_item = current[-1]
-                current = [overlap_item, p]
-                curr_tokens = self._estimate_tokens(overlap_item) + p_tokens
-            else:
-                current.append(p)
-                curr_tokens += p_tokens
-
-        if current:
-            parts.append("\n\n".join(current))
-
-        return parts or [text]
+    Text is joined, never dropped, so the preamble and stray headings stay searchable and citable.
+    """
+    out: list[Chunk] = []
+    carry: Chunk | None = None
+    for c in chunks:
+        if carry is not None:
+            pages = [p for p in (carry.page_start, carry.page_end, c.page_start, c.page_end) if p is not None]
+            c = Chunk(0, c.kind, c.section, min(pages) if pages else None, max(pages) if pages else None,
+                      f"{carry.text}\n\n{c.text}")  # fmt: skip
+            carry = None
+        if len(c.text) < min_chars:
+            carry = c
+            continue
+        out.append(c)
+    if carry is not None:
+        if out:
+            last = out[-1]
+            pages = [p for p in (last.page_start, last.page_end, carry.page_start, carry.page_end) if p is not None]
+            out[-1] = Chunk(0, last.kind, last.section, min(pages) if pages else None, max(pages) if pages else None,
+                            f"{last.text}\n\n{carry.text}")  # fmt: skip
+        else:
+            out.append(carry)
+    for i, c in enumerate(out):
+        c.ordinal = i
+    return out

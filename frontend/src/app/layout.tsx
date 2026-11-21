@@ -1,23 +1,22 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
+import type { ReactNode } from "react";
+
+import { BRAND } from "@/lib/format";
+
 import "./globals.css";
-import { Navbar } from "@/components/ui/Navbar";
 
 export const metadata: Metadata = {
-  title: "MLQA-RAG | Multi-Tenant Legal & Medical Document Q&A",
-  description: "Enterprise multi-tenant document intelligence with sentence-level citation verification.",
+  title: { default: `${BRAND} · cited answers from your documents`, template: `%s · ${BRAND}` },
+  description: "Questions over legal and medical documents, answered only with verified, page-level citations.",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  // Reading the request headers opts every page into dynamic rendering, which the per-request CSP nonce needs.
+  await headers();
   return (
     <html lang="en">
-      <body className="min-h-screen bg-slate-50 antialiased flex flex-col">
-        <Navbar />
-        <main className="flex-1">{children}</main>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

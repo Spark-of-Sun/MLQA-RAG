@@ -1,86 +1,61 @@
-/**
- * Route protection, CSP nonce generation, and session gating.
- * Next.js 16 proxy implementation per Master System Design §17.1 & §17.3.
- */
-
 import { NextResponse, type NextRequest } from "next/server";
-import { getSession } from "./lib/auth0";
-import { canAccessRoute } from "./lib/capabilities";
 
-export default async function proxy(req: NextRequest): Promise<NextResponse> {
-  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
-  const { pathname } = req.nextUrl;
+import { APP_BASE_URL, auth0 } from "@/lib/auth0";
 
-  // Static assets and internal next paths pass through
-  if (
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/favicon.ico") ||
-    pathname.startsWith("/static")
-  ) {
-    return NextResponse.next();
+const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+// Next.js 16 proxy (replaces middleware.ts, blueprint 17.1): mounts the Auth0 routes (/auth/login, /auth/callback,
+// /auth/logout), keeps the rolling session fresh, and sets a per-request nonce CSP (blueprint 17.3).
+export async function proxy(request: NextRequest) {
+  // One canonical local address. Auth0 always returns to APP_BASE_URL (localhost), and the login-state cookie is
+  // bound to the host that started the login, so a login begun at 127.0.0.1 would fail with "state is invalid".
+  const base = new URL(APP_BASE_URL);
+  const host = request.headers.get("host") ?? "";
+  const hostname = host.replace(/:\d+$/, "");
+  if (host !== base.host && LOOPBACK.has(hostname) && LOOPBACK.has(base.hostname)) {
+    // Not a 3xx: Next.js rewrites a same-port Location header to a relative path, which would keep the browser on
+    // the wrong host. A refresh page moves it to the canonical origin.
+    const target = new URL(request.nextUrl.pathname + request.nextUrl.search, base).toString();
+    const href = target.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+    return new NextResponse(
+      `<!doctype html><meta http-equiv="refresh" content="0;url=${href}"><a href="${href}">Continue to ${base.origin}</a>`,
+      { status: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } },
+    );
   }
 
-  // Define Content Security Policy with unique request nonce
-  const isDev = process.env.NODE_ENV !== "production";
-  const scriptSrc = isDev
-    ? `'self' 'unsafe-eval' 'nonce-${nonce}'`
-    : `'self' 'strict-dynamic' 'nonce-${nonce}'`;
+  const authResponse = await auth0.middleware(request);
+  if (request.nextUrl.pathname.startsWith("/auth/")) {
+    return authResponse;
+  }
 
-  const cspHeader = [
+  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const isDev = process.env.NODE_ENV === "development";
+  const https = (process.env.APP_BASE_URL ?? "").startsWith("https://");
+  const csp = [
     "default-src 'self'",
-    `script-src ${scriptSrc}`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
+    "img-src 'self' blob: data:",
     "font-src 'self'",
+    "connect-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
+    ...(https ? ["upgrade-insecure-requests"] : []),
   ].join("; ");
 
-  // Session retrieval from opaque httpOnly cookie
-  const sessionId = req.cookies.get("lmqa_session")?.value;
-  const session = getSession(sessionId);
-
-  // If unauthenticated and accessing protected routes, redirect to onboarding/login
-  const isPublicRoute =
-    pathname.startsWith("/onboarding") ||
-    pathname.startsWith("/api/auth") ||
-    pathname === "/";
-
-  if (!session && !isPublicRoute) {
-    const loginUrl = new URL("/onboarding", req.url);
-    loginUrl.searchParams.set("returnTo", pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  // Capability check for authenticated routes
-  if (session && !canAccessRoute(session.principal.role, pathname)) {
-    // Return 404 per §17.1 so existence of forbidden route is not revealed
-    return new NextResponse("Not Found", { status: 404 });
-  }
-
-  // Set security headers on request and response
-  const requestHeaders = new Headers(req.headers);
+  const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
-  requestHeaders.set("Content-Security-Policy", cspHeader);
-
-  const response = NextResponse.next({
-    request: {
-      headers: requestHeaders,
-    },
-  });
-
-  response.headers.set("Content-Security-Policy", cspHeader);
-  response.headers.set("X-Content-Type-Options", "nosniff");
-  response.headers.set("X-Frame-Options", "DENY");
-
-  // Onboarding enforces no-referrer per §17.3
-  if (pathname.startsWith("/onboarding")) {
-    response.headers.set("Referrer-Policy", "no-referrer");
-  } else {
-    response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  requestHeaders.set("Content-Security-Policy", csp);
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  for (const cookie of authResponse.cookies.getAll()) {
+    response.cookies.set(cookie);
   }
-
+  response.headers.set("Content-Security-Policy", csp);
   return response;
 }
+
+export const config = {
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|robots.txt).*)"],
+};

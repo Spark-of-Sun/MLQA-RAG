@@ -1,11 +1,27 @@
 [project]
 name = "gateway"
 version = "0.1.0"
-description = "gateway package"
+description = "Gateway: token verification, principal resolution, route allow-list, gated query release."
 requires-python = ">=3.14"
 dependencies = [
-    "pydantic>=2.12.0",
+    "fastapi>=0.165",
+    "uvicorn[standard]>=0.54",
+    "python-multipart>=0.0.34",
+    "lmqa-models", "lmqa-db", "lmqa-audit", "lmqa-auth",
+    "identity", "ingestion", "retrieval", "generation", "citation-validator", "audit",
 ]
+
+[tool.uv.sources]
+lmqa-models = { workspace = true }
+lmqa-db = { workspace = true }
+lmqa-audit = { workspace = true }
+lmqa-auth = { workspace = true }
+identity = { workspace = true }
+ingestion = { workspace = true }
+retrieval = { workspace = true }
+generation = { workspace = true }
+citation-validator = { workspace = true }
+audit = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

@@ -1,17 +1,12 @@
-"""Citation validator package providing deterministic verification."""
+"""Citation validator (blueprint 11.6). Deterministic; imports no LLM client, vector store or object store."""
 
-from __future__ import annotations
-
-from citation_validator.engine import (
-    CANONICAL_REFUSAL,
-    SentenceValidator,
-    extract_critical_tokens,
-    segment_sentences,
+from citation_validator.validator import (
+    Verdict,
+    apply_entailment,
+    build_result,
+    entailment_claims,
+    recheck_integrity,
+    validate,
 )
 
-__all__ = [
-    "CANONICAL_REFUSAL",
-    "SentenceValidator",
-    "extract_critical_tokens",
-    "segment_sentences",
-]
+__all__ = ["Verdict", "apply_entailment", "build_result", "entailment_claims", "recheck_integrity", "validate"]

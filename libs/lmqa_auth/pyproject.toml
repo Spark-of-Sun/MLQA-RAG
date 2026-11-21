@@ -1,9 +1,12 @@
 [project]
-name = "lmqa_auth"
+name = "lmqa-auth"
 version = "0.1.0"
-description = "lmqa_auth package"
+description = "Auth0 access-token verification (blueprint 8, G3.1)."
 requires-python = ">=3.14"
-dependencies = []
+dependencies = ["lmqa-models", "pyjwt[crypto]>=2.15", "httpx>=0.28"]
+
+[tool.uv.sources]
+lmqa-models = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

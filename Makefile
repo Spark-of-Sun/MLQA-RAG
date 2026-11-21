@@ -1,67 +1,63 @@
-.PHONY: up down doctor gate isolation load-corpus eval precheck
+.DEFAULT_GOAL := help
+PY := uv run --frozen
+WITHENV := $(PY) python tools/withenv.py --
 
-SHELL := /bin/bash
-PROFILE ?= mvp-a
-STAGE ?= 0
+help: ## list targets
+	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
 
-up:
-	@if command -v docker >/dev/null 2>&1; then \
-		docker compose up -d; \
-	else \
-		echo "ERROR: docker is not installed or not available in PATH"; \
-		exit 1; \
-	fi
+install: ## install Python (uv workspace) and frontend (pnpm) dependencies
+	uv sync --frozen
+	cd frontend && pnpm install --frozen-lockfile
 
-down:
-	@if command -v docker >/dev/null 2>&1; then \
-		docker compose down; \
-	else \
-		echo "ERROR: docker is not installed or not available in PATH"; \
-		exit 1; \
-	fi
+setup: install ## first run: dependencies, local secrets, database, migrations
+	$(PY) python tools/gen_env.py
+	$(MAKE) db migrate
 
-doctor:
-	uv run python -m tools.doctor.main
+db: ## start PostgreSQL 18 + pgvector in Docker (127.0.0.1:5434)
+	$(WITHENV) docker compose up -d --wait
 
-migrate:
-	uv run python -m tools.migrate.main
+db-stop: ## stop the database (data is kept)
+	$(WITHENV) docker compose stop
 
-gate:
-	@if [ ! -d "tools/gatekeeper" ] || [ ! -f "tools/gatekeeper/main.py" ]; then \
-		echo "ERROR: tools/gatekeeper is not yet implemented"; \
-		exit 1; \
-	fi
-	uv run python -m tools.gatekeeper.main --stage $(STAGE) --profile $(PROFILE)
+db-reset: ## DELETE all local data (database volume and uploaded files) and start empty
+	$(WITHENV) docker compose down -v
+	rm -rf data/objects
+	$(MAKE) db migrate
 
-isolation:
-	uv run pytest libs/lmqa_db/tests/test_rls_live.py libs/lmqa_vectorstore/tests/test_vectorstore.py services/retrieval/tests/test_retrieval.py tools/state_machine_gen/tests/test_state_machines.py libs/lmqa_audit/tests/test_chain.py -v
+migrate: ## create roles, apply db/migrations, db/policies and db/roles
+	$(PY) python tools/db_migrate.py
 
-load-corpus:
-	@if [ ! -d "tools/load_corpus" ] || [ ! -f "tools/load_corpus/main.py" ]; then \
-		echo "ERROR: tools/load_corpus is not yet implemented"; \
-		exit 1; \
-	fi
-	@echo "Loading legal corpus into PostgreSQL and Qdrant..."
-	uv run python -m tools.load_corpus.main
+doctor: ## check settings, database, Auth0 and Gemini (prints names, never values)
+	$(PY) python tools/doctor.py
 
-eval:
-	@if [ ! -d "eval" ] || [ ! -f "eval/run.py" ]; then \
-		echo "ERROR: eval harness is not yet implemented"; \
-		exit 1; \
-	fi
-	@echo "Running M1a Evaluation Harness across 100 live queries..."
-	uv run python -m eval.run
+dev: ## run gateway (:8000) and frontend (:3000) with hot reload
+	$(PY) python tools/dev.py
 
-precheck:
-	@if [ -n "$(OWNER)" ]; then \
-		echo "Running precheck for owner: $(OWNER)"; \
-	else \
-		echo "Running precheck..."; \
-	fi
-	uv run ruff format --check .
-	uv run ruff check .
-	uv run pyright
-	uv run lint-imports
-	uv run python -m tools.ownership_check --check-all
-	gitleaks detect --source . --no-banner
-	uv run pytest -v
+build: ## production build of the frontend
+	$(WITHENV) pnpm --dir frontend build
+
+start: build ## run gateway and the production frontend (best for demos)
+	$(PY) python tools/dev.py --prod
+
+corpus: ## download the real public corpus and verify every SHA-256
+	$(PY) python corpus/fetchers.py
+
+load-corpus: ## index the corpus into an admin's workspace: make load-corpus EMAIL=you@x.com [DOMAIN=legal]
+	$(PY) python tools/load_corpus.py --email "$(EMAIL)" --domain "$(or $(DOMAIN),all)"
+
+demo: ## simulate the whole workflow end to end through the API (separate lmqa_demo database, real Gemini)
+	$(PY) python tools/demo.py
+
+demo-web: ## simulate signed-in browsers against the built frontend (run `make build` first)
+	$(PY) python tools/demo_web.py
+
+lint: ## ruff format check + ruff lint + frontend type check
+	$(PY) ruff format --check libs services tools
+	$(PY) ruff check libs services tools
+	cd frontend && pnpm typecheck
+
+format: ## apply ruff formatting and safe fixes
+	$(PY) ruff format libs services tools
+	$(PY) ruff check --fix libs services tools
+
+.PHONY: help install setup db db-stop db-reset migrate doctor dev build start corpus load-corpus demo demo-web lint format

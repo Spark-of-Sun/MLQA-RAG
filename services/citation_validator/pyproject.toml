@@ -1,12 +1,12 @@
 [project]
-name = "citation_validator"
+name = "citation-validator"
 version = "0.1.0"
-description = "citation_validator package"
+description = "Deterministic citation validator V1-V8 (blueprint 11.6). Imports no LLM client."
 requires-python = ">=3.14"
-dependencies = [
-    "lmqa-models",
-    "pydantic>=2.10.0",
-]
+dependencies = ["lmqa-models"]
+
+[tool.uv.sources]
+lmqa-models = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

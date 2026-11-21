@@ -1,7 +1,1 @@
-"""gateway package providing ingress API and configuration."""
-
-from __future__ import annotations
-
-from gateway.config import GatewayConfig
-
-__all__ = ["GatewayConfig"]
+"""Gateway (blueprint 4, 9, 11.6): the only public API. Holds no storage credentials and no vector client."""

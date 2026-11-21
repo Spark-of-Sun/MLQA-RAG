@@ -1,9 +1,14 @@
 [project]
 name = "audit"
 version = "0.1.0"
-description = "audit package"
+description = "Audit service: role-scoped audit views and chain verification (blueprint 13)."
 requires-python = ">=3.14"
-dependencies = []
+dependencies = ["lmqa-models", "lmqa-db", "lmqa-audit"]
+
+[tool.uv.sources]
+lmqa-models = { workspace = true }
+lmqa-db = { workspace = true }
+lmqa-audit = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

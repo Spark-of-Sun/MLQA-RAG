@@ -1,17 +1,19 @@
 [project]
 name = "ingestion"
 version = "0.1.0"
-description = "ingestion package"
+description = "Ingestion service: upload, parse, structure-aware chunking, embedding, indexing (blueprint 11.1)."
 requires-python = ">=3.14"
 dependencies = [
-    "fastapi>=0.115.0",
-    "httpx>=0.28.1",
-    "pydantic>=2.10.0",
-    "lmqa_db",
-    "lmqa_models",
-    "lmqa_objectstore",
-    "lmqa_vectorstore",
+    "lmqa-models", "lmqa-db", "lmqa-audit", "lmqa-objectstore", "lmqa-vectorstore",
+    "pypdf>=7.1", "fonttools>=4.68", "python-docx>=1.2", "defusedxml>=0.7.1",
 ]
+
+[tool.uv.sources]
+lmqa-models = { workspace = true }
+lmqa-db = { workspace = true }
+lmqa-audit = { workspace = true }
+lmqa-objectstore = { workspace = true }
+lmqa-vectorstore = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

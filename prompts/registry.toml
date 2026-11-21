@@ -1,20 +1,10 @@
-# prompts/registry.toml — Prompt template definitions
-# Master System Design §11.3
+# Prompt registry (blueprint 11.5, 11.7). The generation service loads these files and records the SHA-256 of
+# the assembled prompt set with every query and in its audit event.
+[answer]
+version = 1
+system = "templates/answer.md"
+few_shot = "few_shot_examples/answer.md"
 
-[prompts.qa_generation]
-version = "1.0.0"
-max_context_tokens = 4000
-template = """
-You are a legal document assistant. Answer the user query using ONLY the provided verified context chunks.
-Every factual assertion must cite the exact chunk ID in brackets [chunk_id].
-If the provided chunks do not contain enough information, state clearly that the answer is not supported.
-"""
-
-[prompts.sentence_validation]
-version = "1.0.0"
-model = "deberta-v3-nli"
-template = """
-Premise: {context_chunk}
-Hypothesis: {claimed_sentence}
-Evaluate whether the Premise entails the Hypothesis (ENTAILMENT, CONTRADICTION, NEUTRAL).
-"""
+[verify]
+version = 1
+system = "templates/verify.md"

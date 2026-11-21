@@ -1,80 +1,25 @@
+# Local infrastructure for the MVP: PostgreSQL 18 with pgvector (documents, vectors, RLS, audit).
+# Bound to 127.0.0.1 only. Started by `make db`, which exports the generated password first.
+name: lmqa
+
 services:
   postgres:
-    image: postgres:18.0-alpine@sha256:48c8ad3a7284b82be4482a52076d47d879fd6fb084a1cbfccbd551f9331b0e40
+    image: pgvector/pgvector:pg18
+    container_name: lmqa-postgres
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: lmqa
-      POSTGRES_USER: lmqa_admin
-      POSTGRES_PASSWORD: REDACTED
+      POSTGRES_PASSWORD: ${LMQA_DB_SUPERUSER_PASSWORD:?run make setup first}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    ports:
+      - "127.0.0.1:${LMQA_DB_PORT:-5434}:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql
+    command: ["postgres", "-c", "shared_buffers=256MB", "-c", "max_connections=60"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U lmqa_admin"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  pgbouncer:
-    image: edoburu/pgbouncer:latest@sha256:8638aa563607256d3c7440437534195f1066a92b68015d89ae9d6b935b444a6d
-    environment:
-      DB_USER: lmqa_admin
-      DB_PASSWORD: REDACTED
-      DB_HOST: postgres
-      DB_NAME: lmqa
-      LISTEN_PORT: 6432
-      AUTH_TYPE: scram-sha-256
-      POOL_MODE: transaction
-      MAX_CLIENT_CONN: 1000
-      DEFAULT_POOL_SIZE: 20
-    depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 6432 || exit 1"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  valkey:
-    image: valkey/valkey:9.1.0-alpine@sha256:c9b77919daeba2c02ad954d0c844cc4e7142069d177b89c5fd771f405daf9e02
-    command: ["valkey-server", "--requirepass", "${VALKEY_PASSWORD:-password}"]
-    healthcheck:
-      test: ["CMD-SHELL", "valkey-cli -a $${VALKEY_PASSWORD:-password} ping 2>/dev/null || valkey-cli ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  qdrant:
-    image: qdrant/qdrant:v1.19.0@sha256:057ee3a8da769fe7310dd3537b4dc7583bf87a95ce8ac43c0af5a46bc580d1fc
-    volumes:
-      - qdrant_data:/qdrant/storage
-    healthcheck:
-      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/localhost/6333' || exit 1"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  openbao:
-    image: openbao/openbao:2.1.0@sha256:7de07aa6df3937d44c96c2d65c188b2d4a70546f2a764ad4510301305af6a223
-    environment:
-      BAO_DEV_ROOT_TOKEN_ID: ${OPENBAO_DEV_ROOT_TOKEN:-root}
-      BAO_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
-    cap_add:
-      - IPC_LOCK
-    healthcheck:
-      test: ["CMD-SHELL", "bao status || exit 1"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  clamav:
-    image: clamav/clamav:latest@sha256:bda39705e291105049c3936e2803ac90b955172af8030f94f05dce1252df6c6d
-    healthcheck:
-      test: ["CMD-SHELL", "clamdscan /dev/null || exit 1"]
-      interval: 10s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
 
 volumes:
   pgdata:
-  qdrant_data:

@@ -1,7 +1,6 @@
-"""generation package providing grounded RAG answer synthesis."""
+"""Generation service (blueprint 11.4 to 11.8)."""
 
-from __future__ import annotations
+from generation.llm_client import LLMError
+from generation.service import Draft, EntailmentResult, GenerationService
 
-from generation.client import GenerationClient
-
-__all__ = ["GenerationClient"]
+__all__ = ["Draft", "EntailmentResult", "GenerationService", "LLMError"]

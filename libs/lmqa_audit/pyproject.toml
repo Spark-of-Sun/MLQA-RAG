@@ -1,9 +1,12 @@
 [project]
-name = "lmqa_audit"
+name = "lmqa-audit"
 version = "0.1.0"
-description = "lmqa_audit package"
+description = "audit_append client and hash-chain verification (blueprint 13)."
 requires-python = ">=3.14"
-dependencies = []
+dependencies = ["lmqa-db"]
+
+[tool.uv.sources]
+lmqa-db = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

@@ -1,15 +1,14 @@
 [project]
 name = "retrieval"
 version = "0.1.0"
-description = "retrieval package"
+description = "Retrieval service: scoped hybrid search, token budget, retrieval ledger (blueprint 11.3, 9.4)."
 requires-python = ">=3.14"
-dependencies = [
-    "asyncpg>=0.30.0",
-    "lmqa-db",
-    "lmqa-models",
-    "lmqa-vectorstore",
-    "pydantic>=2.12.0",
-]
+dependencies = ["lmqa-models", "lmqa-db", "lmqa-vectorstore"]
+
+[tool.uv.sources]
+lmqa-models = { workspace = true }
+lmqa-db = { workspace = true }
+lmqa-vectorstore = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

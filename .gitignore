@@ -1,83 +1,31 @@
-# Patches (local, never committed)
-patches/
-
-# Environment
+# secrets: only the template is tracked
 .env
 .env.*
-!.env.example
-
-# Corpus data (only manifest is committed)
-corpus/data/
-
-# Secrets and keys (Master §12.10)
-.secrets/
+.secrets
+.secrets.*
 *.pem
 *.key
-
-# Python
+# python
 __pycache__/
-*.py[cod]
-*$py.class
-*.egg-info/
-*.egg
-dist/
-build/
-.eggs/
-*.whl
-
-# Virtual environments
+*.pyc
 .venv/
-venv/
-ENV/
-
-# uv
-.uv/
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-.project
-.classpath
-
-# Testing
 .pytest_cache/
-.coverage
-htmlcov/
-.mypy_cache/
-
-# Type checking
-.pyright/
-
-# Node / Frontend
+.ruff_cache/
+dist/
+*.egg-info/
+# node
 node_modules/
 .next/
-.nuxt/
-.turbo/
-.output/
+next-env.d.ts
 *.tsbuildinfo
+# local runtime data: uploaded originals
+data/
+# corpus payloads are fetched, never committed
+corpus/data/*
+!corpus/data/.gitkeep
 
-# Docker
-*.pid
+# folders outside the product
+agent_work
+project-blueprint
 
-# OS
-.DS_Store
-Thumbs.db
-
-# Build output
-*.so
-*.dylib
-
-# Logs (keep the directory, not log files)
-logs/*.log
-
-# Caches
-.cache/
-.ruff_cache/
-
-#secret 
-full_blueprint
-runbooks
-
+lmqa.json

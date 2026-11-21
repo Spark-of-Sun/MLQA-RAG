@@ -1,53 +1,45 @@
-/**
- * Server-side Auth0 session and token management for Next.js BFF.
- * Implements Master System Design §8 & §17.3 (No tokens in browser).
- */
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+import { NextResponse } from "next/server";
 
-import type { UserPrincipal } from "./capabilities";
+// Auth0 authenticates; the gateway and PostgreSQL authorize (blueprint 1.2, 8).
+// Tokens never reach the browser: the access-token endpoint is disabled and the session cookie is
+// encrypted with AUTH0_SESSION_SECRET (blueprint 17.3, G8.5).
+const domain = (process.env.AUTH0_DOMAIN ?? "").replace(/^https?:\/\//, "").replace(/\/$/, "");
+export const APP_BASE_URL = (process.env.APP_BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
-export interface SessionData {
-  sessionId: string;
-  accessToken: string;
-  idToken: string;
-  expiresAt: number;
-  principal: UserPrincipal;
+/** Only same-site paths: "/x" yes, "//evil.example" or "https://…" no. */
+function safePath(path: string | undefined): string {
+  return path && path.startsWith("/") && !path.startsWith("//") ? path : "/home";
 }
 
-// In-memory or server-side store for opaque session mapping
-const sessionStore = new Map<string, SessionData>();
-
-export function getSession(sessionId: string | undefined): SessionData | null {
-  if (!sessionId) {
-    return null;
-  }
-  const session = sessionStore.get(sessionId);
-  if (!session) {
-    return null;
-  }
-  if (Date.now() > session.expiresAt) {
-    sessionStore.delete(sessionId);
-    return null;
-  }
-  return session;
-}
-
-export function createSession(
-  accessToken: string,
-  idToken: string,
-  principal: UserPrincipal,
-  ttlSeconds: number = 3600,
-): string {
-  const sessionId = crypto.randomUUID();
-  sessionStore.set(sessionId, {
-    sessionId,
-    accessToken,
-    idToken,
-    expiresAt: Date.now() + ttlSeconds * 1000,
-    principal,
-  });
-  return sessionId;
-}
-
-export function revokeSession(sessionId: string): void {
-  sessionStore.delete(sessionId);
-}
+export const auth0 = new Auth0Client({
+  domain,
+  clientId: process.env.AUTH0_CLIENT_ID_BFF,
+  clientSecret: process.env.AUTH0_CLIENT_SECRET_BFF,
+  secret: process.env.AUTH0_SESSION_SECRET,
+  appBaseUrl: APP_BASE_URL,
+  signInReturnToPath: "/home",
+  authorizationParameters: {
+    audience: process.env.AUTH0_AUDIENCE_MAIN,
+    scope: "openid profile email",
+  },
+  session: {
+    rolling: true,
+    inactivityDuration: 30 * 60,
+    absoluteDuration: 8 * 60 * 60,
+  },
+  enableAccessTokenEndpoint: false,
+  // The SDK's default shows a bare 500 page with the error text. Send the user back to the start page with a
+  // short reason instead, so a stale or replayed callback (back button, reload, expired attempt) is one click
+  // to recover from. Auth0 errors such as access_denied keep their code for diagnosis.
+  async onCallback(error, ctx) {
+    const base = ctx.appBaseUrl ?? APP_BASE_URL;
+    if (error) {
+      const cause = (error as { cause?: { code?: string } }).cause?.code;
+      const code = cause ?? error.code ?? "callback_error";
+      console.warn(`auth callback failed: ${code}`);
+      return NextResponse.redirect(new URL(`/?auth_error=${encodeURIComponent(code)}`, base));
+    }
+    return NextResponse.redirect(new URL(safePath(ctx.returnTo), base));
+  },
+});

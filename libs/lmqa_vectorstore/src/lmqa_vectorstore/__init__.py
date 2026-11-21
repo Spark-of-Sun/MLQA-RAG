@@ -1,22 +1,11 @@
-"""lmqa_vectorstore: Vector operations and tenant isolation filters."""
+"""Vectors: embedding (Gemini) and hybrid search (pgvector + PostgreSQL full text).
 
-from __future__ import annotations
+MVP deviation (blueprint 10.5, ADR 0004 fallback): vectors live in PostgreSQL with pgvector, so the same
+row-level security that guards chunk text also guards vector search. Search functions take a `Scope`
+(an RLS-bound transaction) and have no unfiltered variant.
+"""
 
-from lmqa_vectorstore.client import VectorStoreClient
-from lmqa_vectorstore.embeddings import compute_deterministic_embedding, cosine_similarity
-from lmqa_vectorstore.filter import VectorFilterBuilder
-from lmqa_vectorstore.local import LocalVectorStoreClient
-from lmqa_vectorstore.models import VectorPoint, VectorQuery, VectorSearchResult
-from lmqa_vectorstore.qdrant import QdrantVectorStoreClient
+from lmqa_vectorstore.embeddings import Embedder, EmbeddingError
+from lmqa_vectorstore.search import hybrid_candidates, vector_literal
 
-__all__ = [
-    "LocalVectorStoreClient",
-    "QdrantVectorStoreClient",
-    "VectorFilterBuilder",
-    "VectorPoint",
-    "VectorQuery",
-    "VectorSearchResult",
-    "VectorStoreClient",
-    "compute_deterministic_embedding",
-    "cosine_similarity",
-]
+__all__ = ["Embedder", "EmbeddingError", "hybrid_candidates", "vector_literal"]

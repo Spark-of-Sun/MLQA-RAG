@@ -1,7 +1,7 @@
 [project]
-name = "lmqa_security"
+name = "lmqa-security"
 version = "0.1.0"
-description = "lmqa_security package"
+description = "Join-code generation and keyed hashing (blueprint 7.6)."
 requires-python = ">=3.14"
 dependencies = []
 

@@ -1,11 +1,15 @@
 [project]
 name = "identity"
 version = "0.1.0"
-description = "identity package"
+description = "Identity service: principals, onboarding paths A/B/C, join codes, approvals (blueprint 7)."
 requires-python = ">=3.14"
-dependencies = [
-    "pydantic>=2.12.0",
-]
+dependencies = ["lmqa-models", "lmqa-db", "lmqa-audit", "lmqa-security"]
+
+[tool.uv.sources]
+lmqa-models = { workspace = true }
+lmqa-db = { workspace = true }
+lmqa-audit = { workspace = true }
+lmqa-security = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]
