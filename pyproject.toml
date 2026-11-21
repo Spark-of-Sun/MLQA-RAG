@@ -50,6 +50,7 @@ ignore = [
 
 [tool.ruff.lint.flake8-type-checking]
 runtime-evaluated-decorators = ["dataclasses.dataclass"]
+runtime-evaluated-base-classes = ["pydantic.BaseModel"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -88,10 +89,16 @@ known-first-party = [
 "libs/lmqa_testing/**" = [
   "E501", "S608", "S311", "PLR0913", "PLR0917", "PLR2004", "C901", "PLR0912", "PLR0914", "PLR0915", "S101", "D",
 ]
-"db/migrations/**" = ["E501", "D", "INP001"]
+# Alembic runs directly against PostgreSQL as the migration owner, never through the scoped session.
+"db/migrations/**" = ["E501", "D", "INP001", "TID251"]
 "libs/lmqa_db/**" = ["TID251"]
-"tools/**" = ["T201", "INP001"]
+# Operational scripts (probes, loaders): asserts are their checks and output is their interface.
+"tools/**" = ["T201", "INP001", "S101", "D", "E501", "C901", "EM101", "TRY003", "ANN401"]
 "corpus/**" = ["T201", "INP001", "D", "ANN401", "PLR2004"]
+# Operational scripts under infra/ are run directly, not imported.
+"infra/**" = ["INP001", "T201"]
+# FastAPI resolves route annotations (UUID, datetime, Request...) at runtime: keep those imports real.
+"services/*/src/*/app.py" = ["TC001", "TC002", "TC003"]
 
 # ---------------------------------------------------------------- pytest (doc 19.4)
 [tool.pytest.ini_options]
@@ -105,7 +112,7 @@ filterwarnings = ["error"]
 testpaths = ["libs", "services", "tests", "tools"]
 markers = [
   "unit", "integration", "contract", "e2e", "isolation", "perf", "chaos",
-  "live_auth0", "live_kms", "live_aws", "live_llm", "control",
+  "live_auth0", "live_kms", "live_aws", "live_llm", "live_models", "control",
   "stage0", "stage1", "stage2", "stage3", "stage4", "stage5", "stage6",
   "stage7", "stage8", "stage9", "stage10", "stage11",
 ]

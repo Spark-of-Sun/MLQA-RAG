@@ -81,6 +81,13 @@ class ContextClaims:
     jti: str
     audience: str
     issued_at: int
+    auth0_sub: str | None = None
+    """Only set for onboarding callers, who have no user row yet (role ``onboarding``)."""
+
+    @property
+    def is_onboarding(self) -> bool:
+        """True for a caller who is authenticated but not yet a member of any organization."""
+        return self.role == "onboarding"
 
     def db_context(self) -> DbContext:
         """The database context this principal runs queries as (never taken from the request)."""
@@ -206,6 +213,16 @@ class ContextSigner:
             return await self._certify()
         return cert
 
+    async def sign_bytes(self, data: bytes) -> tuple[str, bytes]:
+        """Sign arbitrary bytes (a validator verdict) with the certified key.
+
+        Returns ``(certificate, signature)``; the verifier checks the chain with
+        ``ContextVerifier.verify_signature``.
+        """
+        cert = await self.certificate()
+        assert self._key is not None  # noqa: S101 - set together with the certificate
+        return cert.serialize(), self._key.sign(data, ec.ECDSA(hashes.SHA256()))
+
     async def mint(self, *, audience: str, claims: ContextClaims | dict[str, Any]) -> str:
         """Mint a token for one ``audience`` (a single service)."""
         cert = await self.certificate()
@@ -238,6 +255,7 @@ def _claims_to_dict(c: ContextClaims) -> dict[str, Any]:
         "scope_version": c.scope_version,
         "pv": c.principal_version,
         "request_id": str(c.request_id),
+        "auth0_sub": c.auth0_sub,
     }
 
 
@@ -285,6 +303,28 @@ class ContextVerifier:
             msg = "certificate key is not an EC key"
             raise ContextTokenError(msg)
         return key
+
+    async def verify_signature(self, certificate: str, data: bytes, signature: bytes) -> str:
+        """Check ``signature`` over ``data`` against a certified key. Returns the signer workload.
+
+        Raises ``ContextTokenError`` if the certificate is untrusted, expired, revoked, or the
+        signature does not match. The Gateway uses this on validator verdicts (doc 11.6).
+        """
+        try:
+            cert = Certificate.parse(certificate)
+            key = self._check_certificate(cert)
+            denied = await self._deny.is_denied(cert.cert_id)
+            if not denied:
+                key.verify(signature, data, ec.ECDSA(hashes.SHA256()))
+        except ContextTokenError:
+            raise
+        except Exception as exc:
+            msg = f"signature rejected: {type(exc).__name__}"
+            raise ContextTokenError(msg) from exc
+        if denied:
+            msg = "certificate is revoked"
+            raise ContextTokenError(msg)
+        return cert.workload
 
     async def verify(self, token: str, *, state_changing: bool = False) -> ContextClaims:
         """Return verified claims or raise ``ContextTokenError`` (one outcome for every failure)."""
@@ -340,4 +380,5 @@ class ContextVerifier:
             jti=str(body["jti"]),
             audience=self._service,
             issued_at=int(body["iat"]),
+            auth0_sub=body.get("auth0_sub"),
         )

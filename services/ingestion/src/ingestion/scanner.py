@@ -49,11 +49,11 @@ class StaticChecks:
     async def scan(self, data: bytes) -> ScanResult:
         """Size, EICAR, PDF active content and archive bombs."""
         if len(data) > MAX_BYTES:
-            return ScanResult(False, "size_limit")
+            return ScanResult(clean=False, reason="size_limit")
         if _EICAR in data:
-            return ScanResult(False, "malware_eicar")
+            return ScanResult(clean=False, reason="malware_eicar")
         if data[:5] == b"%PDF-" and _PDF_ACTIVE.search(data):
-            return ScanResult(False, "pdf_active_content")
+            return ScanResult(clean=False, reason="pdf_active_content")
         if data[:4] == b"PK\x03\x04":
             try:
                 with zipfile.ZipFile(io.BytesIO(data)) as archive:
@@ -61,10 +61,10 @@ class StaticChecks:
                     if total > MAX_UNCOMPRESSED_BYTES or total > MAX_UNCOMPRESSED_RATIO * max(
                         1, len(data)
                     ):
-                        return ScanResult(False, "decompression_bomb")
+                        return ScanResult(clean=False, reason="decompression_bomb")
             except zipfile.BadZipFile:
-                return ScanResult(False, "malformed_archive")
-        return ScanResult(True)
+                return ScanResult(clean=False, reason="malformed_archive")
+        return ScanResult(clean=True)
 
 
 class ClamdScanner:
@@ -89,10 +89,12 @@ class ClamdScanner:
             reply = (await asyncio.wait_for(reader.read(4096), self._timeout)).rstrip(b"\0\n")
             writer.close()
         except OSError, TimeoutError:
-            return ScanResult(False, "scanner_unavailable")
+            return ScanResult(clean=False, reason="scanner_unavailable")
         if reply.endswith(b"OK"):
-            return ScanResult(True)
-        return ScanResult(False, "malware_detected" if b"FOUND" in reply else "scanner_error")
+            return ScanResult(clean=True)
+        return ScanResult(
+            clean=False, reason="malware_detected" if b"FOUND" in reply else "scanner_error"
+        )
 
 
 class CompositeScanner:
@@ -108,4 +110,4 @@ class CompositeScanner:
             result = await scanner.scan(data)
             if not result.clean:
                 return result
-        return ScanResult(True)
+        return ScanResult(clean=True)

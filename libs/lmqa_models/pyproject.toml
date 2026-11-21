@@ -4,7 +4,8 @@ version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
   "pydantic>=2.14",
-  "pyyaml>=6"
+  "pyyaml>=6",
+  "tokenizers>=0.22"
 ]
 
 [build-system]

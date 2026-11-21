@@ -34,6 +34,30 @@ class DbContext:
     workspace_id: UUID | None = None
     user_id: UUID | None = None
 
+    @property
+    def org(self) -> UUID:
+        """The organization, or ``MissingContextError`` if this context has none."""
+        if self.org_id is None:
+            msg = "this database context has no organization"
+            raise MissingContextError(msg)
+        return self.org_id
+
+    @property
+    def ws(self) -> UUID:
+        """The workspace, or ``MissingContextError`` if this context has none."""
+        if self.workspace_id is None:
+            msg = "this database context has no workspace"
+            raise MissingContextError(msg)
+        return self.workspace_id
+
+    @property
+    def user(self) -> UUID:
+        """The user, or ``MissingContextError`` if this context has none."""
+        if self.user_id is None:
+            msg = "this database context has no user"
+            raise MissingContextError(msg)
+        return self.user_id
+
     def settings(self) -> dict[str, str]:
         """Return the ``app.*`` settings this context stands for (empty string when unset)."""
         return {

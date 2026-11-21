@@ -28,11 +28,13 @@ from ingestion.model import (
     Span,
     normalize_text,
 )
+from lmqa_models.tokenizer import HfTokenizer
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
 _SENTENCE: Final = re.compile(r"(?<=[.;:?!])\s+(?=[A-Z(\[\"'])")
+__all__ = ["ChunkConfig", "HfTokenizer", "Tokenizer", "chunk_document"]
 _CLAUSE_KIND: Final = re.compile(r"^(?:Section|\d+(?:\.\d+)+)", re.IGNORECASE)
 
 
@@ -42,20 +44,6 @@ class Tokenizer(Protocol):
     def count(self, text: str) -> int:
         """Number of tokens in ``text``."""
         ...
-
-
-class HfTokenizer:
-    """A Hugging Face fast tokenizer (the embedding model's own)."""
-
-    def __init__(self, name: str = "BAAI/bge-small-en-v1.5") -> None:
-        """Download (once) and load the tokenizer."""
-        from tokenizers import Tokenizer as FastTokenizer  # noqa: PLC0415
-
-        self._tok = FastTokenizer.from_pretrained(name)
-
-    def count(self, text: str) -> int:
-        """Number of tokens, special tokens excluded."""
-        return len(self._tok.encode(text, add_special_tokens=False).ids)
 
 
 @dataclass(frozen=True, slots=True)

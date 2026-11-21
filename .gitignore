@@ -1,4 +1,3 @@
-
 # secrets (doc 12.10): explicit template exception, never a bare .env*
 .env
 .env.*

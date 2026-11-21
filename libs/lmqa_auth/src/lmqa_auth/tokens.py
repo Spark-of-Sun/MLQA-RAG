@@ -34,6 +34,8 @@ class Auth0Settings:
     audience: str
     allowed_clients: frozenset[str]
     claims_namespace: str
+    require_org: bool = True
+    """False only for the onboarding API, whose Auth0 organization setting is 'deny'."""
 
     @property
     def issuer(self) -> str:
@@ -113,9 +115,13 @@ class TokenVerifier:
 
     def _claims(self, claims: dict[str, Any]) -> VerifiedToken:
         org_id = claims.get("org_id")
-        if not isinstance(org_id, str) or not org_id:
+        if self._settings.require_org and (not isinstance(org_id, str) or not org_id):
             msg = "missing org_id"
             raise TokenRejectedError(msg)
+        if not self._settings.require_org and org_id:
+            msg = "an organization-scoped token is not accepted by the onboarding API"
+            raise TokenRejectedError(msg)
+        org_id = org_id if isinstance(org_id, str) else ""
         azp = claims.get("azp")
         if not isinstance(azp, str) or azp not in self._settings.allowed_clients:
             msg = "authorized party is not an allowed client"

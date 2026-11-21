@@ -93,6 +93,7 @@ machines:
       - {from: active,   to: exhausted, event: exhaust, actors: [system]}
       - {from: active,   to: disabled,  event: disable, actors: [system]}
       - {from: disabled, to: active,    event: enable,  actors: [system]}
+      - {from: disabled, to: rotated,   event: rotate,  actors: [super_admin, admin]}  # a cascade-disabled code stays dead until rotated (doc 7.7)
       - {from: active,   to: revoked,   event: revoke,  actors: [super_admin, admin, operator]}
       - {from: disabled, to: revoked,   event: revoke,  actors: [super_admin, admin, operator]}
 

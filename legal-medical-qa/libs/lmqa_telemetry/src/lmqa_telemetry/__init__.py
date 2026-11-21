@@ -1,1 +1,0 @@
-"""lmqa_telemetry package."""

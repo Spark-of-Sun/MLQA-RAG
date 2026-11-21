@@ -71,11 +71,32 @@ def bootstrap_database(superuser_dsn: str, dbname: str, *, reset: bool = False) 
         conn.execute("CREATE SCHEMA IF NOT EXISTS alembic_meta AUTHORIZATION lmqa_owner")
         conn.execute("ALTER SCHEMA public OWNER TO lmqa_owner")
         conn.execute("REVOKE ALL ON SCHEMA public FROM PUBLIC")
+        _install_pooler_auth(conn)
+
+
+def _install_pooler_auth(conn: psycopg.Connection) -> None:
+    """Create ``pgbouncer.get_auth`` so PgBouncer can authenticate service roles (doc 10.3).
+
+    The function can return the password verifier of the platform's own login roles only.
+    """
+    roles = ", ".join(f"'{r}'" for r in (*LOGIN_ROLES, "lmqa_owner"))
+    conn.execute("CREATE SCHEMA IF NOT EXISTS pgbouncer AUTHORIZATION postgres")
+    conn.execute(
+        "CREATE OR REPLACE FUNCTION pgbouncer.get_auth(p_usename text)"  # noqa: S608
+        " RETURNS TABLE (usename name, passwd text) LANGUAGE sql SECURITY DEFINER"
+        " SET search_path = pg_catalog AS $$"
+        " SELECT s.usename, s.passwd FROM pg_catalog.pg_shadow s"
+        f" WHERE s.usename = p_usename AND s.usename IN ({roles})"
+        " $$"
+    )
+    conn.execute("REVOKE ALL ON FUNCTION pgbouncer.get_auth(text) FROM PUBLIC")
+    conn.execute("GRANT USAGE ON SCHEMA pgbouncer TO pgbouncer_auth")
+    conn.execute("GRANT EXECUTE ON FUNCTION pgbouncer.get_auth(text) TO pgbouncer_auth")
 
 
 def set_role_passwords(superuser_dsn: str, passwords: Mapping[str, str]) -> None:
     """Set login passwords from the environment. Role names are validated against a fixed list."""
-    allowed = {*LOGIN_ROLES, "lmqa_owner"}
+    allowed = {*LOGIN_ROLES, "lmqa_owner", "pgbouncer_auth"}
     with psycopg.connect(with_database(superuser_dsn, "postgres"), autocommit=True) as admin:
         for role, password in passwords.items():
             if role not in allowed:
