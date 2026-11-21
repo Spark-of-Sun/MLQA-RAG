@@ -1,0 +1,15 @@
+[project]
+name = "lmqa-security"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+  "cryptography>=50",
+  "pyhpke>=0.6"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lmqa_security"]
