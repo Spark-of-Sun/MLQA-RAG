@@ -1,57 +1,63 @@
 .DEFAULT_GOAL := help
-PY := uv run
-STAGE ?= $(shell cat STAGE)
+PY := uv run --frozen
+WITHENV := $(PY) python tools/withenv.py --
 
 help: ## list targets
-	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
+	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
 
-sync: ## install the whole workspace from the lockfile (Python 3.14)
-	uv sync --frozen --all-packages
+install: ## install Python (uv workspace) and frontend (pnpm) dependencies
+	uv sync --frozen
+	cd frontend && pnpm install --frozen-lockfile
 
-env: ## fill .env with strong random LOCAL secrets (FORCE=1 overwrites; HOSTS=compose for container host names)
-	$(PY) python tools/gen_env.py $(if $(FORCE),--force,) $(if $(HOSTS),--hosts $(HOSTS),)
+setup: install ## first run: dependencies, local secrets, database, migrations
+	$(PY) python tools/gen_env.py
+	$(MAKE) db migrate
 
-doctor: ## check every real dependency is reachable and configured
-	$(PY) python tools/doctor.py
+db: ## start PostgreSQL 18 + pgvector in Docker (127.0.0.1:5434)
+	$(WITHENV) docker compose up -d --wait
 
-up: ## start the full stack (needs Docker)
-	docker compose up -d --build
+db-stop: ## stop the database (data is kept)
+	$(WITHENV) docker compose stop
 
-down: ## stop the stack
-	docker compose down
+db-reset: ## DELETE all local data (database volume and uploaded files) and start empty
+	$(WITHENV) docker compose down -v
+	rm -rf data/objects
+	$(MAKE) db migrate
 
-infra-test: ## start only the infrastructure the test suite needs
-	docker compose -f compose.test.yaml up -d
-
-migrate: ## create roles and the database, then run migrations (host to localhost:5432)
+migrate: ## create roles, apply db/migrations, db/policies and db/roles
 	$(PY) python tools/db_migrate.py
 
-lint: ## ruff format check + ruff check + pyright + import boundaries
-	$(PY) ruff format --check
-	$(PY) ruff check
-	$(PY) pyright
-	$(PY) lint-imports
+doctor: ## check settings, database, Auth0 and Gemini (prints names, never values)
+	$(PY) python tools/doctor.py
 
-test: ## every test that needs no ML model and no AWS credentials
-	$(PY) pytest -m "not live_models and not live_aws"
+dev: ## run gateway (:8000) and frontend (:3000) with hot reload
+	$(PY) python tools/dev.py
 
-test-models: ## tests that load real ML models (needs ~8 GB RAM)
-	$(PY) pytest -m live_models
+build: ## production build of the frontend
+	$(WITHENV) pnpm --dir frontend build
 
-test-aws: ## tests against real AWS KMS (needs credentials)
-	$(PY) pytest -m live_aws
+start: build ## run gateway and the production frontend (best for demos)
+	$(PY) python tools/dev.py --prod
 
-isolation: ## the cross-scope suite (merge gate)
-	$(PY) pytest -m isolation
-
-gate: ## the cumulative stage gate (see docs in stages.toml)
-	$(PY) python tools/gatekeeper.py $(STAGE)
-
-load-corpus: ## fetch the real public corpus and verify hashes
+corpus: ## download the real public corpus and verify every SHA-256
 	$(PY) python corpus/fetchers.py
-	$(PY) python corpus/fetchers.py --verify
 
-frontend: ## install, type-check and build the frontend
-	cd frontend && pnpm install --frozen-lockfile && pnpm typecheck && pnpm build
+load-corpus: ## index the corpus into an admin's workspace: make load-corpus EMAIL=you@x.com [DOMAIN=legal]
+	$(PY) python tools/load_corpus.py --email "$(EMAIL)" --domain "$(or $(DOMAIN),all)"
 
-.PHONY: help sync env doctor up down infra-test migrate lint test test-models test-aws isolation gate load-corpus frontend
+demo: ## simulate the whole workflow end to end through the API (separate lmqa_demo database, real Gemini)
+	$(PY) python tools/demo.py
+
+demo-web: ## simulate signed-in browsers against the built frontend (run `make build` first)
+	$(PY) python tools/demo_web.py
+
+lint: ## ruff format check + ruff lint + frontend type check
+	$(PY) ruff format --check libs services tools
+	$(PY) ruff check libs services tools
+	cd frontend && pnpm typecheck
+
+format: ## apply ruff formatting and safe fixes
+	$(PY) ruff format libs services tools
+	$(PY) ruff check --fix libs services tools
+
+.PHONY: help install setup db db-stop db-reset migrate doctor dev build start corpus load-corpus demo demo-web lint format

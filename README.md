@@ -1,67 +1,69 @@
-# Onekami: citation-verified answers over legal and medical documents
+# legal-medical-qa (MVP)
 
-Ask a question in plain language and get an answer in which **every sentence carries a machine-verified
-citation** (document, page, clause, highlighted span), or a refusal when the documents do not support one.
-Multi-tenant for law firms and hospital systems; audit-logged end to end.
+Questions over legal and medical documents, answered only with machine-verified, page- and clause-level citations.
+Unsupported sentences are removed before anyone sees them; when the documents do not answer, the system refuses.
+Design: `project-blueprint/` (v3.0). What this MVP builds, and what it defers, is in [docs/mvp.md](docs/mvp.md).
 
-> **Status: working MVP, not yet verified live.** The data layer, security libraries, all seven services, the
-> frontend and the infrastructure code exist and pass their model-free tests against real servers. Nothing has
-> yet run against a real Auth0 tenant, real AWS, an LLM, or the ML models in the sandbox this was built in.
-> **Read [`docs/STATUS.md`](docs/STATUS.md) before relying on any guarantee.** Every guarantee is a design claim
-> until the gate that proves it passes.
+## Run it on localhost
 
-## How it fits together
+Prerequisites: Docker (your user in the `docker` group), [uv](https://docs.astral.sh/uv/), Node 24 and pnpm.
 
-```
-browser -> Cloudflare (DNS, WAF, TLS) -> AWS load balancer -> frontend (Next.js 16, BFF, holds the tokens)
-                                                                    |
-                                                                 gateway  (token check, principal, allow-list, gated release)
-              +-----------+------------+-------------+-------------+--------------+
-           identity   ingestion     retrieval    generation   citation_validator   audit
-              |           |             |             |              |               |
-          PostgreSQL 18 (row-level security = the final authority) . Valkey . Qdrant . S3 . KMS
-```
+1. **Settings.** Put your Auth0 and Gemini values in `.env`; `make doctor` names any setting that is missing.
+   Local-only secrets (database passwords, join-code pepper, session secret) are generated for you.
+2. **Auth0 dashboard** (once):
+   - Applications → your *Regular Web Application*:
+     Allowed Callback URLs `http://localhost:3000/auth/callback`, Allowed Logout URLs `http://localhost:3000`,
+     Allowed Web Origins `http://localhost:3000`.
+   - Applications → APIs: an API whose *Identifier* equals `AUTH0_AUDIENCE_MAIN`, signing algorithm RS256.
+3. **Start:**
 
-* **Auth0 authenticates; PostgreSQL authorizes.** Roles, workspaces, grants, ethical walls and approvals live in the
-  database and are resolved on every request, so suspension takes effect in seconds.
-* **The database is the final authority, not the vector store.** Qdrant narrows search; PostgreSQL decides what a
-  caller may read, and every returned ID is cross-checked.
-* **No unverified text reaches a user.** The validator checks every sentence (tags, ledger, content hash, numbers and
-  dates, entailment) and signs a verdict; the gateway releases a sentence only with a valid verdict and a committed audit record.
+   ```sh
+   make setup     # dependencies, local secrets, PostgreSQL 18 + pgvector in Docker, migrations
+   make doctor    # checks settings, database, Auth0 and Gemini; prints names, never values
+   make start     # production build; app on http://localhost:3000, API on http://127.0.0.1:8000
+   ```
 
-## Repository map
+   `make dev` runs the same with hot reload. Ctrl+C stops both processes.
 
-| Path | What it is |
-| --- | --- |
-| `services/` | `gateway`, `identity`, `ingestion`, `retrieval`, `generation`, `citation_validator`, `audit` (FastAPI) |
-| `libs/` | `lmqa_db` (scoped sessions), `lmqa_keys` (envelope encryption, KMS), `lmqa_auth`, `lmqa_security`, `lmqa_vectorstore`, `lmqa_objectstore`, `lmqa_audit`, `lmqa_models`, `lmqa_testing` |
-| `db/` | Alembic migrations, row-level security policies, roles and grants |
-| `frontend/` | Next.js 16 application (proxy, BFF, pages) |
-| `contracts/` | authorization matrix, state machines, feature flags, exported OpenAPI |
-| `infra/` | `aws/`, `cloudflare/`, `auth0/` (OpenTofu), `k8s/`, `compose/`, `docker/`, `keyguard/` |
-| `corpus/` | fetcher and manifest for the real public documents used by tests |
-| `tools/` | `db_migrate`, `gen_env`, `doctor`, `gatekeeper`, `gen_k8s`, `export_openapi` |
-| `docs/` | `STATUS.md`, `architecture.md`, `versions.md`, `deployment-onekami.md`, `adr/`, `runbooks/` |
+## Demo walkthrough (about 5 minutes)
 
-## Run it locally
+1. Open http://localhost:3000 → **Get started** → sign up → **Create an organization**. You are its Super Admin.
+2. **Manage admins → Generate code.** Copy the invite link (the code is shown once).
+3. In a private window, open the link, sign up with a second account and send the join request; approve it in
+   the first window. The second account now runs a workspace.
+4. As that admin: `make corpus` (downloads the real public documents, SHA-256 checked), then
+   `make load-corpus EMAIL=<admin email> DOMAIN=legal` (or upload files in **Library**).
+5. **Ask**: for example "When must the severance benefit be paid?". Click a citation number to see the exact
+   highlighted passage; open *verification details* to see each check. Ask something the documents do not cover
+   to see the refusal.
+6. **Manage members → Generate code** to invite a member; members upload private documents that even the admin
+   cannot see. **Audit trail → Verify hash chain** shows the tamper-evident log.
 
-```bash
-make sync                         # uv sync --frozen --all-packages  (Python 3.14)
-make env FORCE=1                  # fill .env with strong random LOCAL secrets (third-party keys stay <PLACEHOLDERS>)
-make infra-test                   # PostgreSQL, PgBouncer, Valkey, OpenBao, Qdrant, SeaweedFS in Docker
-make migrate                      # roles, database, migrations
-make load-corpus                  # fetch the real public documents the tests use (not shipped in the zip)
-make test                         # every test that needs no ML model and no AWS credentials
-make lint                         # ruff + pyright + import boundaries
-make doctor                       # what is configured, what is missing, what is reachable
+## Verify without a browser
+
+```sh
+make demo       # 50 checks: onboarding A/B/C, approvals, uploads, RLS isolation, cited answers, refusals,
+                # suspension, audit chain and tamper detection; real Gemini, separate lmqa_demo database
+make demo-web   # 21 checks: signed-in browsers against the built frontend (role routing, 404s, BFF, CSP,
+                # no tokens in pages); run `make build` first
+make lint       # ruff format + ruff check + TypeScript
 ```
 
-`.env` ships with **placeholders only** for every API key and secret. You provide: Auth0 (domain, client IDs and
-secrets), an LLM key (`ANTHROPIC_API_KEY` or `OPENAI_API_KEY`), AWS credentials (or an assumed role), the Cloudflare
-API token and zone, SMTP. `make doctor` lists exactly which are still missing.
+Only the Auth0 login is simulated in these two scripts (tokens signed by a throwaway local key, verified by the
+same gateway code). Everything else is real: PostgreSQL row-level security, the public corpus, Gemini and the
+citation validator.
 
-## Deploy to onekami.site
+## Layout (blueprint 18)
 
-Follow [`docs/deployment-onekami.md`](docs/deployment-onekami.md): Cloudflare in front, everything else on AWS
-(OpenTofu for `infra/aws`, `infra/cloudflare`, `infra/auth0`; Kubernetes manifests in `infra/k8s`).
+```
+contracts/      authz-matrix.yaml (route allow-list; the gateway refuses to start on drift), state-machines.yaml
+db/             migrations/ (schema), policies/ (RLS, helpers, audit chain), roles/ (grants)
+libs/           lmqa_models  lmqa_db  lmqa_audit  lmqa_auth  lmqa_security  lmqa_vectorstore  lmqa_objectstore
+services/       gateway  identity  ingestion  retrieval  generation  citation_validator  audit
+prompts/        templates/, few_shot_examples/, registry.toml (hashed into every answer's audit record)
+frontend/       Next.js 16: src/proxy.ts, src/app/(onboarding|app|super-admin|workspace-admin), api/backend (BFF)
+corpus/         manifest.toml (URL, licence, SHA-256) and fetchers.py; data/ is fetched, not committed
+tools/          doctor, gen_env, db_migrate, load_corpus, dev, demo, demo_web, withenv
+```
 
+`make help` lists every target. `make db-reset` deletes all local data and starts with an empty database.

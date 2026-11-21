@@ -1,1 +1,1 @@
-"""lmqa_security package."""
+"""Security primitives: join codes and keyed hashing."""

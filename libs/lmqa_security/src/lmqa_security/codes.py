@@ -1,15 +1,8 @@
-"""Join codes (doc section 7.6): generation, check character, normalization, keyed hashing.
+"""Organization Codes (64 chars) and Admin Codes (32 chars), blueprint section 7.6.
 
-Layout (Crockford Base32, upper case, shown in groups of 8):
-
-* Organization Code, 64 characters: 8 public lookup ID + 55 secret + 1 check. Secret entropy
-  55 x 5 = 275 bits.
-* Admin Code, 32 characters: 8 public lookup ID + 23 secret + 1 check. Secret entropy
-  23 x 5 = 115 bits.
-
-The lookup ID is stored in plaintext, so only the secret portion counts as entropy (DEF-11).
-The stored value is a keyed HMAC-SHA-256 of kind and full code under a versioned server-side
-pepper, never the code itself. The last characters are never shown again after creation.
+Layout: 8-character public lookup ID + secret characters + 1 Luhn mod-32 check character, in Crockford
+Base32. Only a keyed HMAC-SHA-256 of kind + full code is stored, with a versioned server-side pepper.
+The plaintext is returned once to its owner and never logged.
 """
 
 from __future__ import annotations
@@ -18,111 +11,81 @@ import hashlib
 import hmac
 import secrets
 from dataclasses import dataclass
-from enum import StrEnum
-from typing import Final
+from typing import Literal
 
-ALPHABET: Final = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-"""Crockford Base32: no I, L, O or U."""
-BASE: Final = len(ALPHABET)
-LOOKUP_LENGTH: Final = 8
-GROUP: Final = 8
-_ALIASES: Final = {"I": "1", "L": "1", "O": "0"}
+ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+_INDEX = {ch: i for i, ch in enumerate(ALPHABET)}
+_ALIASES = str.maketrans({"O": "0", "I": "1", "L": "1"})
 
-
-class CodeKind(StrEnum):
-    """Which secret a code is. The kind is part of what gets hashed."""
-
-    ORGANIZATION = "org"
-    ADMIN = "admin"
+Kind = Literal["org", "admin"]
+LENGTH: dict[Kind, int] = {"org": 64, "admin": 32}
+LOOKUP_LEN = 8
 
 
-@dataclass(frozen=True, slots=True)
-class CodeSpec:
-    """Length and entropy of one kind of code."""
-
-    length: int
-
-    @property
-    def secret_length(self) -> int:
-        """Number of secret characters (everything but lookup ID and check character)."""
-        return self.length - LOOKUP_LENGTH - 1
-
-    @property
-    def secret_bits(self) -> int:
-        """Entropy of the secret portion in bits (5 per Base32 character)."""
-        return self.secret_length * 5
-
-
-SPECS: Final = {CodeKind.ORGANIZATION: CodeSpec(64), CodeKind.ADMIN: CodeSpec(32)}
-
-
-class InvalidCodeError(ValueError):
-    """Raised for a malformed code. Callers show one uniform message regardless of the reason."""
-
-
-@dataclass(frozen=True, slots=True)
-class GeneratedCode:
-    """A new code. ``display`` is shown once and never stored."""
-
-    kind: CodeKind
-    canonical: str
+@dataclass(frozen=True)
+class NewCode:
+    kind: Kind
+    code: str  # plaintext, show once
     lookup_id: str
 
     @property
     def display(self) -> str:
-        """The code in groups of eight characters, separated by dashes."""
-        return "-".join(self.canonical[i : i + GROUP] for i in range(0, len(self.canonical), GROUP))
+        return "-".join(self.code[i : i + 8] for i in range(0, len(self.code), 8))
 
 
-def luhn_mod_n_check(payload: str) -> str:
-    """Return the Luhn mod-32 check character for ``payload``."""
+def _luhn_check_char(payload: str) -> str:
+    n = len(ALPHABET)
     factor, total = 2, 0
-    for char in reversed(payload):
-        addend = factor * ALPHABET.index(char)
-        factor = 1 if factor == 2 else 2  # noqa: PLR2004 - Luhn alternates 2, 1
-        total += addend // BASE + addend % BASE
-    return ALPHABET[(BASE - total % BASE) % BASE]
+    for ch in reversed(payload):
+        addend = factor * _INDEX[ch]
+        factor = 1 if factor == 2 else 2
+        total += addend // n + addend % n
+    return ALPHABET[(n - total % n) % n]
 
 
-def is_check_valid(code: str) -> bool:
-    """True if the final character is the correct Luhn mod-32 check for the rest."""
-    return len(code) > 1 and luhn_mod_n_check(code[:-1]) == code[-1]
+def luhn_valid(code: str) -> bool:
+    n = len(ALPHABET)
+    factor, total = 1, 0
+    for ch in reversed(code):
+        if ch not in _INDEX:
+            return False
+        addend = factor * _INDEX[ch]
+        factor = 2 if factor == 1 else 1
+        total += addend // n + addend % n
+    return total % n == 0
 
 
-def generate(kind: CodeKind) -> GeneratedCode:
-    """Create a code from the operating system CSPRNG."""
-    spec = SPECS[kind]
-    body = "".join(secrets.choice(ALPHABET) for _ in range(spec.length - 1))
-    canonical = body + luhn_mod_n_check(body)
-    return GeneratedCode(kind=kind, canonical=canonical, lookup_id=canonical[:LOOKUP_LENGTH])
+def normalize(raw: str) -> str:
+    """Upper-case, drop separators and map the look-alikes Crockford allows (O->0, I/L->1)."""
+    return "".join(ch for ch in raw.upper() if ch not in " -_\t\r\n").translate(_ALIASES)
 
 
-def normalize(raw: str, kind: CodeKind) -> str:
-    """Canonicalize user input: drop separators, upper-case, apply Crockford aliases.
-
-    Raises:
-        InvalidCodeError: wrong length, a character outside the alphabet, or a bad check
-            character. The client runs the same check so typos never cost a server attempt.
-    """
-    cleaned = "".join(ch for ch in raw.upper() if ch not in "- _\t\r\n")
-    cleaned = "".join(_ALIASES.get(ch, ch) for ch in cleaned)
-    if len(cleaned) != SPECS[kind].length or any(ch not in ALPHABET for ch in cleaned):
-        msg = "malformed code"
-        raise InvalidCodeError(msg)
-    if not is_check_valid(cleaned):
-        msg = "check character mismatch"
-        raise InvalidCodeError(msg)
-    return cleaned
+def generate(kind: Kind) -> NewCode:
+    body = "".join(secrets.choice(ALPHABET) for _ in range(LENGTH[kind] - 1))
+    code = body + _luhn_check_char(body)
+    return NewCode(kind=kind, code=code, lookup_id=code[:LOOKUP_LEN])
 
 
-def hash_code(kind: CodeKind, canonical: str, pepper: bytes) -> bytes:
-    """Keyed HMAC-SHA-256 over ``kind`` and the full code under a server-side pepper."""
-    if len(pepper) < 32:  # noqa: PLR2004 - minimum pepper size in bytes
-        msg = "pepper must be at least 32 bytes"
-        raise ValueError(msg)
-    return hmac.new(pepper, f"{kind.value}:{canonical}".encode(), hashlib.sha256).digest()
+def parse(raw: str, kind: Kind) -> str | None:
+    """Return the normalized code if its shape and check character are valid, else None."""
+    code = normalize(raw)
+    if len(code) != LENGTH[kind] or not luhn_valid(code):
+        return None
+    return code
 
 
-def matches(stored: bytes, kind: CodeKind, canonical: str, pepper: bytes) -> bool:
-    """Compare a candidate to a stored hash in constant time."""
-    return hmac.compare_digest(stored, hash_code(kind, canonical, pepper))
+def pepper_bytes(pepper: str) -> bytes:
+    try:
+        return bytes.fromhex(pepper)
+    except ValueError:
+        return pepper.encode("utf-8")
+
+
+def code_hmac(pepper: str, kind: Kind, code: str) -> bytes:
+    return hmac.new(pepper_bytes(pepper), f"{kind}:{code}".encode(), hashlib.sha256).digest()
+
+
+def matches(pepper: str, kind: Kind, code: str, stored: bytes | None) -> bool:
+    """Constant-time comparison; also burns the same work when no row was found."""
+    expected = stored if stored is not None else b"\x00" * 32
+    return hmac.compare_digest(code_hmac(pepper, kind, code), expected) and stored is not None
