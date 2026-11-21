@@ -42,7 +42,7 @@ added stage by stage without rework.
 | 10 | Matters, confidentiality tiers, ethical walls, emergency access, break-glass | Workspace-shared, shared with named people, or private documents | Stage 5 policy rules |
 | 11 | Governance requests, co-owner, successor transfer, operator plane | Not built | Stage 9 |
 | 12 | ClamAV, OCR, object store, PgBouncer, Valkey, observability | Not built; scanned PDF pages are reported, never embedded | Stages 0, 4 |
-| 13 | Gate suites, Playwright, load and chaos tests | `make demo` (94 checks) and `make demo-web` (43 checks) | Per your instruction for this phase |
+| 13 | Gate suites, Playwright, load and chaos tests | `make demo` (94 checks) and `make demo-web` (56 checks) | Per your instruction for this phase |
 | 14 | Separate idle limits per role | 30 min idle / 8 h absolute for everyone | One SDK setting |
 
 ## Answer models and availability

@@ -69,7 +69,7 @@ export default function PricingPage() {
       <Section title="Plans.">
         <div className="grid gap-6 lg:grid-cols-2">
           {PLANS.map((p) => (
-            <div key={p.name} className="flex flex-col rounded-3xl border border-ink-200 bg-white p-8">
+            <div key={p.name} className="flex flex-col rounded-3xl border border-ink-200 bg-surface p-8">
               <p className="font-mono text-xs tracking-wider text-ink-500 uppercase">{p.note}</p>
               <h3 className="mt-4 text-2xl font-semibold tracking-tight text-ink-950">{p.name}</h3>
               <p className="mt-1 text-lg text-ink-600">{p.price}</p>

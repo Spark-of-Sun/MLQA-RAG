@@ -1,5 +1,6 @@
 import { BookOpen, LifeBuoy, Mail, ShieldAlert } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { NumberedGrid, PageHero, Section } from "@/components/site/blocks";
 import { mailto } from "@/components/site/links";
@@ -53,7 +54,7 @@ export default function ContactPage() {
       <Section title="How to reach us.">
         <div className="grid gap-6 md:grid-cols-3">
           {CHANNELS.map(({ icon: Icon, title, email, href, body }) => (
-            <a key={title} href={href} className="group rounded-3xl border border-ink-200 bg-white p-7 hover:border-ink-400">
+            <a key={title} href={href} className="group rounded-3xl border border-ink-200 bg-surface p-7 hover:border-ink-400">
               <Icon className="size-5 text-ink-700" aria-hidden />
               <h3 className="mt-5 font-semibold text-ink-950">{title}</h3>
               <p className="mt-2 text-sm leading-6 text-ink-600">{body}</p>
@@ -62,8 +63,11 @@ export default function ContactPage() {
           ))}
         </div>
         <p className="mt-8 flex items-center gap-2 text-sm text-ink-600">
-          <BookOpen className="size-4" aria-hidden /> Already a customer? Your admin can share the {BRAND} user guide, or
-          email {SUPPORT_EMAIL}.
+          <BookOpen className="size-4" aria-hidden /> Already a customer? Read the{" "}
+          <Link href="/docs" className="font-medium text-link underline underline-offset-4">
+            {BRAND} docs
+          </Link>
+          , or email {SUPPORT_EMAIL}.
         </p>
       </Section>
       <Section muted title="What happens next.">

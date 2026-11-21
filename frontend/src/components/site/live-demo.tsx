@@ -108,9 +108,9 @@ export function LiveDemo() {
   const active = PHASES.findIndex((p) => p.key === phase);
   return (
     <div className="relative">
-      <div className="float absolute -inset-6 -z-10 rounded-[2.5rem] bg-gradient-to-br from-brand-100 via-white to-rose-50 blur-2xl" aria-hidden />
+      <div className="float absolute -inset-6 -z-10 rounded-[2.5rem] bg-gradient-to-br from-brand-100 via-page to-rose-50 blur-2xl" aria-hidden />
       <div
-        className="overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-2xl shadow-ink-900/10"
+        className="overflow-hidden rounded-2xl border border-ink-200 bg-surface shadow-2xl shadow-black/10 dark:shadow-black/50"
         role="img"
         aria-label="Animated example: a question is asked, passages are searched, every sentence is checked, and the answer is shown with its highlighted source."
       >
@@ -118,19 +118,19 @@ export function LiveDemo() {
           <span className="size-2.5 rounded-full bg-ink-200" />
           <span className="size-2.5 rounded-full bg-ink-200" />
           <span className="size-2.5 rounded-full bg-ink-200" />
-          <span className="ml-3 rounded-md bg-white px-3 py-0.5 text-[11px] text-ink-400">onekami.site/chat</span>
+          <span className="ml-3 rounded-md bg-surface px-3 py-0.5 text-[11px] text-ink-400">onekami.site/chat</span>
         </div>
 
         <div className="grid min-h-[22rem] md:grid-cols-[1fr_14rem]" aria-hidden>
           <div className="space-y-4 p-5">
-            <p className="ml-auto w-fit max-w-[92%] rounded-2xl rounded-br-md bg-ink-900 px-4 py-2 text-sm text-white">
+            <p className="ml-auto w-fit max-w-[92%] rounded-2xl rounded-br-md bg-inverse px-4 py-2 text-sm text-on-inverse">
               {s.question.slice(0, typed)}
-              {phase === "typing" && <span className="caret ml-px inline-block h-4 w-px translate-y-0.5 bg-white" />}
+              {phase === "typing" && <span className="caret ml-px inline-block h-4 w-px translate-y-0.5 bg-on-inverse" />}
             </p>
 
             {phase === "searching" && (
               <div key={`search-${n}`} className="slide-in flex items-center gap-2 rounded-xl border border-ink-200 px-3.5 py-3 text-xs text-ink-600">
-                <Search className="size-3.5 text-brand-600" />
+                <Search className="size-3.5 text-link" />
                 Searching your documents…
                 <span className="ml-auto flex gap-1">
                   <span className="dot size-1.5 rounded-full bg-brand-500" />

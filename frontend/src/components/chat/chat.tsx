@@ -126,7 +126,7 @@ export function Chat({ conversationId, kind }: { conversationId: string | null; 
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
         <p className="font-medium text-ink-900">This chat does not exist or is not yours.</p>
-        <Link href="/chat" className="text-sm font-medium text-brand-600 hover:underline">
+        <Link href="/chat" className="text-sm font-medium text-link hover:underline">
           Start a new chat
         </Link>
       </div>
@@ -137,7 +137,7 @@ export function Chat({ conversationId, kind }: { conversationId: string | null; 
     <div className="flex h-full">
       <div className="flex min-w-0 flex-1 flex-col">
         {conversationId && (
-          <header className="flex h-12 shrink-0 items-center border-b border-ink-100 bg-white/80 px-6">
+          <header className="flex h-12 shrink-0 items-center border-b border-ink-100 bg-surface/80 px-6">
             <h1 className="truncate text-sm font-semibold text-ink-900">{title || "Chat"}</h1>
           </header>
         )}
@@ -147,7 +147,7 @@ export function Chat({ conversationId, kind }: { conversationId: string | null; 
 
             {!conversationId && turns.length === 0 && (
               <div className="pt-8 text-center">
-                <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
+                <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-2xl bg-brand-50 text-link">
                   <MessageSquareText className="size-6" aria-hidden />
                 </div>
                 <h1 className="text-2xl font-semibold tracking-tight text-ink-950">Ask your documents</h1>
@@ -171,7 +171,7 @@ export function Chat({ conversationId, kind }: { conversationId: string | null; 
                     href={`/chat/${lastChat.id}`}
                     className="mx-auto mt-6 flex max-w-xl items-center gap-3 rounded-xl border border-brand-200 bg-brand-50/60 px-4 py-3 text-left hover:bg-brand-50"
                   >
-                    <History className="size-4 shrink-0 text-brand-600" aria-hidden />
+                    <History className="size-4 shrink-0 text-link" aria-hidden />
                     <span className="min-w-0 flex-1">
                       <span className="block text-xs font-medium text-brand-700">Continue where you left off</span>
                       <span className="block truncate text-sm text-ink-800">{lastChat.title}</span>
@@ -185,7 +185,7 @@ export function Chat({ conversationId, kind }: { conversationId: string | null; 
                       key={ex}
                       type="button"
                       onClick={() => ask(ex)}
-                      className="rounded-xl border border-ink-200 bg-white px-4 py-3 text-left text-sm text-ink-700 shadow-sm hover:border-brand-200 hover:bg-brand-50/40"
+                      className="rounded-xl border border-ink-200 bg-surface px-4 py-3 text-left text-sm text-ink-700 shadow-sm hover:border-brand-200 hover:bg-brand-50/40"
                     >
                       {ex}
                     </button>
@@ -203,7 +203,7 @@ export function Chat({ conversationId, kind }: { conversationId: string | null; 
                   <div key={turn.key}>
                     {turn.question && (
                       <div className="mb-3 flex flex-col items-end">
-                        <p className="max-w-[85%] rounded-2xl rounded-br-md bg-ink-900 px-4 py-2.5 text-sm text-white">
+                        <p className="max-w-[85%] rounded-2xl rounded-br-md bg-inverse px-4 py-2.5 text-sm text-on-inverse">
                           {turn.question}
                         </p>
                         {rewritten && i > 0 && (
@@ -226,13 +226,13 @@ export function Chat({ conversationId, kind }: { conversationId: string | null; 
         </div>
 
         <form
-          className="border-t border-ink-200 bg-white px-6 py-4"
+          className="border-t border-ink-200 bg-surface px-6 py-4"
           onSubmit={(e) => {
             e.preventDefault();
             void ask(question);
           }}
         >
-          <div className="mx-auto flex max-w-3xl items-end gap-2 rounded-2xl border border-ink-200 bg-white p-2 shadow-sm focus-within:border-brand-300">
+          <div className="mx-auto flex max-w-3xl items-end gap-2 rounded-2xl border border-ink-200 bg-surface p-2 shadow-sm focus-within:border-brand-300">
             <label htmlFor="question" className="sr-only">
               Your question
             </label>
@@ -256,7 +256,7 @@ export function Chat({ conversationId, kind }: { conversationId: string | null; 
             <button
               type="submit"
               disabled={busy || loading || question.trim().length < 3}
-              className="flex size-9 items-center justify-center rounded-xl bg-brand-600 text-white hover:bg-brand-700 disabled:bg-ink-200"
+              className="flex size-9 items-center justify-center rounded-xl bg-brand-600 text-white hover:bg-accent-hover disabled:bg-ink-200"
               aria-label="Ask"
             >
               <ArrowUp className="size-4" aria-hidden />
@@ -275,7 +275,7 @@ export function Chat({ conversationId, kind }: { conversationId: string | null; 
 
 function Working({ elapsed }: { elapsed: number }) {
   return (
-    <div className="rounded-2xl border border-ink-200 bg-white p-4" aria-live="polite">
+    <div className="rounded-2xl border border-ink-200 bg-surface p-4" aria-live="polite">
       <div className="flex items-center gap-2 text-sm font-medium text-ink-700">
         <span className="flex gap-1" aria-hidden>
           <span className="dot size-1.5 rounded-full bg-brand-500" />

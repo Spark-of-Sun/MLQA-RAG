@@ -2,8 +2,16 @@ import { ChevronDown, Menu, X } from "lucide-react";
 import Link from "next/link";
 
 import { Container } from "@/components/site/blocks";
-import { DEMO_MAIL, INDUSTRY_LINKS, NAV, SIGN_IN, SIGN_UP, SUPPORT_MAIL } from "@/components/site/links";
+import {
+  DEMO_MAIL,
+  INDUSTRY_LINKS,
+  NAV,
+  SIGN_IN,
+  SIGN_UP,
+  SUPPORT_MAIL,
+} from "@/components/site/links";
 import { CompanyMark, Logo } from "@/components/logo";
+import { ThemeSwitch } from "@/components/theme-switch";
 import { BRAND, COMPANY, CONTACT_EMAIL, SUPPORT_EMAIL } from "@/lib/format";
 
 // The public site needs no client JavaScript: the Industries menu opens on hover or keyboard focus, and the
@@ -11,8 +19,11 @@ import { BRAND, COMPANY, CONTACT_EMAIL, SUPPORT_EMAIL } from "@/lib/format";
 
 export function SiteHeader({ signedIn }: { signedIn: boolean }) {
   return (
-    <header className="sticky top-0 z-40 border-b border-ink-200/70 bg-[#fcfcfc]/90 backdrop-blur">
-      <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:rounded focus:bg-white focus:px-3 focus:py-2">
+    <header className="sticky top-0 z-40 border-b border-ink-200/70 bg-page/85 backdrop-blur dark:bg-page/70">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:rounded focus:bg-surface focus:px-3 focus:py-2"
+      >
         Skip to content
       </a>
       <Container className="flex h-16 items-center justify-between gap-6">
@@ -27,56 +38,85 @@ export function SiteHeader({ signedIn }: { signedIn: boolean }) {
                   href={n.href}
                   className="flex items-center gap-1 rounded-full px-3 py-2 text-sm text-ink-600 hover:text-ink-950"
                 >
-                  {n.label} <ChevronDown className="size-3.5 transition-transform group-hover:rotate-180" aria-hidden />
+                  {n.label}{" "}
+                  <ChevronDown
+                    className="size-3.5 transition-transform group-hover:rotate-180"
+                    aria-hidden
+                  />
                 </Link>
                 <div className="invisible absolute top-full left-0 pt-2 opacity-0 transition group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100">
-                  <div className="w-80 rounded-2xl border border-ink-200 bg-white p-2 shadow-xl shadow-ink-900/5">
+                  <div className="w-80 rounded-2xl border border-ink-200 bg-raised p-2 shadow-xl shadow-black/5 dark:shadow-black/40">
                     {n.children.map((c) => (
-                      <Link key={c.href} href={c.href} className="block rounded-xl px-4 py-3 hover:bg-ink-50">
-                        <span className="block text-sm font-medium text-ink-950">{c.label}</span>
-                        <span className="block text-xs text-ink-500">{c.body}</span>
+                      <Link
+                        key={c.href}
+                        href={c.href}
+                        className="block rounded-xl px-4 py-3 hover:bg-surface-hover"
+                      >
+                        <span className="block text-sm font-medium text-ink-950">
+                          {c.label}
+                        </span>
+                        <span className="block text-xs text-ink-500">
+                          {c.body}
+                        </span>
                       </Link>
                     ))}
-                    <Link href={n.href} className="block rounded-xl px-4 py-2 text-xs font-medium text-ink-600 hover:bg-ink-50">
+                    <Link
+                      href={n.href}
+                      className="block rounded-xl px-4 py-2 text-xs font-medium text-ink-600 hover:bg-surface-hover"
+                    >
                       All industries →
                     </Link>
                   </div>
                 </div>
               </div>
             ) : (
-              <Link key={n.href} href={n.href} className="rounded-full px-3 py-2 text-sm text-ink-600 hover:text-ink-950">
+              <Link
+                key={n.href}
+                href={n.href}
+                className="rounded-full px-3 py-2 text-sm text-ink-600 hover:text-ink-950"
+              >
                 {n.label}
               </Link>
             ),
           )}
         </nav>
-        <div className="hidden items-center gap-2 lg:flex">
-          <HeaderActions signedIn={signedIn} />
-        </div>
-        <details className="group relative lg:hidden">
-          <summary className="flex cursor-pointer list-none items-center rounded-full p-2 text-ink-700 hover:bg-ink-100 [&::-webkit-details-marker]:hidden">
-            <Menu className="size-5 group-open:hidden" aria-hidden />
-            <X className="hidden size-5 group-open:block" aria-hidden />
-            <span className="sr-only">Menu</span>
-          </summary>
-          <div className="absolute right-0 mt-2 w-72 rounded-2xl border border-ink-200 bg-white p-2 shadow-xl">
-            {NAV.map((n) => (
-              <div key={n.href}>
-                <Link href={n.href} className="block rounded-xl px-4 py-2.5 text-sm font-medium text-ink-900 hover:bg-ink-50">
-                  {n.label}
-                </Link>
-                {n.children?.map((c) => (
-                  <Link key={c.href} href={c.href} className="block rounded-xl py-2 pr-4 pl-8 text-sm text-ink-600 hover:bg-ink-50">
-                    {c.label}
-                  </Link>
-                ))}
-              </div>
-            ))}
-            <div className="mt-2 flex flex-col gap-2 border-t border-ink-100 p-2">
-              <HeaderActions signedIn={signedIn} />
-            </div>
+        <div className="flex items-center gap-2">
+          <div className="hidden items-center gap-2 lg:flex">
+            <HeaderActions signedIn={signedIn} />
           </div>
-        </details>
+          <ThemeSwitch className="lg:ml-1" />
+          <details className="group relative lg:hidden">
+            <summary className="flex cursor-pointer list-none items-center rounded-full p-2 text-ink-700 hover:bg-ink-100 [&::-webkit-details-marker]:hidden">
+              <Menu className="size-5 group-open:hidden" aria-hidden />
+              <X className="hidden size-5 group-open:block" aria-hidden />
+              <span className="sr-only">Menu</span>
+            </summary>
+            <div className="absolute right-0 mt-2 w-72 rounded-2xl border border-ink-200 bg-raised p-2 shadow-xl dark:shadow-black/40">
+              {NAV.map((n) => (
+                <div key={n.href}>
+                  <Link
+                    href={n.href}
+                    className="block rounded-xl px-4 py-2.5 text-sm font-medium text-ink-900 hover:bg-surface-hover"
+                  >
+                    {n.label}
+                  </Link>
+                  {n.children?.map((c) => (
+                    <Link
+                      key={c.href}
+                      href={c.href}
+                      className="block rounded-xl py-2 pr-4 pl-8 text-sm text-ink-600 hover:bg-surface-hover"
+                    >
+                      {c.label}
+                    </Link>
+                  ))}
+                </div>
+              ))}
+              <div className="mt-2 flex flex-col gap-2 border-t border-ink-100 p-2">
+                <HeaderActions signedIn={signedIn} />
+              </div>
+            </div>
+          </details>
+        </div>
       </Container>
     </header>
   );
@@ -85,20 +125,32 @@ export function SiteHeader({ signedIn }: { signedIn: boolean }) {
 function HeaderActions({ signedIn }: { signedIn: boolean }) {
   if (signedIn) {
     return (
-      <a href="/home" className="rounded-full bg-ink-950 px-4 py-2 text-center text-sm font-medium text-white hover:bg-ink-800">
+      <a
+        href="/home"
+        className="rounded-full bg-inverse px-4 py-2 text-center text-sm font-medium text-on-inverse hover:bg-inverse-hover"
+      >
         Open workspace
       </a>
     );
   }
   return (
     <>
-      <a href={SIGN_IN} className="rounded-full px-4 py-2 text-center text-sm font-medium text-ink-700 hover:bg-ink-100">
+      <a
+        href={SIGN_IN}
+        className="rounded-full px-4 py-2 text-center text-sm font-medium text-ink-700 hover:bg-ink-100"
+      >
         Sign in
       </a>
-      <Link href="/contact" className="rounded-full border border-ink-300 px-4 py-2 text-center text-sm font-medium text-ink-900 hover:bg-ink-50">
+      <Link
+        href="/contact"
+        className="rounded-full border border-ink-300 px-4 py-2 text-center text-sm font-medium text-ink-900 hover:bg-surface-hover"
+      >
         Talk to us
       </Link>
-      <a href={SIGN_UP} className="rounded-full bg-ink-950 px-4 py-2 text-center text-sm font-medium text-white hover:bg-ink-800">
+      <a
+        href={SIGN_UP}
+        className="rounded-full bg-inverse px-4 py-2 text-center text-sm font-medium text-on-inverse hover:bg-inverse-hover"
+      >
         Get started
       </a>
     </>
@@ -113,11 +165,15 @@ const FOOTER: { title: string; links: { href: string; label: string }[] }[] = [
       { href: "/product#verification", label: "How answers are checked" },
       { href: "/product#teams", label: "Teams and roles" },
       { href: "/pricing", label: "Pricing" },
+      { href: "/docs", label: "Documentation" },
     ],
   },
   {
     title: "Industries",
-    links: [...INDUSTRY_LINKS.map(({ href, label }) => ({ href, label })), { href: "/industries", label: "All industries" }],
+    links: [
+      ...INDUSTRY_LINKS.map(({ href, label }) => ({ href, label })),
+      { href: "/industries", label: "All industries" },
+    ],
   },
   {
     title: "Get started",
@@ -134,6 +190,7 @@ const FOOTER: { title: string; links: { href: string; label: string }[] }[] = [
       { href: "/company", label: `About ${COMPANY}` },
       { href: "/security", label: "Security" },
       { href: "/contact", label: "Contact" },
+      { href: "/docs/troubleshooting", label: "Help" },
       { href: SUPPORT_MAIL, label: "Support" },
     ],
   },
@@ -142,13 +199,14 @@ const FOOTER: { title: string; links: { href: string; label: string }[] }[] = [
 export function SiteFooter() {
   const year = new Date().getFullYear();
   return (
-    <footer className="bg-[#fcfcfc]">
+    <footer className="bg-page">
       <Container className="grid gap-12 py-16 md:grid-cols-[1.3fr_repeat(4,1fr)]">
         <div>
           <CompanyMark className="h-9" />
           <p className="mt-5 max-w-xs text-sm leading-6 text-ink-600">
-            {COMPANY} builds software for professionals who have to stand behind every answer. {BRAND} is our answer engine
-            for legal and clinical documents.
+            {COMPANY} builds software for professionals who have to stand behind
+            every answer. {BRAND} is our answer engine for legal and clinical
+            documents.
           </p>
           <dl className="mt-6 space-y-1 text-sm">
             <div>
@@ -171,16 +229,25 @@ export function SiteFooter() {
         </div>
         {FOOTER.map((col) => (
           <nav key={col.title} aria-label={col.title}>
-            <h2 className="font-mono text-xs tracking-wider text-ink-500 uppercase">{col.title}</h2>
+            <h2 className="font-mono text-xs tracking-wider text-ink-500 uppercase">
+              {col.title}
+            </h2>
             <ul className="mt-4 space-y-2.5">
               {col.links.map((l) => (
                 <li key={l.label}>
-                  {l.href.startsWith("/auth/") || l.href.startsWith("mailto:") ? (
-                    <a href={l.href} className="text-sm text-ink-700 hover:text-ink-950">
+                  {l.href.startsWith("/auth/") ||
+                  l.href.startsWith("mailto:") ? (
+                    <a
+                      href={l.href}
+                      className="text-sm text-ink-700 hover:text-ink-950"
+                    >
                       {l.label}
                     </a>
                   ) : (
-                    <Link href={l.href} className="text-sm text-ink-700 hover:text-ink-950">
+                    <Link
+                      href={l.href}
+                      className="text-sm text-ink-700 hover:text-ink-950"
+                    >
                       {l.label}
                     </Link>
                   )}
@@ -193,9 +260,13 @@ export function SiteFooter() {
       <div className="border-t border-ink-200/70">
         <Container className="flex flex-col gap-2 py-6 text-xs text-ink-500 sm:flex-row sm:items-center sm:justify-between">
           <p>
-            © {year} {COMPANY}. All rights reserved. {BRAND} is a product of {COMPANY}.
+            © {year} {COMPANY}. All rights reserved. {BRAND} is a product of{" "}
+            {COMPANY}.
           </p>
-          <p>{BRAND} reports what your documents say. It does not give legal or medical advice.</p>
+          <p>
+            {BRAND} reports what your documents say. It does not give legal or
+            medical advice.
+          </p>
         </Container>
       </div>
     </footer>

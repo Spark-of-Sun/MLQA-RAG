@@ -36,7 +36,7 @@ export default function CompanyPage() {
         }
       />
       <Section title="What we build.">
-        <Link href="/product" className="group block rounded-3xl border border-ink-200 bg-white p-8 hover:border-ink-400">
+        <Link href="/product" className="group block rounded-3xl border border-ink-200 bg-surface p-8 hover:border-ink-400">
           <p className="font-mono text-xs tracking-wider text-ink-500 uppercase">Product</p>
           <h3 className="mt-4 text-3xl font-semibold tracking-tight text-ink-950">{BRAND}</h3>
           <p className="mt-3 max-w-2xl text-ink-600">

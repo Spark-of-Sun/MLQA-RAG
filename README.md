@@ -4,8 +4,11 @@ Questions over legal and medical documents, answered only with machine-verified,
 Unsupported sentences are removed before anyone sees them; when the documents do not answer, the system refuses.
 Design: `project-blueprint/` (v3.0). What this MVP builds, and what it defers, is in [docs/mvp.md](docs/mvp.md).
 The product is called **Cyte** (by Onekami); the customer guide is [docs/user-guide.md](docs/user-guide.md).
-The public website (Home, Product, Industries, Security, Pricing, Company, Contact) is served by the same Next.js
-app, in `frontend/src/app/(site)/`.
+The public website (Home, Product, Industries, Security, Pricing, Docs, Company, Contact) is served by the same
+Next.js app, in `frontend/src/app/(site)/`. The docs at `/docs` are written from the blueprint
+(`frontend/src/lib/docs.ts`): public pages for everyone, the rest only for the roles they concern (a Super Admin reads
+all; an admin reads admin and member pages; a member reads member pages). Access is decided on the server from the
+gateway's role, and a page you may not read shows a lock on the page itself, nowhere else.
 
 ## Run it on localhost
 
@@ -62,8 +65,8 @@ Prerequisites: Docker (your user in the `docker` group), [uv](https://docs.astra
 make demo       # 94 checks: onboarding A/B/C, approvals, uploads, sharing, RLS isolation, cited answers, refusals,
                 # chats, profiles, audit sections and filters, suspension, audit chain and tamper detection;
                 # real Gemini, separate lmqa_demo database
-make demo-web   # 43 checks: signed-in browsers against the built frontend (role routing, 404s, BFF, CSP,
-                # no tokens in pages); run `make build` first
+make demo-web   # 56 checks: signed-in browsers against the built frontend (role routing, 404s, BFF, CSP,
+                # no tokens in pages, docs access by role); run `make build` first
 make lint       # ruff format + ruff check + TypeScript
 ```
 

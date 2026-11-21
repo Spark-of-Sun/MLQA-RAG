@@ -1,8 +1,9 @@
-import type { Metadata } from "next";
-import { headers } from "next/headers";
+import type { Metadata, Viewport } from "next";
+import { cookies, headers } from "next/headers";
 import type { ReactNode } from "react";
 
 import { BRAND, COMPANY } from "@/lib/format";
+import { THEME_COOKIE, parseTheme } from "@/lib/theme";
 
 import "./globals.css";
 
@@ -22,11 +23,22 @@ export const metadata: Metadata = {
   },
 };
 
+// The browser's own UI (mobile address bar, window title bar) follows the system setting.
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fcfcfc" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0b0e" },
+  ],
+};
+
 export default async function RootLayout({ children }: { children: ReactNode }) {
   // Reading the request headers opts every page into dynamic rendering, which the per-request CSP nonce needs.
   await headers();
+  // The saved choice is rendered into the HTML, so the page is drawn in the right theme from the first frame. No
+  // choice yet: no class, and the stylesheet follows the operating system (globals.css).
+  const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
   return (
-    <html lang="en">
+    <html lang="en" className={theme ?? undefined}>
       <body>{children}</body>
     </html>
   );

@@ -12,7 +12,8 @@ screens, so use a window at least 1024 pixels wide.
 
 **Getting help:** email help@onekami.site for help using Cyte. For demos, pilots and other questions, email
 contact@onekami.site. The website also explains the product (**Product**), how data is protected (**Security**),
-plans (**Pricing**) and how to reach us (**Contact**).
+plans (**Pricing**) and how to reach us (**Contact**). The **Docs** section of the website has this guide's content,
+with the pages for admins and Super Admins open only to those roles.
 
 > **Preview notice.** In this preview, document text is processed by Google (for search) and by the configured
 > answer model. Do not upload real client or patient records until Onekami confirms that the required data

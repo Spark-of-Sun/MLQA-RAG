@@ -1,10 +1,12 @@
 "use client";
 
 import { ArrowLeft, Building2, Clock, KeyRound, UserPlus } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { Logo } from "@/components/logo";
+import { ThemeSwitch } from "@/components/theme-switch";
 import { Alert, Button, Card } from "@/components/ui";
 import { api, errorMessage } from "@/lib/api-client";
 import { codeProblem, formatCode, normalizeCode } from "@/lib/codes";
@@ -30,14 +32,17 @@ export function Onboarding({ me }: { me: Me }) {
   }, []);
 
   return (
-    <div className="min-h-full bg-white">
+    <div className="atmosphere-grid min-h-full bg-page">
       <header className="mx-auto flex max-w-5xl items-center justify-between px-6 py-5">
-        <Logo />
-        <div className="flex items-center gap-3 text-sm text-ink-500">
-          {me.user.email}
+        <Link href="/" title="Home page">
+          <Logo />
+        </Link>
+        <div className="flex items-center gap-4 text-sm text-ink-500">
+          <span className="hidden sm:inline">{me.user.email}</span>
           <a href="/auth/logout" className="font-medium text-ink-700 hover:underline">
             Sign out
           </a>
+          <ThemeSwitch />
         </div>
       </header>
       <div className="mx-auto max-w-3xl px-6 pt-10 pb-16">
@@ -97,7 +102,7 @@ function Choose({ onPick }: { onPick: (f: Flow) => void }) {
             onClick={() => onPick(flow)}
             className="rounded-2xl border border-ink-200 p-5 text-left shadow-sm transition hover:border-brand-300 hover:shadow-md"
           >
-            <Icon className="size-5 text-brand-600" aria-hidden />
+            <Icon className="size-5 text-link" aria-hidden />
             <p className="mt-3 font-semibold text-ink-900">{title}</p>
             <p className="mt-1 text-sm text-ink-500">{body}</p>
           </button>
@@ -167,7 +172,7 @@ function CreateOrg() {
               <label
                 key={k}
                 className={`cursor-pointer rounded-lg border px-3 py-2 text-center text-sm font-medium capitalize ${
-                  kind === k ? "border-brand-400 bg-brand-50 text-brand-700" : "border-ink-200 text-ink-600 hover:bg-ink-50"
+                  kind === k ? "border-brand-400 bg-brand-50 text-brand-700" : "border-ink-200 text-ink-600 hover:bg-surface-hover"
                 }`}
               >
                 <input type="radio" name="kind" value={k} checked={kind === k} onChange={() => setKind(k)} className="sr-only" />

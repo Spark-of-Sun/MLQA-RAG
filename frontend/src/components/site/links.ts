@@ -21,5 +21,6 @@ export const NAV: { href: string; label: string; children?: typeof INDUSTRY_LINK
   { href: "/industries", label: "Industries", children: INDUSTRY_LINKS },
   { href: "/security", label: "Security" },
   { href: "/pricing", label: "Pricing" },
+  { href: "/docs", label: "Docs" },
   { href: "/company", label: "Company" },
 ];

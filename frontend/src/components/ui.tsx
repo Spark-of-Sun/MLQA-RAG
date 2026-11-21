@@ -6,10 +6,10 @@ import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 
 const VARIANTS: Record<Variant, string> = {
-  primary: "bg-brand-600 text-white hover:bg-brand-700 disabled:bg-brand-600/50",
-  secondary: "border border-ink-200 bg-white text-ink-800 hover:bg-ink-50 disabled:text-ink-400",
+  primary: "bg-brand-600 text-white hover:bg-accent-hover disabled:bg-brand-600/50",
+  secondary: "border border-ink-200 bg-surface text-ink-800 hover:bg-ink-100 disabled:text-ink-400",
   ghost: "text-ink-600 hover:bg-ink-100 hover:text-ink-900 disabled:text-ink-300",
-  danger: "border border-rose-200 bg-white text-rose-700 hover:bg-rose-50 disabled:text-rose-300",
+  danger: "border border-rose-200 bg-surface text-rose-700 hover:bg-rose-50 disabled:text-rose-300",
 };
 
 export function Button({
@@ -33,7 +33,7 @@ export function Button({
 }
 
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <section className={`rounded-xl border border-ink-200 bg-white shadow-sm ${className}`}>{children}</section>;
+  return <section className={`rounded-xl border border-ink-200 bg-surface shadow-edge ${className}`}>{children}</section>;
 }
 
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
@@ -118,7 +118,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/40 p-4" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4 backdrop-blur-[2px]" onMouseDown={onClose}>
       <div
         ref={ref}
         role="dialog"
@@ -126,7 +126,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
         aria-label={title}
         tabIndex={-1}
         onMouseDown={(e) => e.stopPropagation()}
-        className="w-full max-w-lg rounded-2xl bg-white shadow-xl outline-none"
+        className="w-full max-w-lg rounded-2xl border border-transparent bg-raised shadow-xl outline-none dark:border-ink-200"
       >
         <div className="flex items-center justify-between border-b border-ink-100 px-5 py-4">
           <h2 className="font-semibold text-ink-950">{title}</h2>

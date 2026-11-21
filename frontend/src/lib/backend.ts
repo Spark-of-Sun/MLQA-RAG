@@ -44,3 +44,26 @@ export function homeFor(me: Me): string {
   if (!m || !m.active) return "/onboarding";
   return m.role === "super_admin" ? "/manage-admins" : "/chat";
 }
+
+/**
+ * The signed-in principal for pages anyone may open (the documentation): `null` when nobody is signed in, and
+ * "unavailable" when the API cannot be reached. Never redirects. Role and status come from the gateway, as for
+ * every other page, never from the token. Cached per request.
+ */
+export const findMe = cache(async (): Promise<Me | null | "unavailable"> => {
+  const session = await auth0.getSession();
+  if (!session) return null;
+  const token = await accessToken();
+  if (!token) return null;
+  try {
+    const response = await fetch(`${API_URL}/v1/me`, {
+      headers: { authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (response.status === 401) return null;
+    if (!response.ok) return "unavailable";
+    return (await response.json()) as Me;
+  } catch {
+    return "unavailable";
+  }
+});

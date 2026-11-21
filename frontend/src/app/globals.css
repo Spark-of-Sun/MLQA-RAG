@@ -1,8 +1,31 @@
 @import "tailwindcss";
 
+/*
+ * Light and dark themes
+ * ---------------------
+ * The theme lives on <html>: `class="dark"` or `class="light"` from the `cyte-theme` cookie (read by the server in
+ * app/layout.tsx, so the first paint is already right and nothing flashes), or no class at all, which follows the
+ * operating system's setting. The `dark:` variant below covers both cases, and so does the palette further down.
+ * Switching is done by components/theme-switch.tsx.
+ */
+@custom-variant dark {
+  &:where(.dark, .dark *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not(.light), :root:not(.light) *) {
+      @slot;
+    }
+  }
+}
+
 @theme {
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+
+  /* Neutral ramp. Each step has one job in both themes: 50 canvas, 100 subtle fill and hover, 200 border,
+     300 strong border and disabled, 400 faint text and icons, 500 muted text, 600 secondary text, 700 body text,
+     800 strong text, 900-950 headings. Surfaces and solid dark fills use the semantic tokens below instead. */
   --color-ink-50: #f6f7f9;
   --color-ink-100: #eceef2;
   --color-ink-200: #d5d9e2;
@@ -14,36 +37,202 @@
   --color-ink-800: #2b3040;
   --color-ink-900: #1a1e2a;
   --color-ink-950: #10131b;
+
+  /* Brand. 50-200 tints (chips, active items), 300-400 focus and active borders, 500 focus outline, 600 solid
+     fill behind white text, 700-900 text on tints and links. The hover of a solid fill is `accent-hover`. */
   --color-brand-50: #eef4ff;
   --color-brand-100: #dbe6fe;
   --color-brand-200: #bfd3fe;
+  --color-brand-300: #a8c3fc;
+  --color-brand-400: #7da2f9;
   --color-brand-500: #3b6ff5;
   --color-brand-600: #2554e6;
   --color-brand-700: #1d42c9;
+  --color-brand-800: #1a3aa0;
   --color-brand-900: #172d6e;
+  --color-accent-hover: #1d42c9;
+  --color-link: #2554e6; /* links and brand icons drawn on the canvas or a surface */
+
+  /* Surfaces */
+  --color-page: #fcfcfc; /* the public website's background */
+  --color-page-muted: #f6f7f9; /* its alternating sections */
+  --color-surface: #ffffff; /* cards, panels, inputs, the sidebar */
+  --color-surface-hover: #f6f7f9; /* a row or button on a surface, under the pointer */
+  --color-raised: #ffffff; /* dialogs and menus that float above surfaces */
+  --color-overlay: rgb(16 19 27 / 0.45); /* behind dialogs */
+
+  /* Inverse: a solid high-contrast fill (primary buttons on the website, the question bubble, the logo mark,
+     a one-time code). Dark on light, light on dark. */
+  --color-inverse: #1a1e2a;
+  --color-inverse-hover: #2b3040;
+  --color-on-inverse: #ffffff;
+  --color-on-inverse-muted: #b0b8c7;
+
+  /* Band: the website's dark feature sections. Dark in both themes, so their text colors are fixed too. */
+  --color-band: #10131b;
+  --color-on-band: #ffffff;
+  --color-on-band-muted: #b0b8c7;
+  --color-on-band-subtle: #8590a6;
+  --color-on-band-accent: #bfd3fe;
+
+  /* The highlighted passage behind a citation */
+  --color-highlight: rgb(253 230 138 / 0.85);
+  --color-on-highlight: #10131b;
 }
 
-html,
-body {
-  height: 100%;
+/*
+ * Dark palette. Designed for each step's job, not inverted: the canvas is near-black with a cool tint, surfaces
+ * step up in lightness to show elevation (dark mode has no visible shadows), text steps keep their order and stay
+ * at or above WCAG AA on the canvas, tints become deep saturated fills so chips still read as chips, and status
+ * colors keep their hue while their text steps lighten.
+ */
+@layer base {
+  :root {
+    color-scheme: light;
+    --sheen: rgb(255 255 255 / 0.75);
+    --atmosphere: none;
+    --grid: none;
+    --edge: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+
+    @variant dark {
+      color-scheme: dark;
+      --sheen: rgb(255 255 255 / 0.22);
+      /* Soft colored light from the top corners, so the canvas has depth instead of being one flat color. */
+      --atmosphere:
+        radial-gradient(70rem 38rem at 8% -12%, rgb(59 111 245 / 0.16), transparent 62%),
+        radial-gradient(55rem 32rem at 100% -8%, rgb(139 92 246 / 0.1), transparent 60%),
+        radial-gradient(60rem 40rem at 50% 115%, rgb(20 184 166 / 0.06), transparent 65%);
+      /* A faint dot grid for the website's open areas. */
+      --grid: radial-gradient(rgb(255 255 255 / 0.045) 1px, transparent 1.2px);
+      /* Cards: a hairline of light on the top edge instead of a drop shadow, which dark backgrounds swallow. */
+      --edge: inset 0 1px 0 0 rgb(255 255 255 / 0.05), 0 1px 3px 0 rgb(0 0 0 / 0.35);
+
+      /* Midnight slate instead of flat black: a cool blue-grey base reads as depth, not as a void, and stays
+         easy on the eyes for long reading. Steps are spaced for clear borders and elevation. */
+      --color-ink-50: #0f131b;
+      --color-ink-100: #1a1f2a;
+      --color-ink-200: #2a3140;
+      --color-ink-300: #3b4354;
+      --color-ink-400: #7a849a;
+      --color-ink-500: #939db1;
+      --color-ink-600: #adb5c6;
+      --color-ink-700: #c7cdd9;
+      --color-ink-800: #e0e4ec;
+      --color-ink-900: #edf0f5;
+      --color-ink-950: #f8fafc;
+
+      --color-brand-50: #121b31;
+      --color-brand-100: #182544;
+      --color-brand-200: #263c6b;
+      --color-brand-300: #34528f;
+      --color-brand-400: #4c71c9;
+      --color-brand-500: #6d93ff;
+      --color-brand-600: #2f61ee;
+      --color-brand-700: #a3bdff;
+      --color-brand-800: #c0d2ff;
+      --color-brand-900: #dbe6ff;
+      --color-accent-hover: #4f7ef8;
+      --color-link: #8fb0ff;
+
+      --color-page: #0d1118;
+      --color-page-muted: #121722;
+      --color-surface: #161b25;
+      --color-surface-hover: #1f2531;
+      --color-raised: #1d2330;
+      --color-overlay: rgb(5 8 14 / 0.72);
+
+      --color-inverse: #eceef2;
+      --color-inverse-hover: #d5d9e2;
+      --color-on-inverse: #10131b;
+      --color-on-inverse-muted: #505b71;
+
+      --color-band: #131a2a;
+
+      --color-highlight: rgb(250 204 21 / 0.26);
+      --color-on-highlight: #fff6d1;
+
+      --color-emerald-50: #0d241e;
+      --color-emerald-100: #10352b;
+      --color-emerald-200: #16503f;
+      --color-emerald-600: #2fbf8a;
+      --color-emerald-700: #6ee7b7;
+      --color-emerald-800: #a7f3d0;
+
+      --color-amber-50: #261b08;
+      --color-amber-100: #3a2a0e;
+      --color-amber-200: #5a4012;
+      --color-amber-600: #f5a524;
+      --color-amber-700: #fcd34d;
+      --color-amber-800: #fde68a;
+      --color-amber-900: #fef3c7;
+
+      --color-rose-50: #2a1015;
+      --color-rose-100: #3c151c;
+      --color-rose-200: #5d1f29;
+      --color-rose-300: #8a4a55;
+      --color-rose-700: #fda4af;
+      --color-rose-800: #fecdd3;
+    }
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-ink-50 text-ink-900 antialiased;
+  }
+
+  ::selection {
+    background-color: var(--color-brand-200);
+    color: var(--color-ink-950);
+  }
+
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: var(--color-brand-600);
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-500;
+  }
+}
+
+/* The canvas treatment: nothing in light mode, the colored glow (and, on the website, the dot grid) in dark. */
+@utility atmosphere {
+  background-image: var(--atmosphere);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+@utility atmosphere-grid {
+  background-image: var(--atmosphere), var(--grid);
+  background-repeat: no-repeat, repeat;
+  background-size: auto, 24px 24px;
+  background-attachment: fixed;
+}
+
+@utility shadow-edge {
+  box-shadow: var(--edge);
 }
 
 @media (prefers-reduced-motion: no-preference) {
   html {
     scroll-behavior: smooth;
   }
-}
 
-body {
-  @apply bg-ink-50 text-ink-900 antialiased;
-}
-
-:focus-visible {
-  @apply outline-2 outline-offset-2 outline-brand-500;
+  /* A short cross-fade when the theme changes (View Transitions; browsers without it switch at once). */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0.25s;
+  }
 }
 
 mark.cite {
-  @apply rounded-sm bg-amber-200/80 px-0.5 text-ink-950;
+  @apply rounded-sm px-0.5;
+  background-color: var(--color-highlight);
+  color: var(--color-on-highlight);
 }
 
 @keyframes pulse-dot {
@@ -199,7 +388,7 @@ html.reveal-ready .site [data-reveal][data-shown] {
 }
 
 .site mark.sheen {
-  background-image: linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 0.75) 50%, transparent 70%);
+  background-image: linear-gradient(100deg, transparent 30%, var(--sheen) 50%, transparent 70%);
   background-size: 250% 100%;
   background-repeat: no-repeat;
   animation: site-sheen 1.6s ease-out 0.2s both;

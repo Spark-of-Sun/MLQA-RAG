@@ -102,7 +102,7 @@ function CodeDialog({ code, kind, onClose }: { code: NewCode; kind: "org" | "adm
   return (
     <Modal title={kind === "org" ? "New Organization Code" : "New member invite code"} onClose={onClose}>
       <Alert tone="amber">This is the only time the code is shown. Copy it now. Any previous code no longer works.</Alert>
-      <p className="mt-4 rounded-lg bg-ink-950 px-4 py-3 text-center font-mono text-sm leading-6 tracking-wider break-all text-white">
+      <p className="mt-4 rounded-lg bg-inverse px-4 py-3 text-center font-mono text-sm leading-6 tracking-wider break-all text-on-inverse">
         {code.code}
       </p>
       <div className="mt-3 flex flex-wrap gap-2">

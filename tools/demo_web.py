@@ -275,6 +275,49 @@ def main() -> int:
             "strict nonce CSP on app pages",
             "'strict-dynamic'" in csp and "nonce-" in csp and "frame-ancestors 'none'" in csp,
         )
+
+        step("Documentation: public pages for everyone, private pages by role")
+        anon = httpx.Client(base_url=WEB, timeout=60, follow_redirects=False)
+        # A sentence from the body of each page: present only when the page is shown, absent behind the wall.
+        public, member, admin, owner = (
+            ("/docs/introduction", "Answer from general knowledge"),
+            ("/docs/chats", "Hover over a chat to rename it"),
+            ("/docs/managing-members", "Every question asked, not the number of chats"),
+            ("/docs/the-owners-role", "No access rule lets your role read documents, passages"),
+        )
+
+        def reads(client: httpx.Client, page: tuple[str, str]) -> bool:
+            r = client.get(page[0])
+            return r.status_code == 200 and page[1] in r.text
+
+        def walled(client: httpx.Client, page: tuple[str, str], wording: str) -> bool:
+            r = client.get(page[0])
+            return r.status_code == 200 and wording in r.text and page[1] not in r.text
+
+        index = anon.get("/docs")
+        check("anyone can open the docs home", index.status_code == 200)
+        check(
+            "the menu lists every page alike, with no lock or role marker",
+            all(t in index.text for t in ("Managing admins", "Workspace audit", "Chats"))
+            and "lucide-lock" not in index.text,
+        )
+        check("signed out: a public page is readable", reads(anon, public))
+        check(
+            "signed out: a member page shows the sign-in wall, and none of its text",
+            walled(anon, member, "Sign in to read"),
+        )
+        check("the wall appears only on the page itself", "lucide-lock" in anon.get(member[0]).text)
+        check(
+            "a signed-in user without an approved membership gets the inactive wall",
+            walled(newbie, member, "not active yet"),
+        )
+        check("member: reads member pages", reads(carol, member))
+        check("member: admin pages are walled", walled(carol, admin, "for other roles"))
+        check("member: Super Admin pages are walled", walled(carol, owner, "for other roles"))
+        check("admin: reads admin and member pages", reads(bob, admin) and reads(bob, member))
+        check("admin: Super Admin pages are walled", walled(bob, owner, "for other roles"))
+        check("Super Admin: reads every page", all(reads(alice, p) for p in (public, member, admin, owner)))
+        check("an unknown docs page is 404", anon.get("/docs/no-such-page").status_code == 404)
     finally:
         os.killpg(web.pid, 15)
         server.should_exit = True

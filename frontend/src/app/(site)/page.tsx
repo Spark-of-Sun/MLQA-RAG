@@ -130,7 +130,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
         </Container>
       </section>
 
-      <section className="marquee overflow-hidden border-b border-ink-200/70 bg-white py-5" aria-label="Documents Cyte reads">
+      <section className="marquee overflow-hidden border-b border-ink-200/70 bg-surface py-5" aria-label="Documents Cyte reads">
         <div className="marquee-track flex w-max gap-10 pr-10">
           {[...DOCUMENT_TYPES, ...DOCUMENT_TYPES].map((d, i) => (
             <span key={i} className="flex items-center gap-10 font-mono text-sm whitespace-nowrap text-ink-500" aria-hidden={i >= DOCUMENT_TYPES.length}>
@@ -194,7 +194,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
         </Container>
       </section>
 
-      <section className="border-b border-ink-200/70 bg-ink-50">
+      <section className="border-b border-ink-200/70 bg-page-muted">
         <Container className="py-20">
           <dl className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
             {FACTS.map((f, i) => (
@@ -219,15 +219,15 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
             {[...CHAIN, ...CHAIN].map(([event, hash], i) => (
               <div key={i} className="flex items-center">
                 <div className="w-52 rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-                  <p className="text-sm font-medium text-white">{event}</p>
-                  <p className="mt-1 font-mono text-[11px] text-ink-400">sha256 {hash}…</p>
+                  <p className="text-sm font-medium text-on-band">{event}</p>
+                  <p className="mt-1 font-mono text-[11px] text-on-band-subtle">sha256 {hash}…</p>
                 </div>
-                <Link2 className="mx-3 size-4 text-ink-500" />
+                <Link2 className="mx-3 size-4 text-on-band-subtle" />
               </div>
             ))}
           </div>
         </div>
-        <p data-reveal className="mt-6 text-sm text-ink-400">
+        <p data-reveal className="mt-6 text-sm text-on-band-subtle">
           Every audit event carries the hash of the one before it, so any change to the history shows.
         </p>
         <div className="mt-10" data-reveal>

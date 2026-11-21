@@ -167,7 +167,7 @@ export function Library({ isAdmin }: { isAdmin: boolean }) {
         >
           <UploadCloud className="size-7 text-ink-400" aria-hidden />
           <p className="mt-2 text-sm font-medium text-ink-800">Drop files here, or</p>
-          <label className="mt-2 cursor-pointer rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700">
+          <label className="mt-2 cursor-pointer rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover">
             Choose files
             <input
               ref={input}
@@ -183,7 +183,7 @@ export function Library({ isAdmin }: { isAdmin: boolean }) {
           {isAdmin ? (
             <div className="mt-4 w-full max-w-xl">
               <p className="mb-1.5 text-xs font-medium text-ink-700">Who can use these documents?</p>
-              <div className="inline-flex rounded-lg border border-ink-200 bg-white p-0.5 text-xs" role="radiogroup" aria-label="Share with">
+              <div className="inline-flex rounded-lg border border-ink-200 bg-surface p-0.5 text-xs" role="radiogroup" aria-label="Share with">
                 {AUDIENCES.map(({ value, label, icon: Icon }) => (
                   <button
                     key={value}
@@ -192,7 +192,7 @@ export function Library({ isAdmin }: { isAdmin: boolean }) {
                     aria-checked={audience === value}
                     onClick={() => setAudience(value)}
                     className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium ${
-                      audience === value ? "bg-ink-900 text-white" : "text-ink-600 hover:bg-ink-50"
+                      audience === value ? "bg-inverse text-on-inverse" : "text-ink-600 hover:bg-surface-hover"
                     }`}
                   >
                     <Icon className="size-3.5" aria-hidden />
@@ -201,7 +201,7 @@ export function Library({ isAdmin }: { isAdmin: boolean }) {
                 ))}
               </div>
               {audience === "members" && (
-                <div className="mt-3 rounded-lg border border-ink-200 bg-white p-3 text-left">
+                <div className="mt-3 rounded-lg border border-ink-200 bg-surface p-3 text-left">
                   {members.length === 0 ? (
                     <p className="text-xs text-ink-500">No active members yet. Approve members in Manage members first.</p>
                   ) : (
@@ -223,7 +223,7 @@ export function Library({ isAdmin }: { isAdmin: boolean }) {
                       <ul className="max-h-40 space-y-1 overflow-y-auto">
                         {members.map((m) => (
                           <li key={m.user_id}>
-                            <label className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-sm hover:bg-ink-50">
+                            <label className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-sm hover:bg-surface-hover">
                               <input
                                 type="checkbox"
                                 checked={selected.has(m.user_id)}
@@ -242,7 +242,7 @@ export function Library({ isAdmin }: { isAdmin: boolean }) {
               )}
             </div>
           ) : (
-            <label className="mt-4 flex max-w-md cursor-pointer items-start gap-2.5 rounded-lg border border-ink-200 bg-white px-3 py-2.5 text-left">
+            <label className="mt-4 flex max-w-md cursor-pointer items-start gap-2.5 rounded-lg border border-ink-200 bg-surface px-3 py-2.5 text-left">
               <input
                 type="checkbox"
                 checked={shareWithAdmin}

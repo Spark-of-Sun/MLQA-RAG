@@ -81,7 +81,7 @@ export function FlowSteps() {
           );
         })}
       </ol>
-      <div className="relative min-h-72 overflow-hidden rounded-3xl border border-ink-200 bg-white p-6" aria-hidden>
+      <div className="relative min-h-72 overflow-hidden rounded-3xl border border-ink-200 bg-surface p-6" aria-hidden>
         <Panel step={active} />
       </div>
     </div>
@@ -115,11 +115,11 @@ function Panel({ step }: { step: number }) {
   if (step === 1) {
     return (
       <div key="ask" className="space-y-3">
-        <p className="slide-in ml-auto w-fit max-w-[90%] rounded-2xl rounded-br-md bg-ink-900 px-4 py-2 text-sm text-white">
+        <p className="slide-in ml-auto w-fit max-w-[90%] rounded-2xl rounded-br-md bg-inverse px-4 py-2 text-sm text-on-inverse">
           When must the severance benefit be paid?
         </p>
         <p
-          className="slide-in ml-auto w-fit max-w-[90%] rounded-2xl rounded-br-md bg-ink-900 px-4 py-2 text-sm text-white"
+          className="slide-in ml-auto w-fit max-w-[90%] rounded-2xl rounded-br-md bg-inverse px-4 py-2 text-sm text-on-inverse"
           style={{ animationDelay: "700ms" }}
         >
           And what must the Executive sign first?

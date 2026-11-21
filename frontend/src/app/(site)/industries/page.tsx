@@ -22,7 +22,7 @@ export default function IndustriesPage() {
       <Section title="Who it is for.">
         <div className="grid gap-6 lg:grid-cols-2">
           {INDUSTRIES.map((i) => (
-            <Link key={i.slug} href={`/industries/${i.slug}`} className="group rounded-3xl border border-ink-200 bg-white p-8 hover:border-ink-400">
+            <Link key={i.slug} href={`/industries/${i.slug}`} className="group rounded-3xl border border-ink-200 bg-surface p-8 hover:border-ink-400">
               <p className="font-mono text-xs tracking-wider text-ink-500 uppercase">{i.who}</p>
               <h3 className="mt-6 text-3xl font-semibold tracking-tight text-ink-950">{i.name}</h3>
               <p className="mt-3 text-ink-600">{i.intro}</p>

@@ -59,7 +59,7 @@ export default async function IndustryPage({ params }: Params) {
             <h3 className="font-mono text-xs tracking-wider text-ink-500 uppercase">Questions teams ask</h3>
             <ul className="mt-4 space-y-3">
               {industry.questions.map((q) => (
-                <li key={q} className="rounded-2xl border border-ink-200 bg-white px-5 py-4 text-ink-800">
+                <li key={q} className="rounded-2xl border border-ink-200 bg-surface px-5 py-4 text-ink-800">
                   “{q}”
                 </li>
               ))}
@@ -78,7 +78,7 @@ export default async function IndustryPage({ params }: Params) {
             <Link
               key={l.href}
               href={l.href}
-              className="group flex items-center justify-between rounded-2xl border border-ink-200 bg-white px-5 py-4 font-medium text-ink-900 hover:border-ink-400"
+              className="group flex items-center justify-between rounded-2xl border border-ink-200 bg-surface px-5 py-4 font-medium text-ink-900 hover:border-ink-400"
             >
               {l.label} <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" aria-hidden />
             </Link>

@@ -78,11 +78,11 @@ export function ChatList() {
   }
 
   return (
-    <aside className="hidden w-72 shrink-0 flex-col border-r border-ink-200 bg-white/70 lg:flex" aria-label="Chats">
+    <aside className="hidden w-72 shrink-0 flex-col border-r border-ink-200 bg-surface/70 lg:flex" aria-label="Chats">
       <div className="p-3">
         <Link
           href="/chat"
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm font-medium text-ink-800 shadow-sm hover:bg-ink-50"
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-ink-200 bg-surface px-3 py-2 text-sm font-medium text-ink-800 shadow-sm hover:bg-surface-hover"
         >
           <Plus className="size-4" aria-hidden /> New chat
         </Link>
@@ -102,7 +102,7 @@ export function ChatList() {
                   const active = c.id === activeId;
                   if (editing === c.id) {
                     return (
-                      <li key={c.id} className="flex items-center gap-1 rounded-lg bg-white px-2 py-1 ring-1 ring-brand-300">
+                      <li key={c.id} className="flex items-center gap-1 rounded-lg bg-surface px-2 py-1 ring-1 ring-brand-300">
                         <input
                           autoFocus
                           value={draft}

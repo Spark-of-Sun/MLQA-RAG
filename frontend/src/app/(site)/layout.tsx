@@ -10,7 +10,7 @@ import { auth0 } from "@/lib/auth0";
 export default async function SiteLayout({ children }: { children: ReactNode }) {
   const signedIn = Boolean(await auth0.getSession());
   return (
-    <div className="site min-h-full bg-[#fcfcfc] text-ink-900">
+    <div className="site atmosphere-grid min-h-full bg-page text-ink-900">
       <Reveal />
       <SiteHeader signedIn={signedIn} />
       <main id="main">

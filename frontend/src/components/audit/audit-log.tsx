@@ -124,7 +124,7 @@ function syncUrl(f: AuditFilters) {
 }
 
 const INPUT =
-  "rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-sm text-ink-800 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 focus:outline-none";
+  "rounded-lg border border-ink-200 bg-surface px-2.5 py-1.5 text-sm text-ink-800 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 focus:outline-none";
 
 export function AuditLog({ role, initial }: { role: Role; initial: AuditFilters }) {
   const sections = SECTIONS[role];
@@ -344,7 +344,7 @@ export function AuditLog({ role, initial }: { role: Role; initial: AuditFilters 
                     type="button"
                     onClick={() => setOpen(expanded ? null : e.id)}
                     aria-expanded={expanded}
-                    className="flex w-full items-start gap-4 px-5 py-3 text-left hover:bg-ink-50/60"
+                    className="flex w-full items-start gap-4 px-5 py-3 text-left hover:bg-surface-hover"
                   >
                     {expanded ? (
                       <ChevronDown className="mt-0.5 size-4 shrink-0 text-ink-400" aria-hidden />

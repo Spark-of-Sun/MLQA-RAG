@@ -151,7 +151,7 @@ export default function ProductPage() {
       </Section>
 
       <Section id="compare" muted title="Why not a chatbot, or plain search?" intro="Chatbots are fast but hard to check. Search is checkable but slow. Cyte gives you the speed of one with the proof of the other.">
-        <div className="overflow-x-auto rounded-2xl border border-ink-200 bg-white">
+        <div className="overflow-x-auto rounded-2xl border border-ink-200 bg-surface">
           <table className="w-full min-w-[36rem] text-sm">
             <thead className="border-b border-ink-200 text-ink-600">
               <tr>

@@ -29,9 +29,9 @@ export function CitationPanel({ citation, onClose }: { citation: Citation; onClo
   }, [citation]);
 
   return (
-    <aside className="flex w-[26rem] shrink-0 flex-col border-l border-ink-200 bg-white" aria-label="Source">
+    <aside className="flex w-[26rem] shrink-0 flex-col border-l border-ink-200 bg-surface" aria-label="Source">
       <div className="flex items-start gap-3 border-b border-ink-100 px-5 py-4">
-        <div className="rounded-lg bg-brand-50 p-2 text-brand-600">
+        <div className="rounded-lg bg-brand-50 p-2 text-link">
           <FileText className="size-4" aria-hidden />
         </div>
         <div className="min-w-0 flex-1">
