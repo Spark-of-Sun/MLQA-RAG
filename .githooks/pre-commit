@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+# Blocks commits that contain secrets. Enabled by `make hooks` (part of `make install`).
+set -eu
+GITLEAKS=$(command -v gitleaks || true)
+[ -z "$GITLEAKS" ] && [ -x "$HOME/.local/bin/gitleaks" ] && GITLEAKS="$HOME/.local/bin/gitleaks"
+if [ -z "$GITLEAKS" ]; then
+  echo "pre-commit: gitleaks is not installed, refusing to commit unscanned changes." >&2
+  echo "Install it from https://github.com/gitleaks/gitleaks/releases and retry." >&2
+  exit 1
+fi
+exec "$GITLEAKS" git --pre-commit --staged --redact --no-banner .

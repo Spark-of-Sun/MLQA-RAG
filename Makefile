@@ -5,9 +5,12 @@ WITHENV := $(PY) python tools/withenv.py --
 help: ## list targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
 
-install: ## install Python (uv workspace) and frontend (pnpm) dependencies
+install: hooks ## install Python (uv workspace) and frontend (pnpm) dependencies
 	uv sync --frozen
 	cd frontend && pnpm install --frozen-lockfile
+
+hooks: ## enable the repo's git hooks (blocks commits that contain secrets)
+	git config core.hooksPath .githooks
 
 setup: install ## first run: dependencies, local secrets, database, migrations
 	$(PY) python tools/gen_env.py
@@ -60,4 +63,4 @@ format: ## apply ruff formatting and safe fixes
 	$(PY) ruff format libs services tools
 	$(PY) ruff check --fix libs services tools
 
-.PHONY: help install setup db db-stop db-reset migrate doctor dev build start corpus load-corpus demo demo-web lint format
+.PHONY: help install hooks setup db db-stop db-reset migrate doctor dev build start corpus load-corpus demo demo-web lint format

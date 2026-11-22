@@ -1,0 +1,6 @@
+# Reviewed false positives (S3 object key path, Auth0 password-policy name). Format: commit:file:rule:line
+21f8cf43d91ce7d86253d84262a0b7d0db399c59:tools/probe_object_store.py:generic-api-key:71
+21f8cf43d91ce7d86253d84262a0b7d0db399c59:tools/probe_object_store.py:generic-api-key:76
+ddab297e3d3df99dd4e22ee9f9b95c2efe08be21:legal-medical-qa/infra/auth0/main.tf:hashicorp-tf-password:69
+ddab297e3d3df99dd4e22ee9f9b95c2efe08be21:legal-medical-qa/tools/probe_object_store.py:generic-api-key:76
+ddab297e3d3df99dd4e22ee9f9b95c2efe08be21:legal-medical-qa/tools/probe_object_store.py:generic-api-key:81
