@@ -29,3 +29,12 @@ agent_work
 project-blueprint
 
 lmqa.json
+.kiro
+
+# build output that embeds server secrets
+.next-verify/
+**/.next-*/
+.env*.local
+env-example.txt
+temp.py
+!.env.example
