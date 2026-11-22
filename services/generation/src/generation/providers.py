@@ -36,18 +36,29 @@ class Completion:
     tokens_in: int
     tokens_out: int
     model: str
+    key_id: str = ""  # fingerprint of the API key that served the call (never the key)
 
 
 class _Transient(Exception):
-    """This model cannot serve the request now; another may. `cooldown`: how long to skip it."""
+    """This model cannot serve the request now; another may. `cooldown`: how long to skip it.
+
+    `scope` says what is unavailable: "quota" this key's quota for this model (another key may still work),
+    "key" the key itself (rejected for every model), "model" the model for everyone (overloaded, not available)."""
 
     def __init__(
-        self, reason: str, *, retry_soon: bool = True, cooldown: float = COOLDOWN_SECONDS, daily_quota: bool = False
+        self,
+        reason: str,
+        *,
+        retry_soon: bool = True,
+        cooldown: float = COOLDOWN_SECONDS,
+        daily_quota: bool = False,
+        scope: str = "model",
     ) -> None:
         super().__init__(reason)
         self.retry_soon = retry_soon
         self.cooldown = cooldown
         self.daily_quota = daily_quota
+        self.scope = scope
 
 
 def json_schema(schema: dict[str, Any]) -> dict[str, Any]:
@@ -104,7 +115,7 @@ def _common_errors(resp: httpx.Response, who: str) -> None:
     """Map HTTP failures that mean the same thing for every provider."""
     if resp.status_code in {401, 403}:
         # A bad or unauthorised key for this provider: skip it for an hour, other providers may still answer.
-        raise _Transient(f"{who} rejected the API key", retry_soon=False, cooldown=3600)
+        raise _Transient(f"{who} rejected the API key", retry_soon=False, cooldown=3600, scope="key")
     if resp.status_code == 404:
         raise _Transient("model not available to this key", retry_soon=False, cooldown=24 * 3600)
     if resp.status_code in TRANSIENT:
@@ -142,7 +153,10 @@ class Provider:
         except httpx.HTTPError as exc:
             raise _Transient(type(exc).__name__) from exc
 
-    def generate(self, model: str, system: str, user: str, schema: dict[str, Any]) -> Completion:
+    def generate(
+        self, model: str, system: str, user: str, schema: dict[str, Any], key: str | None = None
+    ) -> Completion:
+        """`key`: the API key to use for this call (key rotation); the provider's configured key if None."""
         raise NotImplementedError
 
 
@@ -153,7 +167,9 @@ class GeminiProvider(Provider):
         self._no_thinking: set[str] = set()
         self._lock = threading.Lock()
 
-    def generate(self, model: str, system: str, user: str, schema: dict[str, Any]) -> Completion:
+    def generate(
+        self, model: str, system: str, user: str, schema: dict[str, Any], key: str | None = None
+    ) -> Completion:
         config: dict[str, Any] = {
             "responseMimeType": "application/json",
             "responseSchema": schema,
@@ -168,14 +184,14 @@ class GeminiProvider(Provider):
             "contents": [{"role": "user", "parts": [{"text": user}]}],
             "generationConfig": config,
         }
-        headers = {"x-goog-api-key": self._key or "", "content-type": "application/json"}
+        headers = {"x-goog-api-key": key or self._key or "", "content-type": "application/json"}
         resp = self._post(f"{self._base}/models/{model}:generateContent", headers, body)
         if resp.status_code == 429:
             raise _gemini_quota(resp)
         if resp.status_code == 400 and "thinking" in _message(resp).lower() and "thinkingConfig" in config:
             with self._lock:
                 self._no_thinking.add(model)  # this model does not accept thinkingLevel; retry once without it
-            return self.generate(model, system, user, schema)
+            return self.generate(model, system, user, schema, key)
         _common_errors(resp, "Gemini")
         if resp.status_code != 200:
             raise LLMError(f"Gemini returned {resp.status_code}: {_message(resp)}")
@@ -219,8 +235,10 @@ def _gemini_quota(resp: httpx.Response) -> _Transient:
     except ValueError:
         pass
     if any("perday" in q.lower() for q in quota_ids):
-        return _Transient("daily quota used up", retry_soon=False, cooldown=max(delay, 3600), daily_quota=True)
-    return _Transient("rate limited", retry_soon=delay <= 5, cooldown=max(min(delay, 300), 30))
+        return _Transient(
+            "daily quota used up", retry_soon=False, cooldown=max(delay, 3600), daily_quota=True, scope="quota"
+        )
+    return _Transient("rate limited", retry_soon=delay <= 5, cooldown=max(min(delay, 300), 30), scope="quota")
 
 
 # ------------------------------------------------------------------------------------------------ OpenAI-compatible
@@ -232,7 +250,9 @@ class OpenAIProvider(Provider):
         self._json_mode_only: set[str] = set()
         self._lock = threading.Lock()
 
-    def generate(self, model: str, system: str, user: str, schema: dict[str, Any]) -> Completion:
+    def generate(
+        self, model: str, system: str, user: str, schema: dict[str, Any], key: str | None = None
+    ) -> Completion:
         strict = json_schema(schema)
         schema_mode = model not in self._json_mode_only
         if schema_mode:
@@ -259,15 +279,15 @@ class OpenAIProvider(Provider):
         if self._s.llm_temperature is not None:
             body["temperature"] = self._s.llm_temperature
         headers = {"content-type": "application/json"}
-        if self._key:
-            headers["authorization"] = f"Bearer {self._key}"
+        if key or self._key:
+            headers["authorization"] = f"Bearer {key or self._key}"
         if self.name == "openrouter":
             headers["x-title"] = "LMQA"
         resp = self._post(f"{self._base}/chat/completions", headers, body)
         if resp.status_code in {400, 422} and schema_mode and _rejects_schema(_message(resp)):
             with self._lock:
                 self._json_mode_only.add(model)
-            return self.generate(model, system, user, schema)
+            return self.generate(model, system, user, schema, key)
         if resp.status_code == 429:
             raise _openai_quota(resp)
         _common_errors(resp, self.name)
@@ -308,17 +328,19 @@ def _openai_quota(resp: httpx.Response) -> _Transient:
     except ValueError:
         code = ""
     if "insufficient_quota" in code or "quota" in _message(resp).lower():
-        return _Transient("quota used up", retry_soon=False, cooldown=3600, daily_quota=True)
+        return _Transient("quota used up", retry_soon=False, cooldown=3600, daily_quota=True, scope="quota")
     retry = resp.headers.get("retry-after", "")
     delay = float(retry) if retry.replace(".", "", 1).isdigit() else 30.0
-    return _Transient("rate limited", retry_soon=delay <= 5, cooldown=max(min(delay, 300), 30))
+    return _Transient("rate limited", retry_soon=delay <= 5, cooldown=max(min(delay, 300), 30), scope="quota")
 
 
 # ------------------------------------------------------------------------------------------------ Anthropic
 class AnthropicProvider(Provider):
     TOOL = "respond"
 
-    def generate(self, model: str, system: str, user: str, schema: dict[str, Any]) -> Completion:
+    def generate(
+        self, model: str, system: str, user: str, schema: dict[str, Any], key: str | None = None
+    ) -> Completion:
         body: dict[str, Any] = {
             "model": model,
             "max_tokens": self._s.llm_max_output_tokens,
@@ -335,12 +357,16 @@ class AnthropicProvider(Provider):
         }
         if self._s.llm_temperature is not None:
             body["temperature"] = self._s.llm_temperature
-        headers = {"x-api-key": self._key or "", "anthropic-version": "2023-06-01", "content-type": "application/json"}
+        headers = {
+            "x-api-key": key or self._key or "",
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
         resp = self._post(f"{self._base}/messages", headers, body)
         if resp.status_code == 429:
             retry = resp.headers.get("retry-after", "")
             delay = float(retry) if retry.replace(".", "", 1).isdigit() else 30.0
-            raise _Transient("rate limited", retry_soon=delay <= 5, cooldown=max(min(delay, 300), 30))
+            raise _Transient("rate limited", retry_soon=delay <= 5, cooldown=max(min(delay, 300), 30), scope="quota")
         _common_errors(resp, "Anthropic")
         if resp.status_code != 200:
             raise LLMError(f"Anthropic returned {resp.status_code}: {_message(resp)}")

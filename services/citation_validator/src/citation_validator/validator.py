@@ -1,7 +1,10 @@
 """Citation validator (blueprint 11.6). Deterministic: the same input yields the same verdict on every run.
 
 Per sentence of the model's draft:
-  V7 refusal            the refusal uses the exact canonical wording, alone, with no citation
+  V7 refusal            the refusal uses the exact canonical wording, alone, with no citation; or a scoped
+                        refusal naming one detail the documents do not address ("The provided documents do not
+                        address <detail>."): one plain clause, no citation, no commas or linking words, so it
+                        cannot carry a claim
   V4 citation required  every other sentence cites at least one source
   V1 tag grammar        every cited id matches S<n>
   V2 alias membership   every cited id is in this request's retrieval ledger
@@ -31,6 +34,8 @@ from typing import Any
 from lmqa_models.rag import CANONICAL_REFUSAL, Source
 
 ALIAS = re.compile(r"^S([1-9]\d?)$")
+_SCOPED_REFUSAL = re.compile(r"^The provided documents do not address [^.,;:!?()\[\]\n]{3,140}\.$")
+_SCOPED_LINKS = re.compile(r"\b(?:but|however|although|though|because|since|instead|whereas|while|yet|so|is)\b")
 _INLINE_TAG = re.compile(r"\s*[\[(](?:S\d+(?:\s*[,;]\s*S\d+)*)[\])]")
 _NUMBER = re.compile(r"(?<![A-Za-z])\d+(?:[.,]\d+)*")
 _WORD = re.compile(r"[a-z][a-z'-]{3,}")
@@ -408,6 +413,15 @@ def validate(
         v = Verdict(index=i, text=text)
         verdicts.append(v)
 
+        detail = text.removeprefix("The provided documents do not address ").lower()
+        if text != CANONICAL_REFUSAL and _SCOPED_REFUSAL.match(text) and not _SCOPED_LINKS.search(detail):  # V7
+            v.refusal = True
+            if cites:
+                v.fail("V7", "A refusal must not cite a source")
+            else:
+                v.passed("V7")
+            continue
+
         if CANONICAL_REFUSAL.lower().rstrip(".") in text.lower():  # V7
             v.refusal = True
             if text == CANONICAL_REFUSAL and not cites:
@@ -510,7 +524,7 @@ def build_result(answerable: bool, verdicts: list[Verdict], ledger: dict[str, So
     for v in verdicts:
         checks = [c.as_dict() for c in v.checks]
         if v.refusal and v.ok:
-            segments.append({"type": "refusal", "text": CANONICAL_REFUSAL})
+            segments.append({"type": "refusal", "text": v.text})  # the canonical or a scoped refusal
         elif v.ok:
             for alias in v.aliases:
                 numbers_by_alias.setdefault(alias, len(numbers_by_alias) + 1)

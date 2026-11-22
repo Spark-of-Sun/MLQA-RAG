@@ -77,7 +77,28 @@ export interface Answer {
     sources_considered?: number;
     latency_ms?: number;
     model?: string;
+    pipeline?: Pipeline;
   };
+}
+
+/** How the passages behind an answer were found (absent on answers made before retrieval reported it). */
+export interface Pipeline {
+  queries?: number;
+  alternatives?: string[];
+  candidates?: number;
+  reranked?: number;
+  rerank?: "on" | "off" | "failed";
+  rerank_model?: string | null;
+  neighbours?: number;
+  kept?: number;
+  plan_ms?: number;
+  embed_ms?: number;
+  search_ms?: number;
+  rerank_ms?: number;
+  draft_ms?: number;
+  verify_ms?: number;
+  /** step -> "model · key <fingerprint>": which model and which API key (by SHA-256 fingerprint) served it */
+  calls?: Record<string, string>;
 }
 
 export interface ChatSummary {

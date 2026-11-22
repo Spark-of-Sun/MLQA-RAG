@@ -20,6 +20,7 @@ grant select, insert, update (title, updated_at), delete on conversations to lmq
 revoke all on all tables in schema public from lmqa_system;
 grant select, insert, update, delete on users, organizations, workspaces, memberships, join_codes,
     documents, chunks to lmqa_system;
+grant select, insert, delete on embedding_cache to lmqa_system;
 grant select on queries, document_shares, audit_events to lmqa_system;
 
 grant execute on function app_user_id(), app_active_workspace(), app_active_role(), app_share_target_ok(uuid),

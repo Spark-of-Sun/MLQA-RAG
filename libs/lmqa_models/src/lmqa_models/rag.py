@@ -8,6 +8,10 @@ from dataclasses import dataclass
 CANONICAL_REFUSAL = "The provided documents do not address this."
 
 
+class RerankError(RuntimeError):
+    """A re-ranker (local cross-encoder or the LLM chain) could not score passages; retrieval uses the fused order."""
+
+
 @dataclass(frozen=True)
 class Source:
     """A retrieved chunk. `alias` (S1, S2, ...) is request-local; the model never sees chunk IDs."""
@@ -35,5 +39,5 @@ class Source:
 @dataclass(frozen=True)
 class Dropped:
     chunk_id: str
-    reason: str  # not_visible | below_top_k | token_budget
+    reason: str  # not_visible | below_threshold | duplicate | below_top_k | token_budget
     score: float

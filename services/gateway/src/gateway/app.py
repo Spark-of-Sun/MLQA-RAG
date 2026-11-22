@@ -77,7 +77,8 @@ class Services:
         self.identity = IdentityService(settings, self.db)
         self.documents, self.ingestor = create_ingestion(settings, self.db)
         self.generation = GenerationService(settings)
-        self.queries = QueryFlow(settings, self.db, create_retrieval(settings, self.db), self.generation)
+        self.retrieval = create_retrieval(settings, self.db, self.generation.reranker)
+        self.queries = QueryFlow(settings, self.db, self.retrieval, self.generation)
         self.conversations = Conversations(self.db, self.queries)
         self.audit = AuditService(self.db)
         self.query_limit = SlidingWindow(settings.queries_per_minute, 60)
@@ -93,6 +94,7 @@ def create_app(
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         svc.db.open()
+        svc.retrieval.warm()  # load a local re-ranker in the background (nothing to load for RERANK_MODEL=llm)
         if resume_jobs and (n := svc.ingestor.resume_pending()):
             log.info("resumed %d pending ingestion job(s)", n)
         if not svc.generation.configured:
@@ -181,7 +183,12 @@ def create_app(
     def health() -> dict[str, Any]:
         with svc.db.system() as conn:
             conn.execute("select 1")
-        return {"status": "ok", "llm_configured": svc.generation.configured, "model": svc.generation.client.model}
+        return {
+            "status": "ok",
+            "llm_configured": svc.generation.configured,
+            "model": svc.generation.client.model,
+            "reranker": svc.retrieval.reranker.model if svc.retrieval.reranker else None,
+        }
 
     @app.get("/v1/me")
     def me(p: P) -> dict[str, Any]:

@@ -4,7 +4,7 @@ import { Ban, ChevronDown, CircleCheck, ShieldAlert, ShieldCheck } from "lucide-
 import { useState } from "react";
 
 import { pages } from "@/lib/format";
-import type { Answer, Check, Citation } from "@/lib/types";
+import type { Answer, Check, Citation, Pipeline } from "@/lib/types";
 
 export function AnswerView({
   answer,
@@ -19,7 +19,8 @@ export function AnswerView({
   const byN = new Map(answer.citations.map((c) => [c.n, c]));
   const sentences = answer.segments.filter((s) => s.type === "sentence");
   const removed = answer.segments.filter((s) => s.type === "removed");
-  const refusal = answer.segments.find((s) => s.type === "refusal");
+  const refusals = answer.segments.filter((s) => s.type === "refusal");
+  const refusal = refusals[0];
   const s = answer.stats;
 
   return (
@@ -59,7 +60,11 @@ export function AnswerView({
         >
           <Ban className="mt-0.5 size-4 shrink-0" aria-hidden />
           <div>
-            <p className="font-medium">{refusal.text}</p>
+            {refusals.map((r, i) => (
+              <p key={i} className="font-medium">
+                {r.text}
+              </p>
+            ))}
             {sentences.length === 0 && (
               <p className="mt-0.5 text-xs text-amber-800">
                 Nothing in the documents you can access supports an answer, so none was given.
@@ -134,6 +139,7 @@ export function AnswerView({
                 </div>
               ),
             )}
+            {s.pipeline && <PipelineSummary p={s.pipeline} />}
             {s.model && <p className="text-xs text-ink-400">Model {s.model}. Checks run on the original source text.</p>}
           </div>
         )}
@@ -159,5 +165,49 @@ function Checks({ checks }: { checks: Check[] }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+function seconds(ms: number | undefined): string | null {
+  return ms == null ? null : `${(ms / 1000).toFixed(1)} s`;
+}
+
+/** How the sources were found: searches, re-ranking, neighbours, and where the time went. */
+function PipelineSummary({ p }: { p: Pipeline }) {
+  const found: string[] = [];
+  if (p.queries) found.push(p.queries > 1 ? `searched ${p.queries} phrasings` : "searched the question as asked");
+  if (p.candidates != null) found.push(`${p.candidates} candidate passages`);
+  if (p.rerank === "on") found.push(`${p.reranked} re-ranked for relevance`);
+  if (p.rerank === "failed") found.push("re-ranking unavailable, search order used");
+  if (p.kept != null) found.push(`${p.kept} used${p.neighbours ? ` (${p.neighbours} adjacent for context)` : ""}`);
+  const times = [
+    ["plan", p.plan_ms],
+    ["search", (p.embed_ms ?? 0) + (p.search_ms ?? 0) || undefined],
+    ["re-rank", p.rerank === "on" ? p.rerank_ms : undefined],
+    ["draft", p.draft_ms],
+    ["checks", p.verify_ms],
+  ]
+    .map(([label, ms]) => (seconds(ms as number | undefined) ? `${label} ${seconds(ms as number)}` : null))
+    .filter(Boolean);
+  return (
+    <div className="rounded-lg bg-ink-50 p-3 text-xs text-ink-600">
+      <p className="font-medium text-ink-700">How the sources were found</p>
+      <p className="mt-1">{found.join(" · ")}</p>
+      {p.alternatives && p.alternatives.length > 0 && (
+        <ul className="mt-1.5 space-y-0.5 text-ink-500">
+          {p.alternatives.map((a) => (
+            <li key={a}>Also searched: “{a}”</li>
+          ))}
+        </ul>
+      )}
+      {times.length > 0 && <p className="mt-1.5 text-ink-400">{times.join(" · ")}</p>}
+      {p.calls && Object.keys(p.calls).length > 0 && (
+        <p className="mt-1.5 font-mono text-[11px] text-ink-400">
+          {Object.entries(p.calls)
+            .map(([step, who]) => `${step}: ${who}`)
+            .join("  ·  ")}
+        </p>
+      )}
+    </div>
   );
 }

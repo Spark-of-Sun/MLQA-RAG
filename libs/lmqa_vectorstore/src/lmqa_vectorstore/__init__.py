@@ -5,7 +5,15 @@ row-level security that guards chunk text also guards vector search. Search func
 (an RLS-bound transaction) and have no unfiltered variant.
 """
 
-from lmqa_vectorstore.embeddings import Embedder, EmbeddingError
-from lmqa_vectorstore.search import hybrid_candidates, vector_literal
+from lmqa_vectorstore.embeddings import Embedder, EmbeddingError, QuotaExhausted
+from lmqa_vectorstore.search import SearchQuery, exact_terms, hybrid_candidates, vector_literal
 
-__all__ = ["Embedder", "EmbeddingError", "hybrid_candidates", "vector_literal"]
+__all__ = [
+    "Embedder",
+    "EmbeddingError",
+    "QuotaExhausted",
+    "SearchQuery",
+    "exact_terms",
+    "hybrid_candidates",
+    "vector_literal",
+]

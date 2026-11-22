@@ -60,10 +60,32 @@ VERIFY_SCHEMA = {
 }
 
 
-CONDENSE_SCHEMA = {
+QUERY_SCHEMA = {
     "type": "OBJECT",
-    "properties": {"standalone_question": {"type": "STRING"}},
-    "required": ["standalone_question"],
+    "properties": {
+        "corrected_question": {"type": "STRING"},
+        "queries": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "keep_detail_note": {"type": "STRING"},
+    },
+    "required": ["corrected_question", "queries", "keep_detail_note"],
+    "propertyOrdering": ["corrected_question", "queries", "keep_detail_note"],
+}
+
+
+RERANK_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "scores": {
+            "type": "ARRAY",
+            "items": {
+                "type": "OBJECT",
+                "properties": {"id": {"type": "STRING"}, "score": {"type": "INTEGER"}},
+                "required": ["id", "score"],
+                "propertyOrdering": ["id", "score"],
+            },
+        }
+    },
+    "required": ["scores"],
 }
 
 
@@ -79,9 +101,10 @@ class Turn:
 class PromptSet:
     answer_system: str
     verify_system: str
-    condense_system: str
-    sha256: str
+    query_system: str
+    sha256: str  # of the answer, verify and query prompts (recorded with every query)
     versions: dict[str, int]
+    rerank_system: str = ""  # chooses passages only; not part of `sha256`, so earlier answers keep their hash
 
 
 @cache
@@ -92,9 +115,10 @@ def load_prompts() -> PromptSet:
     if few_shot := registry["answer"].get("few_shot"):
         answer += "\n\n" + (PROMPTS / few_shot).read_text(encoding="utf-8").strip()
     verify = (PROMPTS / registry["verify"]["system"]).read_text(encoding="utf-8").strip()
-    condense = (PROMPTS / registry["condense"]["system"]).read_text(encoding="utf-8").strip()
-    digest = hashlib.sha256(f"{answer}\x00{verify}\x00{condense}".encode()).hexdigest()
-    return PromptSet(answer, verify, condense, digest, {k: int(v["version"]) for k, v in registry.items()})
+    query = (PROMPTS / registry["query"]["system"]).read_text(encoding="utf-8").strip()
+    digest = hashlib.sha256(f"{answer}\x00{verify}\x00{query}".encode()).hexdigest()
+    rerank = (PROMPTS / registry["rerank"]["system"]).read_text(encoding="utf-8").strip()
+    return PromptSet(answer, verify, query, digest, {k: int(v["version"]) for k, v in registry.items()}, rerank)
 
 
 def _source_block(s: Source) -> str:
@@ -124,12 +148,19 @@ def reorder(items: list[Source]) -> list[Source]:
     return items[0::2] + items[1::2][::-1]
 
 
-def condense_user_prompt(history: list[Turn], question: str) -> str:
-    return f"{_conversation_block(history)}\n\nLatest message: {question.strip()}"
+def query_user_prompt(history: list[Turn], question: str) -> str:
+    message = question.strip().replace("</conversation", "</ conversation")
+    if not history:
+        return f"Latest message: {message}"
+    return f"{_conversation_block(history)}\n\nLatest message: {message}"
 
 
 def answer_user_prompt(
-    question: str, sources: list[Source], history: list[Turn] | None = None, standalone: str | None = None
+    question: str,
+    sources: list[Source],
+    history: list[Turn] | None = None,
+    standalone: str | None = None,
+    detail_note: str = "",
 ) -> str:
     blocks = "\n".join(_source_block(s) for s in reorder(sources))
     parts = []
@@ -139,6 +170,8 @@ def answer_user_prompt(
     asked = f"Question: {question.strip()}"
     if standalone and standalone.strip().lower() != question.strip().lower():
         asked += f"\n(Standalone form of the question: {standalone.strip()})"
+    if note := " ".join(detail_note.split()).replace("</source", "</ source")[:300]:
+        asked += f"\nNote from the search step: {note}"
     parts.append(asked)
     return "\n\n".join(parts)
 
@@ -148,6 +181,15 @@ def verify_user_prompt(claims: list[tuple[int, str, list[str]]], sources: dict[s
     blocks = "\n".join(_source_block(sources[a]) for a in used)
     lines = "\n".join(f"Claim {n} (cites {', '.join(aliases)}): {text}" for n, text, aliases in claims)
     return f"<sources>\n{blocks}\n</sources>\n\nClaims:\n{lines}"
+
+
+def rerank_user_prompt(question: str, passages: list[str]) -> str:
+    """Passages get request-local ids P1, P2, ...; a passage cannot close its own delimiter."""
+    blocks = "\n".join(
+        f'<passage id="P{i}">\n{p.replace("</passage", "</ passage")}\n</passage>' for i, p in enumerate(passages, 1)
+    )
+    q = " ".join(question.split()).replace("</passages", "</ passages")
+    return f"Question: {q}\n\n<passages>\n{blocks}\n</passages>"
 
 
 def estimate_tokens(text: str) -> int:

@@ -3,7 +3,7 @@ name = "retrieval"
 version = "0.1.0"
 description = "Retrieval service: scoped hybrid search, token budget, retrieval ledger (blueprint 11.3, 9.4)."
 requires-python = ">=3.14"
-dependencies = ["lmqa-models", "lmqa-db", "lmqa-vectorstore"]
+dependencies = ["lmqa-models", "lmqa-db", "lmqa-vectorstore", "fastembed>=0.9"]
 
 [tool.uv.sources]
 lmqa-models = { workspace = true }

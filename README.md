@@ -68,6 +68,8 @@ make demo       # 94 checks: onboarding A/B/C, approvals, uploads, sharing, RLS 
                 # real Gemini, separate lmqa_demo database
 make demo-web   # 56 checks: signed-in browsers against the built frontend (role routing, 404s, BFF, CSP,
                 # no tokens in pages, docs access by role); run `make build` first
+make eval       # retrieval quality on the public corpus (recall@k, MRR, nDCG, abstention) for three
+                # pipeline configurations, checked against eval/floors.toml; ARGS=--answers adds end-to-end answers
 make lint       # ruff format + ruff check + TypeScript
 ```
 

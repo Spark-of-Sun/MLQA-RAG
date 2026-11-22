@@ -1,7 +1,8 @@
 """Conversational, gated query release (blueprint 11.3 to 11.6).
 
-  load the conversation (RLS: only the author can see it) -> condense the follow-up into a standalone question
-  -> retrieval (RLS, aliases; the previous turn's cited passages stay available) -> generation draft (earlier
+  load the conversation (RLS: only the author can see it) -> plan the search (standalone question for a follow-up,
+  alternative phrasings) -> multi-stage retrieval (hybrid search, re-ranking, relevance threshold, neighbours; RLS,
+  aliases; the previous turn's cited passages stay available) -> generation draft (earlier
   turns are context only, never a source) -> citation validator (deterministic V1-V8) -> entailment (can only
   remove) -> V3 re-read of chunk hashes under RLS
   -> ONE transaction: chat (created on its first question) + query row + retrieval ledger + audit event
@@ -26,6 +27,8 @@ from generation import GenerationService, LLMError, Turn
 from lmqa_db import Database, Scope
 from lmqa_models.errors import BadRequest, NotFound, Unavailable
 from lmqa_models.principal import Principal
+from lmqa_models.quota import question as quota_question
+from lmqa_models.quota import rotate
 from lmqa_models.rag import Dropped, Source
 from lmqa_models.settings import Settings
 from retrieval import EmbeddingError, RetrievalService
@@ -37,6 +40,10 @@ HISTORY_TURNS = 4
 def released_text(result: dict[str, Any]) -> str:
     """What the user actually saw: verified sentences and the refusal, never removed claims."""
     return " ".join(s["text"] for s in result.get("segments", []) if s.get("type") in {"sentence", "refusal"})
+
+
+def _ms(start: float) -> int:
+    return int((time.monotonic() - start) * 1000)
 
 
 def chat_title(question: str) -> str:
@@ -58,6 +65,12 @@ class QueryFlow:
 
     # ------------------------------------------------------------------ ask
     def ask(self, p: Principal, question: str, conversation_id: str | None = None) -> dict[str, Any]:
+        # Each question gets the next number of the persistent counter; all its model and embedding calls start on
+        # that number's key (question 1 the first key, question 2 the second, ...), then the others in order.
+        with quota_question(self._s.quota()) as n:
+            return self._ask(p, question, conversation_id, n)
+
+    def _ask(self, p: Principal, question: str, conversation_id: str | None, number: int) -> dict[str, Any]:
         started = time.monotonic()
         q = " ".join(question.split())
         if not 3 <= len(q) <= 2000:
@@ -78,27 +91,44 @@ class QueryFlow:
             if rows:
                 carry = [c["chunk_id"] for c in rows[-1]["result"].get("citations", [])]
 
-        tokens_in = tokens_out = 0
-        standalone = q
+        timings: dict[str, int] = {}
+        t = time.monotonic()
+        plan = self._generation.plan_query(history, q, expand=self._s.query_expansion)
+        standalone, tokens_in, tokens_out = plan.question, plan.tokens_in, plan.tokens_out
+        timings["plan_ms"] = _ms(t)
+        # Which model and key (by fingerprint) served each step, so usage can be traced to a project.
+        calls: dict[str, str] = {}
+        if keys := self._s.gemini_keys():
+            calls["question"] = f"#{number} · starts on key {rotate(keys, number)[0][0]}"
+        if plan.model:
+            calls["plan"] = f"{plan.model} · key {plan.key_id}"
         try:
-            if history:
-                condensed = self._generation.condense(history, q)
-                standalone, tokens_in, tokens_out = condensed.question, condensed.tokens_in, condensed.tokens_out
-            sources, dropped = self._retrieval.retrieve(
+            found = self._retrieval.retrieve(
                 p,
                 standalone,
+                alternatives=plan.alternatives,
                 budget_tokens=self._s.context_budget_tokens - RETRIEVAL_HEADROOM_TOKENS,
                 carry_chunk_ids=carry,
             )
         except EmbeddingError as exc:
             raise Unavailable(f"No answer was released: {exc}") from exc
+        sources, dropped = found.sources, found.dropped
+        retrieval_stats = {**found.stats, "alternatives": plan.alternatives}
+        if plan.detail_note:
+            retrieval_stats["detail_note"] = plan.detail_note
 
         ledger: dict[str, Source] = {}
         answerable, verdicts = False, []
         model, prompt_sha = self._generation.client.model, None
         if sources:
             try:
-                draft = self._generation.draft(q, sources, history=history, standalone=standalone)
+                t = time.monotonic()
+                draft = self._generation.draft(
+                    q, sources, history=history, standalone=standalone, detail_note=plan.detail_note
+                )
+                timings["draft_ms"] = _ms(t)
+                calls["draft"] = f"{draft.model} · key {draft.key_id}"
+                t = time.monotonic()
                 ledger = {s.alias: s for s in draft.sources}
                 dropped += [Dropped(cid, "token_budget", 0.0) for cid in draft.dropped_for_budget]
                 tokens_in, tokens_out = tokens_in + draft.tokens_in, tokens_out + draft.tokens_out
@@ -107,7 +137,10 @@ class QueryFlow:
                 if self._s.verify_entailment:
                     check = self._generation.entailment(entailment_claims(verdicts), ledger)
                     apply_entailment(verdicts, check.verdicts)
+                    if check.model:
+                        calls["verify"] = f"{check.model} · key {check.key_id}"
                     tokens_in, tokens_out = tokens_in + check.tokens_in, tokens_out + check.tokens_out
+                timings["verify_ms"] = _ms(t)
             except LLMError as exc:
                 raise Unavailable(f"No answer was released: {exc}") from exc
         try:
@@ -125,6 +158,7 @@ class QueryFlow:
                 tokens_in,
                 tokens_out,
                 started,
+                {**retrieval_stats, **timings, "calls": calls},
             )
         except psycopg.errors.ForeignKeyViolation as exc:
             raise NotFound("This chat was deleted while the answer was being prepared.") from exc
@@ -144,6 +178,7 @@ class QueryFlow:
         tokens_in: int,
         tokens_out: int,
         started: float,
+        pipeline: dict[str, Any],
     ) -> dict[str, Any]:
         m = p.membership
         assert m is not None
@@ -159,6 +194,7 @@ class QueryFlow:
                     "model": model,
                     "tokens_in": tokens_in,
                     "tokens_out": tokens_out,
+                    "pipeline": pipeline,
                 }
             )
             result["standalone_question"] = standalone
@@ -226,6 +262,7 @@ class QueryFlow:
                     "dropped": [{"chunk_id": d.chunk_id, "reason": d.reason} for d in dropped[:20]],
                     "prompt_sha256": prompt_sha,
                     "model": model,
+                    "retrieval": {k: v for k, v in pipeline.items() if k != "alternatives"},
                 },
             )
         # Committed: chat, query, ledger and audit event. Only now is anything released.

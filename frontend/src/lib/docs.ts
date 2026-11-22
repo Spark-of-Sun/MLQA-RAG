@@ -61,7 +61,8 @@ const PAGES: DocPage[] = [
       {
         t: "steps",
         items: [
-          "**Search.** Cyte searches only the documents you are allowed to read. It combines meaning-based search with exact-word search, so both paraphrases and precise terms (a section number, a drug name) are found.",
+          "**Search.** Cyte searches only the documents you are allowed to read, with your question and up to three rephrasings of it. Each search combines meaning-based search, word search and exact matching of identifiers, so paraphrases and precise terms (a section number, a drug name, a dose) are both found.",
+          "**Rank.** A relevance model reads the question with each candidate passage and keeps only the passages that bear on it, plus the passages just before and after the best ones for context. If nothing is relevant, Cyte refuses without drafting anything.",
           "**Draft.** An AI model drafts an answer from the passages found, and must quote the passage that supports each sentence.",
           "**Verify.** Every sentence goes through ten checks: the quote must appear word for word, numbers and dates must match, and the passage must actually support the claim. A sentence that fails is removed, and the answer says so.",
           "**Record and release.** The answer, the passages it used and an audit event are saved together. Only then is the answer shown.",
@@ -275,7 +276,7 @@ const PAGES: DocPage[] = [
       { t: "h2", id: "the-ten-checks", text: "The ten checks" },
       {
         t: "p",
-        text: "Open **verification details** (the line with the shield, such as “4 sentences verified”) to see each check for each sentence, and the model that drafted the answer.",
+        text: "Open **verification details** (the line with the shield, such as “4 sentences verified”) to see each check for each sentence, how the sources were found (the phrasings searched, how many passages were considered and kept, and the time each step took) and the model that drafted the answer.",
       },
       {
         t: "table",

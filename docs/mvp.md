@@ -19,7 +19,8 @@ added stage by stage without rework.
 | 9.4 Retrieval ledger | Aliases S1…Sn, chunk hashes, ranks and scores per answer |
 | 10.3 Fail closed | No context → zero rows; transaction-local context, safe on pooled connections; runtime role NOBYPASSRLS |
 | 11.1 Ingestion | PDF text layer, DOCX, HTML, XML (JATS, SPL drug labels, eCFR), TXT; magic-byte checks; safe XML parsing; structure-aware chunks with a preamble; `fallback` shown when no structure; all-or-nothing indexing |
-| 11.3 Retrieval | Hybrid dense + full-text with reciprocal rank fusion, under RLS; whole chunks within a hard token budget |
+| 11.3 Retrieval | Multi-stage, under RLS: query planning (standalone follow-ups, up to 3 alternative phrasings); hybrid search per phrasing over dense vectors, stemmed full text and an unstemmed exact-identifier index, fused by weighted reciprocal rank fusion (100 candidates per channel); local cross-encoder re-ranking (`RERANK_MODEL`, default `BAAI/bge-reranker-v2-m3`) with a relevance threshold, so a question nothing answers is refused without a model call; near-duplicate removal; neighbour expansion within a section; whole passages within a hard token budget; every dropped candidate recorded with its reason. Retrieval metrics (recall@k, MRR, nDCG, abstention) by `make eval` against `eval/floors.toml` |
+| 11.1 Ingestion (refinements) | Contextual passage headers (document and section) in every embedding; about 10 % overlap when a long unit is split; per-organization embedding cache so re-uploads and re-indexing cost no provider calls |
 | 11.5 Prompt protocol | Versioned files in `prompts/`, request-local aliases, untrusted-content rule, canonical refusal, SHA-256 recorded per answer |
 | 11.6 Validator and gated release | V1–V5, V7, V8 deterministic, plus quote matching and lexical support; citation list built from validated sentences only; V3 re-checked against the database at release; query, ledger and audit event committed in one transaction before anything is returned; removed sentences shown as a visible marker |
 | 13 Audit | Append-only, hash-chained per organization; UPDATE/DELETE/TRUNCATE blocked by trigger; verification detects tampering (every role can run it); views scoped by role, grouped into sections, filtered in SQL; document titles shown only to people who can see the document, also when searching |
@@ -32,7 +33,7 @@ added stage by stage without rework.
 | --- | --- | --- | --- |
 | 1 | Eight deployable services | Eight service packages in one gateway process | One machine; the package boundaries (blueprint 18 import rules) are kept, so splitting is deployment work (Stage 3) |
 | 2 | Qdrant behind `lmqa_vectorstore` | pgvector in PostgreSQL behind the same library | The blueprint's own fallback (10.5, ADR 0004): vectors fall under the same RLS. Revisit at Stage 10 load tests |
-| 3 | Self-hosted embedding, re-ranker and NLI models | Gemini embeddings (768 d); answers from a configurable provider; no re-ranker | 6.8 GB machine. Note: document text is sent to Google. Needs a no-retention / BAA agreement before real data (blueprint 11.8) |
+| 3 | Self-hosted embedding, re-ranker and NLI models | Gemini embeddings (768 d); answers from a configurable provider; the re-ranker is self-hosted (ONNX, local) | 6.8 GB machine. Note: document text is sent to Google. Needs a no-retention / BAA agreement before real data (blueprint 11.8) |
 | 4 | V6 pinned NLI model | A strict Gemini entailment pass that can only remove sentences | Not deterministic like a pinned model; it never approves what the deterministic checks rejected, and fails closed. Calibrate with labelled data (G7.3) |
 | 5 | Sentence-by-sentence SSE streaming | Whole answer validated, then returned (the blueprint's `buffered` mode) | Simpler and equally safe; streaming is a latency feature (Stage 7) |
 | 6 | AWS KMS, envelope encryption, KeyGuard, crypto-shredding | Not built; originals on local disk, chunk text in PostgreSQL | Stage 1 key work and Stage 9 destruction ritual |
@@ -42,7 +43,7 @@ added stage by stage without rework.
 | 10 | Matters, confidentiality tiers, ethical walls, emergency access, break-glass | Workspace-shared, shared with named people, or private documents | Stage 5 policy rules |
 | 11 | Governance requests, co-owner, successor transfer, operator plane | Not built | Stage 9 |
 | 12 | ClamAV, OCR, object store, PgBouncer, Valkey, observability | Not built; scanned PDF pages are reported, never embedded | Stages 0, 4 |
-| 13 | Gate suites, Playwright, load and chaos tests | `make demo` (94 checks) and `make demo-web` (56 checks) | Per your instruction for this phase |
+| 13 | Gate suites, Playwright, load and chaos tests | `make demo` (94 checks), `make demo-web` (56 checks) and `make eval` (retrieval metrics; labels still need human review) | Per your instruction for this phase |
 | 14 | Separate idle limits per role | 30 min idle / 8 h absolute for everyone | One SDK setting |
 
 ## Answer models and availability
@@ -62,3 +63,20 @@ verification details and recorded in the audit event.
 
 Each provider receives the cited passages of the questions it answers. Before real client data, use a provider and
 plan whose terms exclude training on your data and, for medical data, offer a BAA (blueprint 11.8).
+
+Query planning (standalone follow-ups and alternative phrasings) runs on its own chain, `QUERY_MODEL` then
+`QUERY_FALLBACK_MODELS` then the answer chain, so this short task uses high-quota models and leaves the strong
+models' daily quota for drafting and verification. Embeddings have a chain too (`GEMINI_EMBEDDING_MODEL`, then
+`GEMINI_EMBEDDING_FALLBACK_MODELS`): each document is embedded with the first model that has quota, the model is
+stored per passage, and search embeds the question once per model in use. If no embedding model is available at
+question time, passages are still found through the full-text and exact-term channels and re-ranked, instead of the
+question failing.
+
+Several Gemini keys can be set (`GEMINI_API_KEY`, then `GEMINI_API_KEYS`), one per Google Cloud project, each with
+its own quota. Answers and embeddings go through the model chain model by model, and each model is tried on every
+key before the next model, the key least used today first. A local counter (`libs/lmqa_models/quota.py`) tracks
+requests and input tokens per key and model against each model's limits (free-tier values built in, `MODEL_LIMITS`
+to override) and the daily reset at midnight Pacific time, so a key or model that would be refused is skipped
+without sending a request. Daily counts and blocks persist in `data/usage/quota.json`. Keys are never logged; logs,
+`make doctor` and the answer's verification details name each key by the first 10 characters of its SHA-256.
+

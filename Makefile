@@ -51,16 +51,19 @@ load-corpus: ## index the corpus into an admin's workspace: make load-corpus EMA
 demo: ## simulate the whole workflow end to end through the API (separate lmqa_demo database, real Gemini)
 	$(PY) python tools/demo.py
 
+eval: ## retrieval metrics on the public corpus vs eval/floors.toml (ARGS="--answers" adds end-to-end answers)
+	$(PY) python eval/harness/run.py $(ARGS)
+
 demo-web: ## simulate signed-in browsers against the built frontend (run `make build` first)
 	$(PY) python tools/demo_web.py
 
 lint: ## ruff format check + ruff lint + frontend type check
-	$(PY) ruff format --check libs services tools
-	$(PY) ruff check libs services tools
+	$(PY) ruff format --check libs services tools eval
+	$(PY) ruff check libs services tools eval
 	cd frontend && pnpm typecheck
 
 format: ## apply ruff formatting and safe fixes
-	$(PY) ruff format libs services tools
-	$(PY) ruff check --fix libs services tools
+	$(PY) ruff format libs services tools eval
+	$(PY) ruff check --fix libs services tools eval
 
-.PHONY: help install hooks setup db db-stop db-reset migrate doctor dev build start corpus load-corpus demo demo-web lint format
+.PHONY: help install hooks setup db db-stop db-reset migrate doctor dev build start corpus load-corpus demo demo-web eval lint format

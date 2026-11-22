@@ -1,0 +1,11 @@
+# Evaluation floors (blueprint 11.3, 19). `make eval` fails when the configured pipeline scores below these.
+# Raise them as the pipeline improves; lowering one needs an ADR (blueprint 11.3).
+#
+# Status: BASELINE. Set from the first measured run, on labels that still need human review (eval/sets/corpus.toml).
+# They catch regressions; they are not release floors until a qualified reviewer signs off the labels.
+
+[retrieval]
+set = "sets/corpus.toml"
+recall_at_k = 0.85   # share of answerable cases whose answer passage is among the passages kept for the answer
+mrr = 0.6            # mean reciprocal rank of the first answer passage
+abstention = 0.75    # share of unanswerable cases for which nothing passes the relevance threshold

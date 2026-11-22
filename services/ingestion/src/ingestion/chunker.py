@@ -18,6 +18,7 @@ from ingestion.parsers import Block, clause_label, looks_like_heading
 TARGET_CHARS = 1600  # about 400 tokens
 MAX_CHARS = 2800  # about 700 tokens
 MIN_CHARS = 200
+OVERLAP_CHARS = 160  # about 10 percent of the target size
 
 
 @dataclass
@@ -67,7 +68,23 @@ def split_long(text: str) -> list[str]:
             current = f"{current} {sentence}".strip()
     if current:
         pieces.append(current)
-    return [p for p in pieces if p]
+    pieces = [p for p in pieces if p]
+    # About 10 percent overlap (blueprint 11.1 step 7): each piece after the first repeats the end of the piece
+    # before it, so a sentence that depends on the one before is still understandable on its own. The repeated
+    # text is source text, in source order, so citations and highlights still match the original.
+    for i in range(len(pieces) - 1, 0, -1):
+        pieces[i] = f"{_tail(pieces[i - 1])} {pieces[i]}".strip()
+    return pieces
+
+
+def _tail(text: str, limit: int = OVERLAP_CHARS) -> str:
+    """The last sentence of `text` if it is short enough, otherwise its last `limit` characters from a word start."""
+    sentences = re.split(r"(?<=[.;:!?])\s+(?=[A-Z(\"'\d])", text)
+    last = sentences[-1] if len(sentences) > 1 else ""
+    if last and len(last) <= limit * 2:
+        return last
+    cut = text.find(" ", max(0, len(text) - limit))
+    return text[cut + 1 :] if cut >= 0 else ""
 
 
 def build_chunks(blocks: list[Block]) -> tuple[list[Chunk], str]:

@@ -13,9 +13,12 @@ import httpx
 import psycopg
 
 from generation.llm_client import LLMClient, LLMError
+from generation.rerank import LLMReranker
 from lmqa_models.envfile import merged_env
-from lmqa_models.settings import EMBEDDING_DIM, load_settings
+from lmqa_models.quota import rotate
+from lmqa_models.settings import EMBEDDING_DIM, LLM_RERANK, Settings, load_settings
 from lmqa_vectorstore import Embedder, EmbeddingError
+from retrieval import Reranker, RerankError
 
 OK, WARN, FAIL = "\033[32m  ok \033[0m", "\033[33mwarn \033[0m", "\033[31mFAIL \033[0m"
 failures = 0
@@ -183,7 +186,9 @@ def check_models() -> None:
     if gemini is not None and gemini.configured:
         try:
             available = set(gemini.list_models())
-            for p, model in s.llm_chain:
+            planner = s.planner_settings()
+            chain = list(dict.fromkeys([*s.llm_chain, *(planner.llm_chain if planner else [])]))
+            for p, model in chain:
                 if p == "gemini":
                     listed = model in available
                     report(OK if listed else WARN, f"model {model}", "listed" if listed else "not listed for this key")
@@ -201,11 +206,101 @@ def check_models() -> None:
             report(FAIL, "generation", str(exc))
     else:
         report(FAIL, "generation", f"no usable answer model: set {', '.join(client.missing())}")
+    embedder = Embedder(s)
+    for i, model in enumerate(embedder.models):
+        # The primary model must work; a fallback that fails only lowers resilience.
+        try:
+            vec = embedder.embed_query("Either party may terminate this Agreement on thirty (30) days notice.", model)
+            ok = len(vec) == EMBEDDING_DIM
+            report(
+                OK if ok else FAIL, f"embeddings {model}", f"{len(vec)} dimensions" + ("" if i == 0 else " (fallback)")
+            )
+        except EmbeddingError as exc:
+            report(FAIL if i == 0 else WARN, f"embeddings {model}", str(exc))
+    check_reranker(s)
+
+
+def check_keys(s: Settings) -> None:
+    """Each Gemini key by fingerprint: valid (a model-list request, which uses no quota) and today's local usage."""
+    print("\nGemini keys (by SHA-256 fingerprint; keys are never printed)")
+    keys = s.gemini_keys()
+    if not keys:
+        report(FAIL, "Gemini keys", "set GEMINI_API_KEY (and optionally GEMINI_API_KEYS)")
+        return
+    for i, (fp, key) in enumerate(keys):
+        where = "GEMINI_API_KEY" if i == 0 else f"GEMINI_API_KEYS #{i}"
+        try:
+            r = httpx.get(
+                "https://generativelanguage.googleapis.com/v1beta/models",
+                headers={"x-goog-api-key": key},
+                params={"pageSize": 1},
+                timeout=15,
+            )
+            ok = r.status_code == 200
+            report(OK if ok else FAIL, f"key {fp} ({where})", "accepted" if ok else f"rejected (HTTP {r.status_code})")
+        except httpx.HTTPError as exc:
+            report(WARN, f"key {fp} ({where})", f"could not check ({type(exc).__name__})")
+    q = s.quota()
+    if q is None:
+        report(WARN, "local quota counter", "off (QUOTA_TRACKING=off): refused requests are found out by sending them")
+        return
+    n = q.questions
+    if len(keys) > 1:
+        nxt = rotate([fp for fp, _ in keys], n + 1)[0]
+        print(f"   questions so far: {n}; the next one starts on key {nxt} (one key per question, in turn)")
+    rows = q.snapshot()
+    if not rows:
+        print("   no requests counted today")
+    for row in rows:
+        limit = f"/{row['rpd']}" if row["rpd"] else ""
+        blocked = f", skipped for {int(row['blocked_for_s']) // 60} min" if row["blocked_for_s"] else ""
+        calls = row["calls"]
+        outcomes = "  " + ", ".join(f"{k} {v}" for k, v in calls.items()) if isinstance(calls, dict) and calls else ""
+        print(f"   key {row['key']}  {row['model']:28} {row['today']}{limit} today{blocked}{outcomes}")
+
+
+def check_reranker(s: Settings) -> None:
+    """A local re-ranker is loaded and tried if downloaded (missing ones are fetched on first start); the LLM
+    re-ranker (RERANK_MODEL=llm) is tried with one request on its chain."""
+    if not s.rerank_model:
+        report(WARN, "re-ranker", "off (RERANK_MODEL=off): passages are not re-ranked or filtered by relevance")
+        return
+    if s.rerank_model == LLM_RERANK:
+        reranker = LLMReranker(s)
+        report(OK if reranker.models else FAIL, "re-ranker llm", f"chain {' -> '.join(reranker.models) or 'empty'}")
+        try:
+            scores = reranker.score(
+                "When must the severance benefit be paid?",
+                [
+                    "The Severance Benefit shall be paid no later than thirty (30) days following the Separation Date.",
+                    "This Agreement shall be governed by the laws of the Commonwealth of Virginia.",
+                ],
+            )
+            ok = scores[0] > scores[1]
+            report(OK if ok else FAIL, "re-ranker llm", f"relevant {scores[0]:.2f} vs unrelated {scores[1]:.2f}")
+        except RerankError as exc:
+            report(FAIL, "re-ranker llm", str(exc))
+        return
+    cached = (s.model_cache_dir / f"models--{s.rerank_model.replace('/', '--')}").is_dir()
+    if not cached:
+        report(
+            OK, f"re-ranker {s.rerank_model}", f"not downloaded yet; fetched into {s.model_cache_dir} on first start"
+        )
+        return
     try:
-        vec = Embedder(s).embed_query("Either party may terminate this Agreement on thirty (30) days notice.")
-        report(OK if len(vec) == EMBEDDING_DIM else FAIL, f"embeddings {s.embedding_model}", f"{len(vec)} dimensions")
-    except EmbeddingError as exc:
-        report(FAIL, "embeddings", str(exc))
+        scores = Reranker(s.rerank_model, s.model_cache_dir).score(
+            "When must the severance benefit be paid?",
+            [
+                "The Severance Benefit shall be paid no later than thirty (30) days following the Separation Date.",
+                "This Agreement shall be governed by the laws of the Commonwealth of Virginia.",
+            ],
+        )
+        ok = scores[0] > scores[1]
+        report(
+            OK if ok else FAIL, f"re-ranker {s.rerank_model}", f"relevant {scores[0]:.2f} vs unrelated {scores[1]:.2f}"
+        )
+    except RerankError as exc:
+        report(FAIL, "re-ranker", str(exc))
 
 
 def main() -> int:
@@ -214,6 +309,7 @@ def main() -> int:
     check_database()
     check_auth0(env)
     check_models()
+    check_keys(load_settings())
     print(f"\n{'All checks passed.' if failures == 0 else f'{failures} check(s) failed.'}")
     return 1 if failures else 0
 

@@ -37,4 +37,3 @@ lmqa.json
 .env*.local
 example-env.txt
 temp.py
-!.env.example

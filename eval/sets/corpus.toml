@@ -1,0 +1,216 @@
+# Retrieval evaluation set over the public corpus (corpus/manifest.toml; fetch with `make corpus`).
+#
+# Each case names the passage(s) that answer it: a passage counts as relevant when it belongs to `file` and its text
+# contains `contains` (case and whitespace are ignored), so labels survive changes to chunk boundaries. A case with
+# `answerable = false` has no answer anywhere in the corpus and checks that retrieval keeps nothing (abstention).
+#
+# Provenance (blueprint 19, R10): drafted from the documents' own text; every label quotes the source. These labels
+# still need review by a qualified person before they can set release floors (eval/floors.toml marks them baseline).
+# Questions are deliberately worded differently from the documents where a real user would do so.
+
+# ---------------------------------------------------------------- Separation and Release Agreement (EDGAR EX-10.2)
+[[case]]
+id = "sep-payment-deadline"
+question = "When must the severance benefit be paid?"
+expect = [{ file = "edgar-0001104659-24-041548-tm2410073d11_ex10-2.htm", contains = "shall be paid no later than thirty (30) days following the Separation Date" }]
+
+[[case]]
+id = "sep-release-window"
+question = "How long does the executive have to sign the general release?"
+expect = [{ file = "edgar-0001104659-24-041548-tm2410073d11_ex10-2.htm", contains = "within forty-five (45) days" }]
+
+[[case]]
+id = "sep-governing-law"
+question = "Which state's law governs the separation agreement?"
+expect = [{ file = "edgar-0001104659-24-041548-tm2410073d11_ex10-2.htm", contains = "laws of the Commonwealth of Virginia" }]
+
+[[case]]
+id = "sep-employment-agreement-end"
+question = "What happens to the executive's employment agreement when he leaves?"
+expect = [{ file = "edgar-0001104659-24-041548-tm2410073d11_ex10-2.htm", contains = "the Employment Agreement shall terminate on the Separation Date" }]
+
+[[case]]
+id = "sep-280g"
+question = "Does the Section 280G limitation of benefits still apply?"
+expect = [{ file = "edgar-0001104659-24-041548-tm2410073d11_ex10-2.htm", contains = "5. Section 280G" }]
+
+# ---------------------------------------------------------------- Aerkomm Company Support Agreement (EDGAR EX-10.2)
+[[case]]
+id = "aer-governing-law"
+question = "What law governs the Aerkomm company support agreement?"
+expect = [{ file = "edgar-0001213900-24-030488-ea020334201ex10-2_aerkomm.htm", contains = "Laws of the State of Delaware" }]
+
+[[case]]
+id = "aer-dissenters"
+question = "Can the securityholders exercise appraisal or dissenters' rights?"
+expect = [{ file = "edgar-0001213900-24-030488-ea020334201ex10-2_aerkomm.htm", contains = "Dissenters’ Rights" }]
+
+[[case]]
+id = "aer-termination"
+question = "When does the support agreement terminate?"
+expect = [{ file = "edgar-0001213900-24-030488-ea020334201ex10-2_aerkomm.htm", contains = "shall terminate and be of no further force or effect upon the earlier of" }]
+
+[[case]]
+id = "aer-no-transfer"
+question = "Are the securityholders allowed to sell their shares before the deal closes?"
+expect = [{ file = "edgar-0001213900-24-030488-ea020334201ex10-2_aerkomm.htm", contains = "1.3 No Transfer" }]
+
+# ---------------------------------------------------------------- Doma Voting and Support Agreement (EDGAR)
+[[case]]
+id = "doma-termination"
+question = "On what events does the Doma voting agreement automatically terminate?"
+expect = [{ file = "edgar-0001437749-24-009917-ex_637676.htm", contains = "shall automatically terminate and have no further force or effect" }]
+
+[[case]]
+id = "doma-proxy"
+question = "Is the proxy granted by the stockholders revocable?"
+expect = [{ file = "edgar-0001437749-24-009917-ex_637676.htm", contains = "shall be automatically revoked" }]
+
+# ---------------------------------------------------------------- Pari Passu Intercreditor Agreement (EDGAR EX-10.3)
+[[case]]
+id = "pari-business-day"
+question = "How does the intercreditor agreement define a Business Day?"
+expect = [{ file = "edgar-0001530950-24-000077-ex10-3xpostxparipassuinter.htm", contains = "“Business Day” means a day other than a Saturday" }]
+
+# ---------------------------------------------------------------- 45 CFR Part 164 (eCFR)
+[[case]]
+id = "hipaa-ba-breach-deadline"
+question = "How quickly must a business associate report a breach to the covered entity?"
+expect = [{ file = "ecfr-45-cfr-164.xml", contains = "no case later than 60 calendar days after discovery of a breach" }]
+
+[[case]]
+id = "hipaa-media-500"
+question = "When does a covered entity have to notify the media about a breach?"
+expect = [{ file = "ecfr-45-cfr-164.xml", contains = "more than 500 residents of a State or jurisdiction" }]
+
+[[case]]
+id = "hipaa-auto-logoff"
+question = "Is automatic logoff required under the technical safeguards in 164.312?"
+expect = [{ file = "ecfr-45-cfr-164.xml", contains = "Automatic logoff (Addressable)" }]
+
+[[case]]
+id = "hipaa-retention"
+question = "How long must documentation required by 164.105 be kept?"
+expect = [{ file = "ecfr-45-cfr-164.xml", contains = "6 years from the date of its creation or the date when it last was in effect" }]
+
+[[case]]
+id = "hipaa-minimum-necessary"
+question = "What is the minimum necessary standard for using protected health information?"
+expect = [{ file = "ecfr-45-cfr-164.xml", contains = "Minimum necessary applies" }]
+
+# ---------------------------------------------------------------- Trump v. United States, No. 23-939 (SCOTUS)
+[[case]]
+id = "scotus-disposition"
+question = "What did the Supreme Court do with the D.C. Circuit's judgment in 23-939?"
+expect = [{ file = "scotus-23-939.pdf", contains = "vacated and remanded" }]
+
+[[case]]
+id = "scotus-author"
+question = "Who wrote the majority opinion in Trump v. United States?"
+expect = [{ file = "scotus-23-939.pdf", contains = "delivered the opinion of the Court" }]
+
+[[case]]
+id = "scotus-lower-courts"
+question = "How did the lower courts rule on the former President's motion to dismiss for immunity?"
+expect = [{ file = "scotus-23-939.pdf", contains = "former Presi- dents do not possess federal criminal immunity" }]
+
+# ---------------------------------------------------------------- Metoprolol tartrate label (DailyMed)
+[[case]]
+id = "meto-htn-start"
+question = "What is the recommended starting dose of metoprolol for high blood pressure?"
+expect = [{ file = "dailymed-5da82411.xml", contains = "The usual initial dosage is 100 mg daily in single or divided doses" }]
+
+[[case]]
+id = "meto-contraindications"
+question = "Who should not take metoprolol tartrate?"
+expect = [{ file = "dailymed-5da82411.xml", contains = "contraindicated in severe bradycardia" }]
+
+[[case]]
+id = "meto-half-life"
+question = "What is the elimination half-life of metoprolol?"
+expect = [{ file = "dailymed-5da82411.xml", contains = "mean elimination half-life of metoprolol is 3 to 4 hours" }]
+
+[[case]]
+id = "meto-stop-suddenly"
+question = "What can happen if a patient stops taking metoprolol suddenly?"
+expect = [{ file = "dailymed-5da82411.xml", contains = "Abrupt Cessation of Therapy" }]
+
+[[case]]
+id = "meto-breastfeeding"
+question = "Does metoprolol pass into breast milk?"
+expect = [{ file = "dailymed-5da82411.xml", contains = "metoprolol is present in human milk" }]
+
+[[case]]
+id = "meto-overdose"
+question = "What are the signs of a metoprolol overdose?"
+expect = [{ file = "dailymed-5da82411.xml", contains = "Overdosage of metoprolol tartrate may lead to severe bradycardia" }]
+
+# ---------------------------------------------------------------- Olanzapine label (DailyMed)
+[[case]]
+id = "olz-adult-start"
+question = "What oral dose of olanzapine should adults with schizophrenia start on?"
+expect = [{ file = "dailymed-0f692652.xml", contains = "Start at 5‑10 mg once daily" }]
+
+[[case]]
+id = "olz-adolescent-start"
+question = "What is the recommended starting dose of olanzapine for adolescents with schizophrenia?"
+expect = [{ file = "dailymed-0f692652.xml", contains = "recommended starting dose of 2.5 or 5 mg" }]
+
+# ---------------------------------------------------------------- Fenbendazole veterinary label (DailyMed)
+[[case]]
+id = "fen-milk-withdrawal"
+question = "How long after DEWOGARD treatment must milk be withheld?"
+expect = [{ file = "dailymed-32188308.xml", contains = "for 60 hours after the last treatment" }]
+
+[[case]]
+id = "fen-swine-slaughter"
+question = "When can treated swine be slaughtered for human consumption?"
+expect = [{ file = "dailymed-32188308.xml", contains = "within 4 days following last treatment" }]
+
+# ---------------------------------------------------------------- Homeopathic labels (DailyMed)
+[[case]]
+id = "mold-directions"
+question = "How many drops of the mold antigens remedy should an adult take?"
+expect = [{ file = "dailymed-3a9a6371.xml", contains = "5 to 10 drops orally, 3 times daily" }]
+
+# ---------------------------------------------------------------- PubMed Central articles
+[[case]]
+id = "pml-survival"
+question = "What was the survival rate of PML patients treated with immune checkpoint inhibitors?"
+expect = [{ file = "pmc-PMC13736357.xml", contains = "The survival rate among the included patients was 62%" }]
+
+[[case]]
+id = "ss-fusion"
+question = "Which gene fusion defines synovial sarcoma?"
+expect = [{ file = "pmc-PMC13778489.xml", contains = "SS18::SSX fusion" }]
+
+[[case]]
+id = "ss-surgery"
+question = "What operation did the synovial sarcoma patient have?"
+expect = [{ file = "pmc-PMC13778489.xml", contains = "en bloc excision of the abdominal-wall tumour" }]
+
+[[case]]
+id = "mngs-guideline"
+question = "Which reporting guideline did the metagenomic sequencing review follow?"
+expect = [{ file = "pmc-PMC13703160.xml", contains = "PRISMA 2020" }]
+
+# ---------------------------------------------------------------- not in the corpus: retrieval should keep nothing
+[[case]]
+id = "none-amoxicillin"
+question = "What is the pediatric dose of amoxicillin for otitis media?"
+answerable = false
+
+[[case]]
+id = "none-lease"
+question = "Which court has jurisdiction over disputes under the office lease?"
+answerable = false
+
+[[case]]
+id = "none-capital-gains"
+question = "What is the long-term capital gains tax rate for 2024?"
+answerable = false
+
+[[case]]
+id = "none-insulin"
+question = "How should insulin glargine be stored after opening?"
+answerable = false

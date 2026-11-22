@@ -1,14 +1,18 @@
 # Prompt registry (blueprint 11.5, 11.7). The generation service loads these files and records the SHA-256 of
 # the assembled prompt set with every query and in its audit event.
 [answer]
-version = 2
+version = 3
 system = "templates/answer.md"
 few_shot = "few_shot_examples/answer.md"
 
 [verify]
-version = 1
+version = 2
 system = "templates/verify.md"
 
-[condense]
+[query]
+version = 2
+system = "templates/query.md"
+
+[rerank]
 version = 1
-system = "templates/condense.md"
+system = "templates/rerank.md"
