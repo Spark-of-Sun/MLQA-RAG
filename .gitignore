@@ -38,3 +38,5 @@ lmqa.json
 env-example.txt
 temp.py
 !.env.example
+
+.next-verify
