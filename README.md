@@ -14,7 +14,8 @@ gateway's role, and a page you may not read shows a lock on the page itself, now
 
 Prerequisites: Docker (your user in the `docker` group), [uv](https://docs.astral.sh/uv/), Node 24 and pnpm.
 
-1. **Settings.** Put your Auth0 and Gemini values in `.env` (`env-example.txt` lists every setting);
+1. **Settings.** Put your Auth0 and Gemini values in `.env`. `example-env.txt` in the repo root lists every setting
+   with placeholders (it is kept on your machine and not committed; ask a teammate for a copy);
    `make doctor` names any setting that is missing. Local-only secrets (database passwords, join-code pepper,
    session secret) are generated for you.
    **Answer model:** set `LLM_PROVIDER` and `LLM_MODEL` in `.env` and restart; no code change. Providers: `gemini`

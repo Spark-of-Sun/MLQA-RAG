@@ -35,6 +35,6 @@ lmqa.json
 .next-verify/
 **/.next-*/
 .env*.local
-env-example.txt
+example-env.txt
 temp.py
 !.env.example

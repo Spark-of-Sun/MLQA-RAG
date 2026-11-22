@@ -47,7 +47,7 @@ added stage by stage without rework.
 
 ## Answer models and availability
 
-The answer provider and model are settings (`LLM_PROVIDER`, `LLM_MODEL`; see `env-example.txt`). Three protocols
+The answer provider and model are settings (`LLM_PROVIDER`, `LLM_MODEL`; see `example-env.txt`). Three protocols
 cover the providers: Gemini, Anthropic Messages (one forced tool with the answer schema) and OpenAI Chat
 Completions (OpenAI, Groq, OpenRouter, DeepSeek, Mistral, Together, Ollama and any compatible server; JSON schema
 output where the server supports it, otherwise JSON mode with the schema in the instructions). Every provider's
