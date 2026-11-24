@@ -10,21 +10,37 @@
 
 A sentence that fails any check never reaches the client; the client sees a visible "could not be verified"
 marker. If any step fails, nothing is released and no chat is created (fail closed).
+
+Chats and LLM query planning are frozen MVP-only features (DEV-21, flag `chats`, pending Q-04 and Q-39): while the
+flag is off every question stands alone (no history, no planning call, no chat row, `conversation_id` null) and a
+request naming a chat gets 404.
+
+Questions, standalone questions, results and chat titles are stored sealed with the workspace content key
+(question_ct, standalone_question_ct, result_ct, title_ct; lmqa_keys, R-51.3). Row IDs are chosen here, before the
+insert, because each value's associated data names its row.
 """
 
 from __future__ import annotations
 
 import hashlib
 import time
+import uuid
 from typing import Any
 
 import psycopg
-from psycopg.types.json import Jsonb
 
 import lmqa_audit
-from citation_validator import apply_entailment, build_result, entailment_claims, recheck_integrity, validate
+from citation_validator import (
+    apply_entailment,
+    build_result,
+    entailment_claims,
+    recheck_integrity,
+    validate,
+)
 from generation import GenerationService, LLMError, Turn
 from lmqa_db import Database, Scope
+from lmqa_keys import Field, FieldCipher
+from lmqa_models.contracts import feature_enabled
 from lmqa_models.errors import BadRequest, NotFound, Unavailable
 from lmqa_models.principal import Principal
 from lmqa_models.quota import question as quota_question
@@ -39,11 +55,41 @@ HISTORY_TURNS = 4
 
 def released_text(result: dict[str, Any]) -> str:
     """What the user actually saw: verified sentences and the refusal, never removed claims."""
-    return " ".join(s["text"] for s in result.get("segments", []) if s.get("type") in {"sentence", "refusal"})
+    return " ".join(
+        s["text"] for s in result.get("segments", []) if s.get("type") in {"sentence", "refusal"}
+    )
 
 
 def _ms(start: float) -> int:
     return int((time.monotonic() - start) * 1000)
+
+
+QUERY_COLUMNS = "id, org_id, workspace_id, conversation_id, question_ct, standalone_question_ct, result_ct, created_at"
+
+
+def open_query(keys: FieldCipher, scope: Any, row: dict[str, Any]) -> dict[str, Any]:
+    """A queries row with question, standalone_question and result decrypted (ciphertext columns removed)."""
+    item = dict(row)
+
+    def field(purpose: str) -> Field:
+        return Field.workspace(purpose, item["org_id"], item["workspace_id"], item["id"])
+
+    item["question"] = keys.open(scope, field("query.question"), item.pop("question_ct"))
+    item["standalone_question"] = keys.open(
+        scope, field("query.standalone_question"), item.pop("standalone_question_ct", None)
+    )
+    item["result"] = keys.open_json(scope, field("query.result"), item.pop("result_ct")) or {}
+    return item
+
+
+def open_conversation(keys: FieldCipher, scope: Any, row: dict[str, Any]) -> dict[str, Any]:
+    item = dict(row)
+    item["title"] = keys.open(
+        scope,
+        Field.workspace("conversation.title", item["org_id"], item["workspace_id"], item["id"]),
+        item.pop("title_ct"),
+    )
+    return item
 
 
 def chat_title(question: str) -> str:
@@ -56,21 +102,31 @@ def chat_title(question: str) -> str:
 
 class QueryFlow:
     def __init__(
-        self, settings: Settings, db: Database, retrieval: RetrievalService, generation: GenerationService
+        self,
+        settings: Settings,
+        db: Database,
+        retrieval: RetrievalService,
+        generation: GenerationService,
+        keys: FieldCipher,
     ) -> None:
         self._s = settings
         self._db = db
         self._retrieval = retrieval
         self._generation = generation
+        self.keys = keys
 
     # ------------------------------------------------------------------ ask
-    def ask(self, p: Principal, question: str, conversation_id: str | None = None) -> dict[str, Any]:
+    def ask(
+        self, p: Principal, question: str, conversation_id: str | None = None
+    ) -> dict[str, Any]:
         # Each question gets the next number of the persistent counter; all its model and embedding calls start on
         # that number's key (question 1 the first key, question 2 the second, ...), then the others in order.
         with quota_question(self._s.quota()) as n:
             return self._ask(p, question, conversation_id, n)
 
-    def _ask(self, p: Principal, question: str, conversation_id: str | None, number: int) -> dict[str, Any]:
+    def _ask(  # noqa: C901, PLR0912, PLR0915 - one linear flow; splitting it is a DEV-33 follow-up
+        self, p: Principal, question: str, conversation_id: str | None, number: int
+    ) -> dict[str, Any]:
         started = time.monotonic()
         q = " ".join(question.split())
         if not 3 <= len(q) <= 2000:
@@ -78,14 +134,26 @@ class QueryFlow:
 
         history: list[Turn] = []
         carry: list[str] = []
+        if conversation_id and not feature_enabled("chats"):
+            # Frozen MVP-only feature (DEV-21): with `chats` off a chat is as absent as an unlisted route.
+            raise NotFound("Chat not found.")
         if conversation_id:
             with self._db.scoped(p.user_id) as scope:
-                if scope.execute("select 1 from conversations where id = %s", [conversation_id]).fetchone() is None:
+                if (
+                    scope.execute(
+                        "select 1 from conversations where id = %s", [conversation_id]
+                    ).fetchone()
+                    is None
+                ):
                     raise NotFound("Chat not found.")
-                rows = scope.execute(
-                    "select question, result from queries where conversation_id = %s order by created_at desc limit %s",
-                    [conversation_id, HISTORY_TURNS],
-                ).fetchall()
+                rows = [
+                    open_query(self.keys, scope, r)
+                    for r in scope.execute(
+                        f"select {QUERY_COLUMNS} from queries where conversation_id = %s"  # noqa: S608 - constant
+                        " order by created_at desc limit %s",
+                        [conversation_id, HISTORY_TURNS],
+                    ).fetchall()
+                ]
             rows.reverse()
             history = [Turn(r["question"], released_text(r["result"])) for r in rows]
             if rows:
@@ -133,13 +201,18 @@ class QueryFlow:
                 dropped += [Dropped(cid, "token_budget", 0.0) for cid in draft.dropped_for_budget]
                 tokens_in, tokens_out = tokens_in + draft.tokens_in, tokens_out + draft.tokens_out
                 model, prompt_sha = draft.model, draft.prompt_sha256
-                answerable, verdicts = validate(draft.data, ledger, entailment=self._s.verify_entailment)
+                answerable, verdicts = validate(
+                    draft.data, ledger, entailment=self._s.verify_entailment
+                )
                 if self._s.verify_entailment:
                     check = self._generation.entailment(entailment_claims(verdicts), ledger)
                     apply_entailment(verdicts, check.verdicts)
                     if check.model:
                         calls["verify"] = f"{check.model} · key {check.key_id}"
-                    tokens_in, tokens_out = tokens_in + check.tokens_in, tokens_out + check.tokens_out
+                    tokens_in, tokens_out = (
+                        tokens_in + check.tokens_in,
+                        tokens_out + check.tokens_out,
+                    )
                 timings["verify_ms"] = _ms(t)
             except LLMError as exc:
                 raise Unavailable(f"No answer was released: {exc}") from exc
@@ -163,7 +236,7 @@ class QueryFlow:
         except psycopg.errors.ForeignKeyViolation as exc:
             raise NotFound("This chat was deleted while the answer was being prepared.") from exc
 
-    def _release(
+    def _release(  # noqa: PLR0913, PLR0917 - one linear flow; splitting it is a DEV-33 follow-up
         self,
         p: Principal,
         question: str,
@@ -198,41 +271,34 @@ class QueryFlow:
                 }
             )
             result["standalone_question"] = standalone
-            if conversation_id is None:
-                conv = scope.execute(
-                    "insert into conversations (org_id, workspace_id, user_id, title) values (%s, %s, %s, %s)"
-                    " returning id, title",
-                    [m.org_id, m.workspace_id, p.user_id, chat_title(question)],
-                ).fetchone()
-                if conv is not None:
-                    lmqa_audit.append(
-                        scope,
-                        org_id=m.org_id,
-                        workspace_id=m.workspace_id,
-                        actor_id=p.user_id,
-                        action="conversation.created",
-                        target_type="conversation",
-                        target_id=conv["id"],
-                    )
-            else:
-                conv = scope.execute(
-                    "update conversations set updated_at = now() where id = %s returning id, title", [conversation_id]
-                ).fetchone()
-            if conv is None:
-                raise NotFound("Chat not found.")
+            # Frozen MVP-only feature (DEV-21): with `chats` off a question stands alone and
+            # queries.conversation_id stays null.
+            conv = (
+                self._chat_row(scope, p, question, conversation_id)
+                if feature_enabled("chats")
+                else None
+            )
+            conv_id = str(conv["id"]) if conv is not None else None
+            qid = str(uuid.uuid7())
+
+            def field(purpose: str) -> Field:
+                return Field.workspace(purpose, m.org_id, m.workspace_id, qid)
+
             row = scope.execute(
-                "insert into queries (org_id, workspace_id, user_id, conversation_id, question, standalone_question,"
-                " outcome, result, model, prompt_sha256, tokens_in, tokens_out, latency_ms)"
-                " values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) returning id, created_at",
+                "insert into queries (id, org_id, workspace_id, user_id, conversation_id, question_ct,"
+                " standalone_question_ct, outcome, result_ct, model, prompt_sha256, tokens_in, tokens_out,"
+                " latency_ms) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+                " returning id, created_at",
                 [
+                    qid,
                     m.org_id,
                     m.workspace_id,
                     p.user_id,
-                    conv["id"],
-                    question,
-                    standalone,
+                    conv_id,
+                    self.keys.seal(scope, field("query.question"), question),
+                    self.keys.seal(scope, field("query.standalone_question"), standalone),
                     result["outcome"],
-                    Jsonb(result),
+                    self.keys.seal_json(scope, field("query.result"), result),
                     model,
                     prompt_sha,
                     tokens_in,
@@ -252,7 +318,7 @@ class QueryFlow:
                 target_type="query",
                 target_id=query_id,
                 payload={
-                    "conversation_id": str(conv["id"]),
+                    "conversation_id": conv_id,
                     "question_sha256": hashlib.sha256(question.encode()).hexdigest(),
                     "released_sha256": hashlib.sha256(released_text(result).encode()).hexdigest(),
                     "outcome": result["outcome"],
@@ -262,7 +328,11 @@ class QueryFlow:
                     "dropped": [{"chunk_id": d.chunk_id, "reason": d.reason} for d in dropped[:20]],
                     "prompt_sha256": prompt_sha,
                     "model": model,
-                    "retrieval": {k: v for k, v in pipeline.items() if k != "alternatives"},
+                    "retrieval": {
+                        k: v
+                        for k, v in pipeline.items()
+                        if k not in {"alternatives", "detail_note"}
+                    },
                 },
             )
         # Committed: chat, query, ledger and audit event. Only now is anything released.
@@ -274,15 +344,65 @@ class QueryFlow:
                 "id": query_id,
                 "question": question,
                 "created_at": row["created_at"].isoformat(),
-                "conversation_id": str(conv["id"]),
-                "conversation_title": conv["title"],
+                "conversation_id": conv_id,
+                "conversation_title": conv["title"] if conv is not None else None,
             }
         )
         return result
 
+    def _chat_row(
+        self, scope: Scope, p: Principal, question: str, conversation_id: str | None
+    ) -> dict[str, Any]:
+        """The chat this question belongs to: created by its first question, otherwise touched (`chats` only)."""
+        m = p.membership
+        assert m is not None
+        if conversation_id is not None:
+            conv = scope.execute(
+                "update conversations set updated_at = now() where id = %s"
+                " returning id, org_id, workspace_id, title_ct",
+                [conversation_id],
+            ).fetchone()
+            if conv is None:
+                raise NotFound("Chat not found.")
+            return open_conversation(self.keys, scope, conv)
+        conv_id = str(uuid.uuid4())
+        title = chat_title(question)
+        conv = scope.execute(
+            "insert into conversations (id, org_id, workspace_id, user_id, title_ct) values (%s, %s, %s, %s, %s)"
+            " returning id",
+            [
+                conv_id,
+                m.org_id,
+                m.workspace_id,
+                p.user_id,
+                self.keys.seal(
+                    scope,
+                    Field.workspace("conversation.title", m.org_id, m.workspace_id, conv_id),
+                    title,
+                ),
+            ],
+        ).fetchone()
+        if conv is None:
+            raise NotFound("Chat not found.")
+        conv = {"id": conv["id"], "title": title}
+        lmqa_audit.append(
+            scope,
+            org_id=m.org_id,
+            workspace_id=m.workspace_id,
+            actor_id=p.user_id,
+            action="conversation.created",
+            target_type="conversation",
+            target_id=conv["id"],
+        )
+        return conv
+
     # ------------------------------------------------------------------ re-open
-    def with_current_citations(self, scope: Scope, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Stored answers with citation text re-read under RLS now: a revoked or changed source shows unavailable."""
+    def with_current_citations(
+        self, scope: Scope, rows: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Stored answers with citation text re-read under RLS now: a revoked or changed source shows unavailable.
+        `rows` are queries rows selected with QUERY_COLUMNS (sealed)."""
+        rows = [open_query(self.keys, scope, r) for r in rows]
         results = [dict(r["result"]) for r in rows]
         ids = [c["chunk_id"] for res in results for c in res.get("citations", [])]
         current = self._retrieval.current_chunks(scope, ids)
@@ -299,7 +419,7 @@ class QueryFlow:
                     "id": str(r["id"]),
                     "question": r["question"],
                     "created_at": r["created_at"].isoformat(),
-                    "conversation_id": str(r["conversation_id"]),
+                    "conversation_id": str(r["conversation_id"]) if r["conversation_id"] else None,
                 }
             )
             res.setdefault("standalone_question", r.get("standalone_question") or r["question"])
@@ -309,8 +429,7 @@ class QueryFlow:
     def get(self, p: Principal, query_id: str) -> dict[str, Any] | None:
         with self._db.scoped(p.user_id) as scope:
             row = scope.execute(
-                "select id, conversation_id, question, standalone_question, result, created_at from queries"
-                " where id = %s",
+                f"select {QUERY_COLUMNS} from queries where id = %s",  # noqa: S608 - constant
                 [query_id],
             ).fetchone()
             return None if row is None else self.with_current_citations(scope, [row])[0]

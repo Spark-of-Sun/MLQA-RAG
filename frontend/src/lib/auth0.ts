@@ -1,6 +1,8 @@
 import { Auth0Client } from "@auth0/nextjs-auth0/server";
 import { NextResponse } from "next/server";
 
+import { sessionStoreFromEnv } from "@/lib/session-store";
+
 // Auth0 authenticates; the gateway and PostgreSQL authorize (blueprint 1.2, 8).
 // Tokens never reach the browser: the access-token endpoint is disabled and the session cookie is
 // encrypted with AUTH0_SESSION_SECRET (blueprint 17.3, G8.5).
@@ -29,6 +31,8 @@ export const auth0 = new Auth0Client({
     absoluteDuration: 8 * 60 * 60,
   },
   enableAccessTokenEndpoint: false,
+  // Server-side sessions (G8.5): with a store, the cookie carries only an opaque ID.
+  sessionStore: sessionStoreFromEnv(),
   // The SDK's default shows a bare 500 page with the error text. Send the user back to the start page with a
   // short reason instead, so a stale or replayed callback (back button, reload, expired attempt) is one click
   // to recover from. Auth0 errors such as access_denied keep their code for diagnosis.

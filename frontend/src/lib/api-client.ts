@@ -12,7 +12,7 @@ export class ApiError extends Error {
 
 function detailOf(body: unknown, status: number): string {
   if (body && typeof body === "object" && "detail" in body) {
-    const detail = (body as { detail: unknown }).detail;
+    const detail = (body).detail;
     if (typeof detail === "string") return detail;
     if (Array.isArray(detail)) return "Please check the form and try again.";
   }
@@ -28,6 +28,12 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
     init.headers = { "content-type": "application/json" };
   }
   const response = await fetch(`/api/backend/${path.replace(/^\//, "")}`, init);
+  if (response.status === 401 && (response.headers.get("www-authenticate") ?? "").includes("insufficient_user_authentication")) {
+    // RFC 9470 step-up: sign in again with a passkey, then come back to this page.
+    const back = encodeURIComponent(window.location.pathname);
+    window.location.href = `/auth/login?returnTo=${back}&max_age=0&acr_values=urn:lmqa:acr:passkey&scope=openid%20profile%20email%20step_up`;
+    throw new ApiError(401, "This action needs a fresh passkey sign-in…");
+  }
   if (response.status === 401) {
     window.location.href = `/auth/login?returnTo=${encodeURIComponent(window.location.pathname)}`;
     throw new ApiError(401, "Your session has ended. Signing you in again…");

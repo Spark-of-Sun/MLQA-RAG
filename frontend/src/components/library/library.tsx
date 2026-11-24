@@ -50,11 +50,27 @@ function Access({ d }: { d: DocumentRow }) {
   );
 }
 
-export function Library({ isAdmin }: { isAdmin: boolean }) {
+/**
+ * `workspaceVisibility` and `namedShares` are frozen MVP-only features (DEV-14, DEV-21): while a flag is off its
+ * upload option is hidden (the API refuses it too) and uploads are private to their owner.
+ */
+export function Library({
+  isAdmin,
+  workspaceVisibility,
+  namedShares,
+}: {
+  isAdmin: boolean;
+  workspaceVisibility: boolean;
+  namedShares: boolean;
+}) {
+  const audiences = AUDIENCES.filter(
+    (a) => a.value === "private" || (a.value === "workspace" ? workspaceVisibility : namedShares),
+  );
+  const chooseAudience = isAdmin && audiences.length > 1;
   const [docs, setDocs] = useState<DocumentRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [audience, setAudience] = useState<Audience>(isAdmin ? "workspace" : "private");
+  const [audience, setAudience] = useState<Audience>(isAdmin && workspaceVisibility ? "workspace" : "private");
   const [shareWithAdmin, setShareWithAdmin] = useState(false);
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -75,12 +91,12 @@ export function Library({ isAdmin }: { isAdmin: boolean }) {
   }, [load]);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isAdmin || !namedShares) return;
     api
       .get<MemberRow[]>("workspace/members")
-      .then((rows) => setMembers(rows.filter((r) => r.status === "active")))
-      .catch(() => setMembers([]));
-  }, [isAdmin]);
+      .then((rows) => { setMembers(rows.filter((r) => r.status === "active")); })
+      .catch(() => { setMembers([]); });
+  }, [isAdmin, namedShares]);
 
   function toggle(userId: string) {
     setSelected((prev) => {
@@ -95,7 +111,7 @@ export function Library({ isAdmin }: { isAdmin: boolean }) {
   useEffect(() => {
     if (!processing) return;
     const t = setInterval(() => void load(), 2500);
-    return () => clearInterval(t);
+    return () => { clearInterval(t); };
   }, [processing, load]);
 
   async function upload(files: FileList | File[]) {
@@ -112,9 +128,9 @@ export function Library({ isAdmin }: { isAdmin: boolean }) {
       setUploading(file.name);
       const form = new FormData();
       form.append("file", file);
-      form.append("visibility", isAdmin && audience === "workspace" ? "workspace" : "private");
-      if (isAdmin && audience === "members") for (const id of selected) form.append("share_with", id);
-      if (!isAdmin && shareWithAdmin) form.append("share_with", "admin");
+      form.append("visibility", isAdmin && workspaceVisibility && audience === "workspace" ? "workspace" : "private");
+      if (namedShares && isAdmin && audience === "members") for (const id of selected) form.append("share_with", id);
+      if (namedShares && !isAdmin && shareWithAdmin) form.append("share_with", "admin");
       try {
         await api.upload("documents", form);
         ok += 1;
@@ -143,9 +159,11 @@ export function Library({ isAdmin }: { isAdmin: boolean }) {
       <PageHeader
         title="Library"
         subtitle={
-          isAdmin
-            ? "Share each upload with the whole workspace, with selected members, or keep it to yourself. Documents members share with you appear here too."
-            : "Documents you upload are private unless you share them with your admin. Documents your admin shares with you appear here too."
+          !workspaceVisibility && !namedShares
+            ? "Documents you upload are private to you: only you can see them and ask questions over them."
+            : isAdmin
+              ? "Share each upload with the whole workspace, with selected members, or keep it to yourself. Documents members share with you appear here too."
+              : "Documents you upload are private unless you share them with your admin. Documents your admin shares with you appear here too."
         }
       />
 
@@ -155,7 +173,7 @@ export function Library({ isAdmin }: { isAdmin: boolean }) {
             e.preventDefault();
             setDragging(true);
           }}
-          onDragLeave={() => setDragging(false)}
+          onDragLeave={() => { setDragging(false); }}
           onDrop={(e) => {
             e.preventDefault();
             setDragging(false);
@@ -180,17 +198,17 @@ export function Library({ isAdmin }: { isAdmin: boolean }) {
             />
           </label>
           <p className="mt-2 text-xs text-ink-500">PDF (with a text layer), DOCX, HTML, XML (JATS, SPL drug labels, eCFR), TXT · up to 25 MB</p>
-          {isAdmin ? (
+          {chooseAudience ? (
             <div className="mt-4 w-full max-w-xl">
               <p className="mb-1.5 text-xs font-medium text-ink-700">Who can use these documents?</p>
               <div className="inline-flex rounded-lg border border-ink-200 bg-surface p-0.5 text-xs" role="radiogroup" aria-label="Share with">
-                {AUDIENCES.map(({ value, label, icon: Icon }) => (
+                {audiences.map(({ value, label, icon: Icon }) => (
                   <button
                     key={value}
                     type="button"
                     role="radio"
                     aria-checked={audience === value}
-                    onClick={() => setAudience(value)}
+                    onClick={() => { setAudience(value); }}
                     className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium ${
                       audience === value ? "bg-inverse text-on-inverse" : "text-ink-600 hover:bg-surface-hover"
                     }`}
@@ -213,8 +231,7 @@ export function Library({ isAdmin }: { isAdmin: boolean }) {
                         <button
                           type="button"
                           className="font-medium text-brand-700 hover:underline"
-                          onClick={() =>
-                            setSelected(selected.size === members.length ? new Set() : new Set(members.map((m) => m.user_id)))
+                          onClick={() => { setSelected(selected.size === members.length ? new Set() : new Set(members.map((m) => m.user_id))); }
                           }
                         >
                           {selected.size === members.length ? "Clear" : "Select all"}
@@ -227,7 +244,7 @@ export function Library({ isAdmin }: { isAdmin: boolean }) {
                               <input
                                 type="checkbox"
                                 checked={selected.has(m.user_id)}
-                                onChange={() => toggle(m.user_id)}
+                                onChange={() => { toggle(m.user_id); }}
                                 className="size-4 rounded border-ink-300"
                               />
                               <span className="text-ink-900">{m.name || m.email}</span>
@@ -241,12 +258,12 @@ export function Library({ isAdmin }: { isAdmin: boolean }) {
                 </div>
               )}
             </div>
-          ) : (
+          ) : !isAdmin && namedShares ? (
             <label className="mt-4 flex max-w-md cursor-pointer items-start gap-2.5 rounded-lg border border-ink-200 bg-surface px-3 py-2.5 text-left">
               <input
                 type="checkbox"
                 checked={shareWithAdmin}
-                onChange={(e) => setShareWithAdmin(e.target.checked)}
+                onChange={(e) => { setShareWithAdmin(e.target.checked); }}
                 className="mt-0.5 size-4 rounded border-ink-300"
               />
               <span>
@@ -258,7 +275,7 @@ export function Library({ isAdmin }: { isAdmin: boolean }) {
                 </span>
               </span>
             </label>
-          )}
+          ) : null}
           {uploading && (
             <div className="mt-4">
               <Spinner label={`Uploading ${uploading}…`} />

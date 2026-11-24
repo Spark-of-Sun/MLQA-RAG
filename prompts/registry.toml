@@ -16,3 +16,7 @@ system = "templates/query.md"
 [rerank]
 version = 1
 system = "templates/rerank.md"
+
+[answer_stream]
+version = 1
+system = "templates/answer_stream.md"

@@ -1,24 +1,206 @@
-# Lifecycle state machines (blueprint 6), MVP subset. The identity service reads transitions from this file;
-# any pair not listed is illegal and answers 409.
+# Lifecycle state machines (blueprint 6, R-10). This file is the single source:
+#   - tools/state_machine_gen.py turns it into the transition table `state_transitions` and one trigger per bound
+#     column (db/migrations/0010_lifecycle_machines.sql); the database refuses any pair that is not listed and, for
+#     machines with `actor_check`, any actor that is not listed;
+#   - lmqa_models.Machine.load(name).check(actor, from, to, guards) is the service-side guard; it raises
+#     IllegalTransition (409 for an undeclared pair, 403 for an actor or guard that is not allowed);
+#   - tests/integration/test_stage1_lifecycle.py tries every pair and every actor against the real database.
+# A transition lists the actors who may trigger it, the guards that must hold (evaluated by the service; the names
+# are defined under `guards`) and its side effects (names only; the code that runs them is in the owning service).
 version: 1
+
+actors:
+  approver: "The member's approver (6.2): the Super Admin for an admin, the workspace admin for a tenant"
+  member: "The user a membership belongs to. No membership transition lists it: nobody approves or changes their own membership (6.2, R-10.5)"
+  super_admin: "An active Super Admin of the row's organization"
+  admin: "An active admin of the row's workspace"
+  initiator: "The person who opened the governance request"
+  requester: "The person who asked for the access session"
+  reviewer: "Who reviews an ended access session: the workspace admin, or an operator security_officer for operator access"
+  operator: "A platform operator acting under a role from section 14"
+  system: "A service acting without a user (worker, saga, sweep or governance effect), named in app.actor"
+
+guards:
+  approver_active: "The approver's own membership, workspace and organization are active"
+  org_active: "The organization is active (6.4: no governance action while it is pending)"
+  governance_executed: "A governance request of the matching kind reached executed (6.7)"
+  scope_frozen: "The member's workspace or organization was frozen (7.7)"
+  cascade_suspended: "The membership was suspended by cascade (reason workspace_frozen or org_frozen), not by an approver"
+  provisioned: "Every provisioning step succeeded (idempotent saga)"
+  operator_approved: "In production an operator approved the organization (D9)"
+  no_successor: "Frozen for 30 days with no successor, or the organization's deletion grace ended"
+  grace_ended: "The 30-day deletion grace ended"
+  retention_ended: "Every retention period ended"
+  no_legal_hold: "No legal hold exists on the organization, workspace or document"
+  key_deletion_cancelled: "The key custodian cancelled the scheduled key deletion"
+  provider_window_ended: "The key provider's deletion window ended"
+  expired: "The expiry time passed"
+  uses_exhausted: "The code's uses reached max_uses"
+  distinct_approver: "The approver differs from the initiator and from every other approver (identity and authenticator)"
+  step_up_passkey: "The actor passed passkey step-up within the last 5 minutes"
+  approvals_complete: "Every required approval was given"
+  window_elapsed: "The request kind's waiting window elapsed"
+  approval_window_passed: "72 hours passed without the required approvals"
+  ocr_below_threshold: "At least one page is below the OCR confidence threshold"
+
 machines:
+  # --- MVP route views. The {action} routes and the ingestion pipeline name these actions; every pair must also be a
+  # pair of the bound production machine (tests/contract/test_stage1_lifecycle.py), because the database enforces
+  # only that one. `workspace` is where the admin's workspace moves along `workspace` (approval goes
+  # pending -> provisioning -> active).
   admin_membership:
-    states: [pending, active, rejected, suspended]
+    states: [pending_approval, active, rejected, suspended]
     transitions:
-      # action:   from      -> to         and the admin's workspace moves to
-      approve:    { from: pending,   to: active,    workspace: active }
-      reject:     { from: pending,   to: rejected,  workspace: rejected }
-      suspend:    { from: active,    to: suspended, workspace: frozen }
-      reactivate: { from: suspended, to: active,    workspace: active }
+      approve:    { from: pending_approval, to: active,    workspace: active,   actors: [super_admin] }
+      reject:     { from: pending_approval, to: rejected,  workspace: rejected, actors: [super_admin] }
+      suspend:    { from: active,           to: suspended, workspace: frozen,   actors: [super_admin] }
+      reactivate: { from: suspended,        to: active,    workspace: active,   actors: [super_admin] }
   tenant_membership:
-    states: [pending, active, rejected, suspended]
+    states: [pending_approval, active, rejected, suspended]
     transitions:
-      approve:    { from: pending,   to: active }
-      reject:     { from: pending,   to: rejected }
-      suspend:    { from: active,    to: suspended }
-      reactivate: { from: suspended, to: active }
+      approve:    { from: pending_approval, to: active,    actors: [admin] }
+      reject:     { from: pending_approval, to: rejected,  actors: [admin] }
+      suspend:    { from: active,           to: suspended, actors: [admin] }
+      reactivate: { from: suspended,        to: active,    actors: [admin] }
   document:
+    bind: [documents.status]
     states: [processing, ready, failed]
     transitions:
-      indexed:    { from: processing, to: ready }
-      failed:     { from: processing, to: failed }
+      indexed: { from: processing, to: ready,  actors: [system], effects: [searchable] }
+      failed:  { from: processing, to: failed, actors: [system] }
+  organization_mvp:
+    bind: [organizations.status]
+    states: [active, suspended]
+    transitions:
+      suspend:    { from: active,    to: suspended, actors: [operator] }
+      reactivate: { from: suspended, to: active,    actors: [operator] }
+
+  # --- production lifecycles (blueprint 6.2 to 6.8)
+  membership:
+    bind: [memberships.status]
+    actor_check: true
+    # The member never changes their own row: these columns are locked for them, and they may delete the row only
+    # while it is pending (withdrawing a request that was never approved).
+    subject: { column: user_id, locked: [status, approver_id, decided_at, state_reason, co_owner, owner_linked], may_delete: [pending_approval] }
+    states: [pending_approval, active, rejected, suspended, removed]
+    transitions:
+      approve:
+        { from: pending_approval, to: active, actors: [approver], guards: [approver_active],
+          effects: [provision_workspace, notify_approved] }
+      successor_effective:
+        { from: pending_approval, to: active, actors: [system], guards: [governance_executed],
+          effects: [remove_outgoing_admin, reactivate_workspace, restore_cascade_suspended, notify_tenants] }
+      reject:
+        { from: pending_approval, to: rejected, actors: [approver], guards: [approver_active],
+          effects: [reject_pending_workspace, revoke_sessions] }
+      suspend:
+        { from: active, to: suspended, actors: [approver], guards: [approver_active],
+          effects: [revoke_sessions, freeze_workspace, notify_suspended] }
+      cascade_suspend:
+        { from: active, to: suspended, actors: [system], guards: [scope_frozen], effects: [revoke_sessions] }
+      reactivate:
+        { from: suspended, to: active, actors: [approver], guards: [approver_active], effects: [reactivate_workspace] }
+      cascade_reactivate:
+        { from: suspended, to: active, actors: [system], guards: [cascade_suspended] }
+      remove:
+        { from: active, to: removed, actors: [approver], guards: [approver_active],
+          effects: [revoke_sessions, hold_owned_documents] }
+      remove_suspended:
+        { from: suspended, to: removed, actors: [approver], guards: [approver_active],
+          effects: [revoke_sessions, hold_owned_documents] }
+      cascade_remove:
+        { from: active, to: removed, actors: [system], guards: [governance_executed],
+          effects: [revoke_sessions, hold_owned_documents] }
+      cascade_remove_suspended:
+        { from: suspended, to: removed, actors: [system], guards: [governance_executed],
+          effects: [revoke_sessions, hold_owned_documents] }
+  workspace:
+    bind: [workspaces.status]
+    actor_check: true
+    states: [pending, provisioning, active, frozen, sealed, destroyed, rejected]
+    transitions:
+      approve:     { from: pending, to: provisioning, actors: [super_admin], guards: [org_active], effects: [start_provisioning] }
+      reject:      { from: pending, to: rejected, actors: [super_admin] }
+      # The MVP has nothing to provision, so the Super Admin's approval runs provisioned in the same transaction.
+      provisioned: { from: provisioning, to: active, actors: [system, super_admin], guards: [provisioned] }
+      freeze:
+        { from: active, to: frozen, actors: [super_admin, system],
+          effects: [revoke_sessions, disable_admin_code, cascade_suspend_tenants] }
+      reactivate:
+        { from: frozen, to: active, actors: [super_admin, system], effects: [restore_cascade_suspended] }
+      seal:        { from: frozen, to: sealed, actors: [system], guards: [no_successor], effects: [rewrap_under_escrow] }
+      unseal:      { from: sealed, to: frozen, actors: [system], guards: [governance_executed] }
+      destroy:
+        { from: sealed, to: destroyed, actors: [system], guards: [governance_executed, retention_ended, no_legal_hold],
+          effects: [destroy_keys, delete_vectors, delete_objects, destruction_record] }
+  organization:
+    bind: [organizations.status]
+    states: [pending, active, rejected, frozen, deletion_pending, sealed, destroyed]
+    transitions:
+      activate:        { from: pending, to: active, actors: [system], guards: [provisioned, operator_approved] }
+      reject:          { from: pending, to: rejected, actors: [operator] }
+      hold:            { from: active, to: frozen, actors: [operator], effects: [revoke_sessions, freeze_workspaces] }
+      release:         { from: frozen, to: active, actors: [operator], effects: [reactivate_workspaces] }
+      delete_approved: { from: active, to: deletion_pending, actors: [system], guards: [governance_executed] }
+      delete_frozen:   { from: frozen, to: deletion_pending, actors: [system], guards: [governance_executed] }
+      cancel_delete:   { from: deletion_pending, to: active, actors: [super_admin] }
+      seal:            { from: deletion_pending, to: sealed, actors: [system], guards: [grace_ended], effects: [disable_content_keys, schedule_key_deletion] }
+      restore:         { from: sealed, to: frozen, actors: [system], guards: [key_deletion_cancelled] }
+      destroy:
+        { from: sealed, to: destroyed, actors: [system], guards: [provider_window_ended, no_legal_hold],
+          effects: [delete_vectors, delete_objects, delete_auth0_organization, destruction_record] }
+  document_lifecycle:
+    bind: [documents.lifecycle]
+    states: [uploading, scanning, parsing, ocr_review, indexing, indexed, failed, held, deleting, deleted]
+    transitions:
+      uploaded:      { from: uploading,  to: scanning, actors: [system] }
+      scanned:       { from: scanning,   to: parsing, actors: [system] }
+      needs_review:  { from: parsing,    to: ocr_review, actors: [system], guards: [ocr_below_threshold], effects: [review_task] }
+      reviewed:      { from: ocr_review, to: indexing, actors: [system] }
+      parsed:        { from: parsing,    to: indexing, actors: [system] }
+      indexed:       { from: indexing,   to: indexed, actors: [system], effects: [searchable] }
+      fail_scan:     { from: scanning,   to: failed, actors: [system] }
+      fail_parse:    { from: parsing,    to: failed, actors: [system] }
+      fail_index:    { from: indexing,   to: failed, actors: [system] }
+      hold:          { from: indexed,    to: held, actors: [system] }
+      release:       { from: held,       to: indexed, actors: [system] }
+      delete:        { from: indexed,    to: deleting, actors: [system], guards: [no_legal_hold] }
+      delete_held:   { from: held,       to: deleting, actors: [system], guards: [no_legal_hold] }
+      delete_failed: { from: failed,     to: deleting, actors: [system] }
+      deleted:       { from: deleting,   to: deleted, actors: [system], effects: [tombstone] }
+  join_code:
+    bind: [join_codes.state]
+    states: [active, rotated, expired, exhausted, disabled, revoked]
+    transitions:
+      rotate:  { from: active,   to: rotated, actors: [super_admin, admin], effects: [new_code] }
+      expire:  { from: active,   to: expired, actors: [system], guards: [expired] }
+      exhaust: { from: active,   to: exhausted, actors: [system], guards: [uses_exhausted] }
+      disable: { from: active,   to: disabled, actors: [system], guards: [scope_frozen] }
+      enable:  { from: disabled, to: active, actors: [system] }
+      revoke:  { from: active,   to: revoked, actors: [super_admin, admin, system] }
+  governance_request:
+    bind: [governance_requests.state]
+    states: [requested, approved, waiting, executable, executed, rejected, cancelled, expired, failed]
+    transitions:
+      approve:    { from: requested,  to: approved, actors: [super_admin, admin, operator], guards: [distinct_approver, step_up_passkey] }
+      reject:     { from: requested,  to: rejected, actors: [super_admin, admin, operator], guards: [step_up_passkey] }
+      start_wait: { from: approved,   to: waiting, actors: [system], guards: [approvals_complete] }
+      wait_over:  { from: waiting,    to: executable, actors: [system], guards: [window_elapsed] }
+      execute:    { from: executable, to: executed, actors: [system], effects: [kind_effect, notify_parties] }
+      fail:       { from: executable, to: failed, actors: [system] }
+      expire:     { from: requested,  to: expired, actors: [system], guards: [approval_window_passed] }
+      cancel:            { from: requested,  to: cancelled, actors: [initiator] }
+      cancel_approved:   { from: approved,   to: cancelled, actors: [initiator] }
+      cancel_waiting:    { from: waiting,    to: cancelled, actors: [initiator] }
+      cancel_executable: { from: executable, to: cancelled, actors: [initiator] }
+  access_session:
+    bind: [access_exceptions.state, break_glass_sessions.state, ops.operator_access_grants.state]
+    states: [requested, approved, denied, active, expired, revoked, reviewed]
+    transitions:
+      approve:  { from: requested, to: approved, actors: [super_admin, admin, operator], guards: [distinct_approver] }
+      deny:     { from: requested, to: denied, actors: [super_admin, admin, operator] }
+      activate: { from: approved,  to: active, actors: [requester, system], guards: [step_up_passkey], effects: [notify_affected] }
+      expire:   { from: active,    to: expired, actors: [system], guards: [expired] }
+      revoke:   { from: active,    to: revoked, actors: [requester, admin, operator, system] }
+      review_expired: { from: expired, to: reviewed, actors: [reviewer] }
+      review_revoked: { from: revoked, to: reviewed, actors: [reviewer] }

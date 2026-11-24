@@ -28,6 +28,7 @@ from generation.prompts import (
     verify_user_prompt,
 )
 from generation.rerank import LLMReranker
+from lmqa_models.contracts import feature_enabled
 from lmqa_models.rag import Source
 from lmqa_models.settings import LLM_RERANK, Settings
 
@@ -47,18 +48,24 @@ class Draft:
     key_id: str = ""
 
 
-MAX_ALTERNATIVES = 4  # the planner writes four queries: plain, legal terms, section numbers, related provisions
+MAX_ALTERNATIVES = (
+    4  # the planner writes four queries: plain, legal terms, section numbers, related provisions
+)
 
 
 @dataclass(frozen=True)
 class QueryPlan:
-    question: str  # the standalone question: what is searched first and what the answer must address
+    question: (
+        str  # the standalone question: what is searched first and what the answer must address
+    )
     alternatives: list[str]  # other phrasings, searched with a lower weight
     tokens_in: int
     tokens_out: int
     model: str = ""
     key_id: str = ""
-    detail_note: str = ""  # a detail removed from the question that the answer should say is not covered
+    detail_note: str = (
+        ""  # a detail removed from the question that the answer should say is not covered
+    )
 
 
 @dataclass(frozen=True)
@@ -79,8 +86,17 @@ class GenerationService:
         planner = settings.planner_settings()
         self.planner = LLMClient(planner) if planner is not None else self.client
         # RERANK_MODEL=llm: passages are scored by the answer models, weakest first; the gateway hands this to
-        # retrieval (which imports no LLM client).
-        self.reranker = LLMReranker(settings) if settings.rerank_model == LLM_RERANK else None
+        # retrieval (which imports no LLM client). Frozen MVP-only feature (DEV-21): with `llm_reranker` off no
+        # question or passage goes to an LLM for ranking, and retrieval uses the fused order.
+        self.reranker = (
+            LLMReranker(settings)
+            if settings.rerank_model == LLM_RERANK and feature_enabled("llm_reranker")
+            else None
+        )
+        if settings.rerank_model == LLM_RERANK and self.reranker is None:
+            log.warning(
+                "RERANK_MODEL=llm is frozen (feature llm_reranker is off); using the fused ranking"
+            )
 
     @property
     def configured(self) -> bool:
@@ -88,8 +104,10 @@ class GenerationService:
 
     def plan_query(self, history: list[Turn], question: str, *, expand: bool) -> QueryPlan:
         """Standalone question and alternatives. Falls back to the question as asked if the model is unavailable or
-        its output is unusable: planning improves recall but is never required for an answer."""
-        if not history and not expand:
+        its output is unusable: planning improves recall but is never required for an answer. Frozen MVP-only
+        feature (DEV-21, part of `chats`): while the flag is off the question is searched as asked and nothing is
+        sent to an LLM before retrieval."""
+        if not feature_enabled("chats") or (not history and not expand):
             return QueryPlan(question, [], 0, 0)
         prompts = load_prompts()
         try:
@@ -99,7 +117,9 @@ class GenerationService:
                 schema=QUERY_SCHEMA,
             )
         except LLMError as exc:
-            log.warning("query planning unavailable (%s); searching with the question as asked", exc)
+            log.warning(
+                "query planning unavailable (%s); searching with the question as asked", exc
+            )
             return QueryPlan(question, [], 0, 0)
         # The corrected question (references resolved, spelling fixed, incidental details removed) is searched first;
         # the original question still goes to the answer model, with the note naming any detail that was removed.
@@ -115,7 +135,13 @@ class GenerationService:
                     seen.add(alt.casefold())
                     alternatives.append(alt)
         return QueryPlan(
-            standalone, alternatives[:MAX_ALTERNATIVES], out.tokens_in, out.tokens_out, out.model, out.key_id, note
+            standalone,
+            alternatives[:MAX_ALTERNATIVES],
+            out.tokens_in,
+            out.tokens_out,
+            out.model,
+            out.key_id,
+            note,
         )
 
     def draft(
@@ -130,9 +156,15 @@ class GenerationService:
         prompts = load_prompts()
         budget = self._s.context_budget_tokens
         recent = (history or [])[-MAX_HISTORY_TURNS:]
-        history_cost = sum(estimate_tokens(t.question) + min(estimate_tokens(t.answer), 250) for t in recent)
+        history_cost = sum(
+            estimate_tokens(t.question) + min(estimate_tokens(t.answer), 250) for t in recent
+        )
         fixed = (
-            (estimate_tokens(prompts.answer_system) + estimate_tokens(question) + estimate_tokens(detail_note))
+            (
+                estimate_tokens(prompts.answer_system)
+                + estimate_tokens(question)
+                + estimate_tokens(detail_note)
+            )
             + history_cost
             + 250
         )
@@ -148,15 +180,30 @@ class GenerationService:
                 used += cost
         user = answer_user_prompt(question, kept, recent, standalone, detail_note)
         assert estimate_tokens(prompts.answer_system) + estimate_tokens(user) <= budget + 300
-        out = self.client.generate_json(system=prompts.answer_system, user=user, schema=ANSWER_SCHEMA)
-        return Draft(out.data, kept, dropped, out.tokens_in, out.tokens_out, out.model, prompts.sha256, out.key_id)
+        out = self.client.generate_json(
+            system=prompts.answer_system, user=user, schema=ANSWER_SCHEMA
+        )
+        return Draft(
+            out.data,
+            kept,
+            dropped,
+            out.tokens_in,
+            out.tokens_out,
+            out.model,
+            prompts.sha256,
+            out.key_id,
+        )
 
-    def entailment(self, claims: list[tuple[int, str, list[str]]], sources: dict[str, Source]) -> EntailmentResult:
+    def entailment(
+        self, claims: list[tuple[int, str, list[str]]], sources: dict[str, Source]
+    ) -> EntailmentResult:
         if not claims:
             return EntailmentResult({}, 0, 0)
         prompts = load_prompts()
         out = self.client.generate_json(
-            system=prompts.verify_system, user=verify_user_prompt(claims, sources), schema=VERIFY_SCHEMA
+            system=prompts.verify_system,
+            user=verify_user_prompt(claims, sources),
+            schema=VERIFY_SCHEMA,
         )
         verdicts: dict[int, tuple[bool, str]] = {}
         for item in out.data.get("verdicts") or []:
@@ -166,5 +213,7 @@ class GenerationService:
                 n = int(item.get("claim", 0))
             except TypeError, ValueError:
                 continue
-            verdicts.setdefault(n, (item.get("supported") is True, str(item.get("reason", ""))[:240]))
+            verdicts.setdefault(
+                n, (item.get("supported") is True, str(item.get("reason", ""))[:240])
+            )
         return EntailmentResult(verdicts, out.tokens_in, out.tokens_out, out.model, out.key_id)

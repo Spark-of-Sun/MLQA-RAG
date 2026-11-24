@@ -45,7 +45,9 @@ from zoneinfo import ZoneInfo
 
 log = logging.getLogger(__name__)
 
-RESET_ZONE = ZoneInfo("America/Los_Angeles")  # Gemini API daily quotas reset at midnight Pacific time
+RESET_ZONE = ZoneInfo(
+    "America/Los_Angeles"
+)  # Gemini API daily quotas reset at midnight Pacific time
 WINDOW = 60.0
 SAVE_EVERY = 2.0
 
@@ -83,7 +85,9 @@ def parse_limits(text: str) -> dict[str, Limits]:
         model, sep, spec = entry.strip().partition("=")
         parts = spec.split("/")
         if not sep or not model.strip() or len(parts) != 3:
-            raise ValueError(f"MODEL_LIMITS entry {entry.strip()!r} must look like model=RPM/TPM/RPD")
+            raise ValueError(
+                f"MODEL_LIMITS entry {entry.strip()!r} must look like model=RPM/TPM/RPD"
+            )
         nums = [None if p.strip() in {"", "-"} else int(p.strip().replace("_", "")) for p in parts]
         out[model.strip().removeprefix("models/")] = Limits(*nums)
     return out
@@ -108,11 +112,17 @@ class QuotaTracker:
         self._limits = limits
         self._path = path
         self._lock = threading.Lock()
-        self._recent: dict[tuple[str, str], deque[tuple[float, int, int]]] = {}  # (ts, requests, tokens)
+        self._recent: dict[
+            tuple[str, str], deque[tuple[float, int, int]]
+        ] = {}  # (ts, requests, tokens)
         self._daily: dict[tuple[str, str], int] = {}
         self._day = _day(time.time())
-        self._blocked: dict[tuple[str, str], float] = {}  # (key id, model or "*") -> until (epoch seconds)
-        self._calls: dict[tuple[str, str], dict[str, int]] = {}  # (key id, model) -> outcome -> count, today
+        self._blocked: dict[
+            tuple[str, str], float
+        ] = {}  # (key id, model or "*") -> until (epoch seconds)
+        self._calls: dict[
+            tuple[str, str], dict[str, int]
+        ] = {}  # (key id, model) -> outcome -> count, today
         self._questions = 0  # questions asked so far (all time): picks each question's first key
         self._dirty = False
         self._saved = 0.0
@@ -133,7 +143,9 @@ class QuotaTracker:
             self._touch(now)
             return True
 
-    def wait_seconds(self, key_id: str, model: str, *, requests: int = 1, tokens: int = 0) -> float | None:
+    def wait_seconds(
+        self, key_id: str, model: str, *, requests: int = 1, tokens: int = 0
+    ) -> float | None:
         """Seconds until such a call fits; 0 if now; None if not before the daily reset."""
         with self._lock:
             return self._wait_locked(key_id, model, requests, tokens, time.time())
@@ -194,7 +206,9 @@ class QuotaTracker:
                 ts, req, _ = q[-1]
                 q[-1] = (ts, req, actual)
 
-    def block(self, key_id: str, model: str, *, seconds: float | None = None, daily: bool = False) -> None:
+    def block(
+        self, key_id: str, model: str, *, seconds: float | None = None, daily: bool = False
+    ) -> None:
         """The provider refused: skip this key and model until the daily reset, or for `seconds`."""
         with self._lock:
             now = time.time()
@@ -227,7 +241,9 @@ class QuotaTracker:
             self._dirty = True
         self._blocked = {k: v for k, v in self._blocked.items() if v > now}
 
-    def _wait_locked(self, key_id: str, model: str, requests: int, tokens: int, now: float) -> float | None:
+    def _wait_locked(
+        self, key_id: str, model: str, requests: int, tokens: int, now: float
+    ) -> float | None:
         self._roll(now)
         until = self._until(key_id, model)
         if until > now:
@@ -242,8 +258,9 @@ class QuotaTracker:
         if lim.rpm is not None:
             wait = max(wait, _time_until_fits(q, now, lim.rpm, requests, index=1))
         if lim.tpm is not None and tokens:
-            if tokens > lim.tpm:
-                tokens = lim.tpm  # one oversized call: let it wait for an empty window rather than never run
+            tokens = min(
+                tokens, lim.tpm
+            )  # one oversized call: let it wait for an empty window rather than never run
             wait = max(wait, _time_until_fits(q, now, lim.tpm, tokens, index=2))
         return wait
 
@@ -269,7 +286,11 @@ class QuotaTracker:
                 for k, v in data.get("calls", {}).items()
                 if isinstance(v, dict)
             }
-        self._blocked = {tuple(k.split("|", 1)): float(v) for k, v in data.get("blocked", {}).items() if float(v) > now}  # type: ignore[misc]
+        self._blocked = {
+            tuple(k.split("|", 1)): float(v)
+            for k, v in data.get("blocked", {}).items()
+            if float(v) > now
+        }  # type: ignore[misc]
 
     def _save(self, now: float) -> None:
         assert self._path is not None
@@ -290,7 +311,9 @@ class QuotaTracker:
             log.warning("could not save quota counters (%s)", type(exc).__name__)
 
 
-def _time_until_fits(q: deque[tuple[float, int, int]], now: float, limit: int, amount: int, *, index: int) -> float:
+def _time_until_fits(
+    q: deque[tuple[float, int, int]], now: float, limit: int, amount: int, *, index: int
+) -> float:
     """Seconds until the 60-second window has room for `amount` more (requests: index 1, tokens: index 2)."""
     used = sum(item[index] for item in q)
     if used + amount <= limit:
@@ -304,7 +327,9 @@ def _time_until_fits(q: deque[tuple[float, int, int]], now: float, limit: int, a
 
 
 _question: ContextVar[int | None] = ContextVar("lmqa_question", default=None)
-_untracked_questions = itertools.count(1)  # QUOTA_TRACKING=off: the rotation still works, but restarts at 1
+_untracked_questions = itertools.count(
+    1
+)  # QUOTA_TRACKING=off: the rotation still works, but restarts at 1
 
 
 def current_question() -> int | None:
@@ -341,5 +366,7 @@ def tracker_for(limits: dict[str, Limits], path: Path | None) -> QuotaTracker:
         if path not in _trackers:
             _trackers[path] = tracker = QuotaTracker(limits, path)
             if path is not None:
-                atexit.register(tracker.flush)  # without this, counts from a process's last seconds are lost
+                atexit.register(
+                    tracker.flush
+                )  # without this, counts from a process's last seconds are lost
         return _trackers[path]

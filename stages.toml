@@ -1,0 +1,148 @@
+# Stage ownership, gate steps and profiles (blueprint 19.6). Read by tools/gatekeeper.py.
+#
+# Ownership: the most specific matching pattern wins (longest pattern), so a file can belong to an earlier stage
+# than its directory. A pull request may modify only paths owned by stages up to STAGE + 1 (rule 1). STAGE advances
+# only through `make advance`, which requires a passing attestation for the current stage on the exact commit
+# (rule 2). Gates are cumulative: `make gate STAGE=n` runs the tests of stages 0..n (rule 3).
+#
+# The MVP (release M1) was built under the `mvp` profile, so code for later stages already exists; under the `full`
+# profile nothing counts as proven until its stage's gate passes here.
+#
+# Baseline (Q-16 default, DEV-43): STAGE = 0 under the `full` profile. Code for Stages 1 to 9 present in the tree
+# is unattested MVP code, not delivered work; gates re-run from Stage 0 and STAGE advances one stage at a time.
+
+[stage.0]
+name = "Foundation and real dependencies"
+owns = [
+  "pyproject.toml", "uv.lock", ".python-version", "Makefile", "stages.toml", "STAGE", "compose*.yaml",
+  ".env.example", ".gitignore", ".gitattributes", ".editorconfig", ".gitleaksignore", ".gitleaks.toml", ".githooks/**",
+  ".kiro/**", "project-blueprint/**",
+  ".pre-commit-config.yaml", "conftest.py", "README.md", "tools/**", "infra/compose/**", "infra/auth0/**",
+  "corpus/**", "contracts/**", ".github/**", "docs/**", "tests/contract/**", "tests/controls/**",
+  "tests/controls.md", "tests/integration/test_stage0_*", "libs/lmqa_testing/**",
+  "libs/lmqa_models/pyproject.toml", "libs/lmqa_models/src/lmqa_models/envfile.py",
+  "libs/lmqa_models/src/lmqa_models/settings.py", "libs/lmqa_models/src/lmqa_models/infra.py",
+  "libs/lmqa_models/src/lmqa_models/contracts.py", "libs/lmqa_models/src/lmqa_models/quota.py",
+  "gates/**", "frontend/package.json",
+  # MVP leftovers kept as they are (review whether to keep, move to corpus/ or delete):
+  "IPC.pdf", "test.txt", "tests/run_pipeline.py", "tests/questions.json", "tests/results/**",
+  "tests/section_check.txt", "frontend/pnpm-lock.yaml", "frontend/src/lib/api-schema.d.ts",
+]
+
+[stage.1]
+name = "Data layer and key management"
+owns = [
+  "db/**", "libs/lmqa_db/**", "libs/lmqa_keys/**", "libs/lmqa_security/**", "libs/lmqa_audit/**",
+  "infra/keyguard/**", "infra/aws/**", "tests/integration/test_stage1_*",
+]
+
+[stage.2]
+name = "Identity and onboarding on Auth0"
+owns = ["services/identity/**", "libs/lmqa_models/**", "tests/integration/test_stage2_*"]
+
+[stage.3]
+name = "Gateway and internal trust"
+owns = ["services/gateway/**", "libs/lmqa_auth/**", "tests/integration/test_stage3_*"]
+
+[stage.4]
+name = "Ingestion"
+owns = ["services/ingestion/**", "libs/lmqa_objectstore/**", "tests/integration/test_stage4_*"]
+
+[stage.5]
+name = "Retrieval"
+owns = ["services/retrieval/**", "libs/lmqa_vectorstore/**", "eval/**", "tests/integration/test_stage5_*"]
+
+[stage.6]
+name = "Generation"
+owns = ["services/generation/**", "prompts/**", "tests/integration/test_stage6_*"]
+
+[stage.7]
+name = "Citation validation and gated delivery"
+owns = ["services/citation_validator/**", "tests/integration/test_stage7_*"]
+
+[stage.8]
+name = "Frontend"
+owns = ["frontend/**", "tests/e2e/**"]
+
+[stage.9]
+name = "Governance, audit, operators and lifecycle"
+owns = ["services/audit/**", "services/ops/**", "docs/runbooks/**", "tests/integration/test_stage9_*"]
+
+[stage.10]
+name = "System verification"
+owns = ["tests/isolation/**", "tests/load/**", "tests/chaos/**"]
+
+[stage.11]
+name = "Production readiness"
+owns = ["infra/k8s/**", "infra/production/**"]
+
+# --- gate steps (19.6), run in this order; `{stages}` is the cumulative marker expression --------------------
+[[gate.step]]
+name = "uv sync --frozen"
+run = ["uv", "sync", "--frozen"]
+
+[[gate.step]]
+name = "ruff format --check"
+run = ["uv", "run", "--frozen", "ruff", "format", "--check", "libs", "services", "tools", "eval", "corpus", "tests", "conftest.py"]
+
+[[gate.step]]
+name = "ruff check"
+run = ["uv", "run", "--frozen", "ruff", "check", "--no-fix", "libs", "services", "tools", "eval", "corpus", "tests", "conftest.py"]
+
+[[gate.step]]
+name = "pyright"
+run = ["uv", "run", "--frozen", "pyright"]
+
+[[gate.step]]
+name = "frontend type check"
+run = ["pnpm", "--dir", "frontend", "typecheck"]
+
+[[gate.step]]
+name = "import-linter"
+run = ["uv", "run", "--frozen", "lint-imports"]
+
+[[gate.step]]
+name = "contracts: OpenAPI export is current"
+run = ["uv", "run", "--frozen", "python", "tools/export_openapi.py", "--check"]
+
+[[gate.step]]
+name = "contracts: version ledger is current"
+run = ["uv", "run", "--frozen", "python", "tools/gen_versions.py", "--check"]
+
+[[gate.step]]
+name = "feature flags bound to attested gates"
+run = ["uv", "run", "--frozen", "python", "tools/gatekeeper.py", "features"]
+
+[[gate.step]]
+name = "gitleaks"
+run = ["gitleaks", "git", ".", "--redact", "--no-banner"]
+
+[[gate.step]]
+name = "pip-audit"
+run = ["uv", "run", "--frozen", "pip-audit", "--progress-spinner", "off", "--skip-editable"]
+
+[[gate.step]]
+name = "pnpm audit"
+run = ["pnpm", "--dir", "frontend", "audit", "--prod"]
+
+[[gate.step]]
+name = "pytest"
+run = ["uv", "run", "--frozen", "pytest", "-m", "{stages}", "--cov", "--cov-report=json:gates/coverage.json", "-p", "no:randomly"]
+pytest = true
+
+[[gate.step]]
+name = "coverage floors"
+run = ["uv", "run", "--frozen", "python", "tools/coverage_floors.py", "gates/coverage.json"]
+
+# --- profiles (19.6). `full` is the default and the only profile valid for production. -----------------------
+[profile.full]
+description = "Every gate row at full size; zero skips; live lanes required where the stage needs them."
+
+[profile.mvp]
+description = "Release M1 (docs/mvp.md): reduced sizes and disabled features, never a lower safety threshold."
+skip_steps = ["pyright", "pip-audit", "pnpm audit"]
+
+# Live lanes each stage's gate requires (rule 2: a non-zero live count). Stage 0 needs real KMS and Auth0 (G0.7,
+# G0.9); the gate fails until they are configured, which is the honest result.
+[live]
+"0" = ["live_kms", "live_auth0", "live_llm"]

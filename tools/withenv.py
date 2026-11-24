@@ -19,7 +19,10 @@ def main() -> int:
     if args[:1] == ["--"]:
         args = args[1:]
     if not args or os.path.basename(args[0]) not in ALLOWED:
-        print(f"usage: python tools/withenv.py -- <{'|'.join(sorted(ALLOWED))}> [args...]", file=sys.stderr)
+        print(
+            f"usage: python tools/withenv.py -- <{'|'.join(sorted(ALLOWED))}> [args...]",
+            file=sys.stderr,
+        )
         return 2
     apply_to_process()
     os.execvp(args[0], args)  # noqa: S606 - replaces this process with an allow-listed command

@@ -19,7 +19,9 @@ class ObjectStore:
         self._root = root.resolve()
 
     @staticmethod
-    def key(org_id: object, workspace_id: object, document_id: object, file_type: str, version: int = 1) -> str:
+    def key(
+        org_id: object, workspace_id: object, document_id: object, file_type: str, version: int = 1
+    ) -> str:
         org, ws, doc = (str(UUID(str(v))) for v in (org_id, workspace_id, document_id))
         return f"org_{org}/ws_{ws}/doc_{doc}/v{version}/original{EXTENSIONS[file_type]}"
 

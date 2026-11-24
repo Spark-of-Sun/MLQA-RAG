@@ -2,6 +2,8 @@ export type Role = "super_admin" | "admin" | "tenant";
 export type MemberStatus = "pending" | "active" | "rejected" | "suspended";
 
 export interface Me {
+  /** Feature flags enabled on the server (contracts/features.toml); hidden screens still 404 on the server. */
+  features?: string[];
   user: { id: string; email: string | null; name: string | null };
   membership: null | {
     id: string;
@@ -65,8 +67,9 @@ export interface Answer {
   id: string;
   question: string;
   standalone_question?: string;
-  conversation_id: string;
-  conversation_title?: string;
+  /** null while the frozen `chats` feature is off: every question stands alone. */
+  conversation_id: string | null;
+  conversation_title?: string | null;
   created_at: string;
   outcome: "answered" | "partial" | "refused";
   segments: Segment[];
@@ -141,8 +144,9 @@ export interface AdminRow {
   workspace_status: string;
   tenants: number;
   tenants_pending: number;
-  documents: number;
-  queries_30d: number;
+  /** Usage counts: sent only while the frozen `usage_counts` feature is on. */
+  documents?: number;
+  queries_30d?: number;
 }
 
 export interface MemberRow {
@@ -154,18 +158,20 @@ export interface MemberRow {
   email: string | null;
   name: string | null;
   last_seen_at: string | null;
-  job_title: string | null;
-  department: string | null;
-  phone: string | null;
-  profile_updated_at: string | null;
-  documents: number;
-  private_documents: number;
-  shared_with_you: number;
-  shared_with_them: number;
-  shared_with_workspace: number;
-  questions: number;
-  tokens: number;
-  last_question_at: string | null;
+  /** Profile details: sent only while the frozen `profiles` feature is on. */
+  job_title?: string | null;
+  department?: string | null;
+  phone?: string | null;
+  profile_updated_at?: string | null;
+  /** Usage counts: sent only while the frozen `usage_counts` feature is on. */
+  documents?: number;
+  private_documents?: number;
+  shared_with_you?: number;
+  shared_with_them?: number;
+  shared_with_workspace?: number;
+  questions?: number;
+  tokens?: number;
+  last_question_at?: string | null;
 }
 
 export interface Profile {

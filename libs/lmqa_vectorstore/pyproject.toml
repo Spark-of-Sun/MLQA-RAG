@@ -3,7 +3,7 @@ name = "lmqa-vectorstore"
 version = "0.1.0"
 description = "Embeddings and the only vector search code (pgvector + full text, under RLS)."
 requires-python = ">=3.14"
-dependencies = ["lmqa-db", "httpx>=0.28"]
+dependencies = ["lmqa-db", "httpx>=0.28", "qdrant-client>=1.20,<1.21", "fastembed>=0.9"]
 
 [tool.uv.sources]
 lmqa-db = { workspace = true }

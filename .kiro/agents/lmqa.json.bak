@@ -1,0 +1,28 @@
+{
+  "name": "lmqa",
+  "description": "LMQA dev agent with no access to secret files",
+  "tools": ["fs_read", "fs_write", "execute_bash"],
+  "allowedTools": ["fs_read"],
+  "toolsSettings": {
+    "fs_read": {
+      "deniedPaths": [
+        "**/.env", "**/.env.bak", "**/.env.local", "**/.env.prod*",
+        "**/*.pem", "**/*.key", "**/*.tfstate", "**/*.tfvars",
+        "~/.config/lmqa/**", "~/.aws/**", "~/.ssh/**"
+      ]
+    },
+    "fs_write": {
+      "deniedPaths": ["**/.env", "**/.env.bak", "**/*.pem", "**/*.key"]
+    },
+    "execute_bash": {
+      "autoAllowReadonly": false,
+      "deniedCommands": [
+        ".*\\bprintenv\\b.*",
+        ".*docker compose.* config.*",
+        ".*docker inspect.*",
+        ".*\\.aws/.*",
+        ".*\\.ssh/.*"
+      ]
+    }
+  }
+}

@@ -1,12 +1,24 @@
-# Local infrastructure for the MVP: PostgreSQL 18 with pgvector (documents, vectors, RLS, audit).
-# Bound to 127.0.0.1 only. Started by `make db`, which exports the generated password first.
+# Local infrastructure (blueprint 4.5, 4.6, Stage 0). Every port is bound to 127.0.0.1 only.
+# Started by `make up` (or `make db` for PostgreSQL alone), which exports the settings from .env first and renders the
+# credential files under data/infra/ (tools/infra_config.py). Images are pinned by digest (4.5 adoption policy);
+# docs/versions.md is the ledger and tests/stage0 checks that the running servers match it (G0.4).
+#
+# Profiles keep the default stack inside a small machine:
+#   (default)       postgres, pgbouncer, valkey, qdrant, seaweedfs, openbao
+#   scan            clamav (about 1.2 GB of memory for the signature database)
+#   observability   OpenTelemetry collector with Grafana, Loki, Tempo and Prometheus in one container
 name: lmqa
+
+x-hardening: &hardening
+  restart: unless-stopped
+  security_opt: [no-new-privileges:true]
 
 services:
   postgres:
-    image: pgvector/pgvector:pg18
+    <<: *hardening
+    # PostgreSQL 18 with pgvector (MVP deviation 2: vectors stay under RLS until the Qdrant cut-over).
+    image: pgvector/pgvector:pg18@sha256:38681dc6eaf55308e2a4c6de392d131652dcfac70e1263e35cd9b5ea3fe39782
     container_name: lmqa-postgres
-    restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: ${LMQA_DB_SUPERUSER_PASSWORD:?run make setup first}
       POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
@@ -14,12 +26,156 @@ services:
       - "127.0.0.1:${LMQA_DB_PORT:-5434}:5432"
     volumes:
       - pgdata:/var/lib/postgresql
-    command: ["postgres", "-c", "shared_buffers=256MB", "-c", "max_connections=60"]
+    command: ["postgres", "-c", "shared_buffers=256MB", "-c", "max_connections=100"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 2s
       timeout: 3s
       retries: 30
 
+  pgbouncer:
+    <<: *hardening
+    image: edoburu/pgbouncer:latest@sha256:8638aa563607256d3c7440437534195f1066a92b68015d89ae9d6b935b444a6d
+    container_name: lmqa-pgbouncer
+    entrypoint: ["pgbouncer", "/etc/pgbouncer/pgbouncer.ini"]
+    ports:
+      - "127.0.0.1:${PGBOUNCER_PORT:-6432}:6432"
+    volumes:
+      - ./infra/compose/pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./data/infra/pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    depends_on:
+      postgres: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 6432"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    mem_limit: 64m
+
+  valkey:
+    <<: *hardening
+    image: valkey/valkey:9@sha256:1c2b25b09f354c66fe994733acdf12fcfd4bdf6f3bd92b88a93a70378d884056
+    container_name: lmqa-valkey
+    # ACL users per service (Appendix C VALKEY_USER_<SERVICE>); the default user is disabled. No persistence: the
+    # cache, limits and pub/sub are rebuilt from PostgreSQL.
+    command:
+      - valkey-server
+      - --aclfile
+      - /etc/valkey/users.acl
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+      - --maxmemory
+      - 192mb
+      - --maxmemory-policy
+      - volatile-lru
+    ports:
+      - "127.0.0.1:${VALKEY_PORT:-6380}:6379"
+    volumes:
+      - ./data/infra/valkey/users.acl:/etc/valkey/users.acl:ro
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli --no-auth-warning --user healthcheck --pass healthcheck ping | grep -q PONG"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    mem_limit: 256m
+
+  qdrant:
+    <<: *hardening
+    image: qdrant/qdrant:v1.20.0@sha256:9bfc89f9914fc14876a88c05270685921a55b8877b254a98bcc1cc2f0a424cd2
+    container_name: lmqa-qdrant
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_KEY_RW:?run make setup first}
+      QDRANT__SERVICE__READ_ONLY_API_KEY: ${QDRANT_KEY_RO:?run make setup first}
+      QDRANT__TELEMETRY_DISABLED: "true"
+    ports:
+      - "127.0.0.1:${QDRANT_PORT:-6333}:6333"
+      - "127.0.0.1:${QDRANT_GRPC_PORT:-6334}:6334"
+    volumes:
+      - qdrant:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333'"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    mem_limit: 512m
+
+  seaweedfs:
+    <<: *hardening
+    image: chrislusf/seaweedfs:latest@sha256:4b42c212543a0acd4c0e675215ecdcaf62a186ef98def76c7e12701871222d15
+    container_name: lmqa-seaweedfs
+    command:
+      - server
+      - -dir=/data
+      - -s3
+      - -s3.port=8333
+      - -s3.config=/etc/seaweedfs/s3.json
+      - -volume.max=100
+      - -master.volumeSizeLimitMB=64
+      - -ip.bind=0.0.0.0
+    ports:
+      - "127.0.0.1:${OBJECT_STORE_PORT:-8333}:8333"
+    volumes:
+      - seaweed:/data
+      - ./data/infra/seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 8333"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    mem_limit: 512m
+
+  openbao:
+    <<: *hardening
+    # Local key provider in local key mode (blueprint 12.10, R-59, G1.11): Transit keys persist in the `openbao`
+    # volume, so encrypted columns stay readable across restarts (infra/compose/openbao/lmqa.hcl). It unseals itself
+    # with OPENBAO_UNSEAL_KEY and creates the OPENBAO_TOKEN token on first start. Local and CI only.
+    image: openbao/openbao:2.7.2@sha256:5046911075e137e154ce49ab051502f4ec7cf367d484ae4a4dce665d9b90561f
+    container_name: lmqa-openbao
+    command: ["bao", "server", "-config=/openbao/config/lmqa.hcl"]
+    environment:
+      OPENBAO_TOKEN: ${OPENBAO_TOKEN:?run make setup first}
+      OPENBAO_UNSEAL_KEY: ${OPENBAO_UNSEAL_KEY:?run make setup first}
+      SKIP_SETCAP: "true"
+      SKIP_CHOWN: "true"
+    ports:
+      - "127.0.0.1:${OPENBAO_PORT:-8200}:8200"
+    volumes:
+      - ./infra/compose/openbao/lmqa.hcl:/openbao/config/lmqa.hcl:ro
+      - openbao:/openbao/file
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8200/v1/sys/health"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    mem_limit: 256m
+
+  clamav:
+    <<: *hardening
+    profiles: [scan]
+    image: clamav/clamav:stable@sha256:12177441d1b40cef3c47b44c4090d59d4babc4c67bedd5af0fa315e603aa6dd8
+    container_name: lmqa-clamav
+    ports:
+      - "127.0.0.1:${CLAMAV_PORT:-3310}:3310"
+    volumes:
+      - clamav:/var/lib/clamav
+    mem_limit: 1600m
+
+  observability:
+    <<: *hardening
+    profiles: [observability]
+    image: grafana/otel-lgtm:0.41.1@sha256:1b852b77d7bcadb7699bfe7c78a51d059dff85168de674728cf7abf4474645e5
+    container_name: lmqa-observability
+    ports:
+      - "127.0.0.1:3001:3000"
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+    mem_limit: 1g
+
 volumes:
   pgdata:
+  qdrant:
+  seaweed:
+  clamav:
+  openbao:

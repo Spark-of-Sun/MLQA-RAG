@@ -22,7 +22,14 @@ from typing import Any
 
 import httpx
 
-from generation.providers import Completion, GeminiProvider, LLMError, Provider, _Transient, build_provider
+from generation.providers import (
+    Completion,
+    GeminiProvider,
+    LLMError,
+    Provider,
+    _Transient,
+    build_provider,
+)
 from lmqa_models.quota import current_question, fingerprint, rotate
 from lmqa_models.settings import Settings, model_label
 
@@ -36,7 +43,8 @@ class LLMClient:
         self._s = settings
         self._http = httpx.Client(timeout=httpx.Timeout(settings.llm_timeout_seconds, connect=10.0))
         self.providers: dict[str, Provider] = {
-            p: build_provider(p, settings, self._http) for p in dict.fromkeys(p for p, _ in settings.llm_chain)
+            p: build_provider(p, settings, self._http)
+            for p in dict.fromkeys(p for p, _ in settings.llm_chain)
         }
         self._down_until: dict[tuple[str, str], float] = {}
         self._lock = threading.Lock()
@@ -55,7 +63,11 @@ class LLMClient:
     def model(self) -> str:
         """The primary model's label (recorded when no model was called, e.g. nothing was retrieved)."""
         chain = self.chain
-        return model_label(*chain[0]) if chain else model_label(self._s.llm_provider, self._s.llm_model or "unset")
+        return (
+            model_label(*chain[0])
+            if chain
+            else model_label(self._s.llm_provider, self._s.llm_model or "unset")
+        )
 
     def missing(self) -> list[str]:
         """Names of the settings that keep chain entries out, for doctor and error messages."""
@@ -99,14 +111,18 @@ class LLMClient:
         used = {kid: self._quota.used_today(kid, model) for kid, _ in keys}
         return sorted(keys, key=lambda k: used[k[0]])  # stable: configured order breaks ties
 
-    def generate_json(self, *, system: str, user: str, schema: dict[str, Any]) -> Completion:
+    def generate_json(self, *, system: str, user: str, schema: dict[str, Any]) -> Completion:  # noqa: C901, PLR0912, PLR0915 - one linear flow; splitting it is a DEV-33 follow-up
         if not self.configured:
-            raise LLMError(f"No answer model is configured: set {', '.join(self.missing()) or 'LLM_PROVIDER'}")
+            raise LLMError(
+                f"No answer model is configured: set {', '.join(self.missing()) or 'LLM_PROVIDER'}"
+            )
         estimate = (len(system) + len(user)) // 4
         failures: dict[tuple[str, str], _Transient] = {}
         for attempt in range(2):
             # Second pass: only models that were momentarily busy, after a short pause.
-            entries = self._order() if attempt == 0 else [e for e, f in failures.items() if f.retry_soon]
+            entries = (
+                self._order() if attempt == 0 else [e for e, f in failures.items() if f.retry_soon]
+            )
             if attempt and entries:
                 time.sleep(2.5)
             for provider, model in entries:
@@ -140,7 +156,9 @@ class LLMClient:
                         if exc.scope == "key":
                             if q is not None:
                                 q.block_key(key_id, exc.cooldown)
-                            log.warning("key %s rejected by %s; trying the next key", key_id, provider)
+                            log.warning(
+                                "key %s rejected by %s; trying the next key", key_id, provider
+                            )
                             continue
                         # The model itself is unavailable (overloaded, timed out, not offered): other keys won't help.
                         quota_only = False
@@ -150,21 +168,38 @@ class LLMClient:
                         break
                     except LLMError:
                         if q is not None:
-                            q.record(key_id, model, "error")  # e.g. an unusable reply: not retried on another key
+                            q.record(
+                                key_id, model, "error"
+                            )  # e.g. an unusable reply: not retried on another key
                         raise
                     if q is not None:
                         q.record(key_id, model, "ok")
                         q.correct_tokens(key_id, model, estimate, out.tokens_in)
                     log.debug("%s answered on key %s", label, key_id)
-                    return Completion(out.data, out.tokens_in, out.tokens_out, model_label(provider, out.model), key_id)
+                    return Completion(
+                        out.data,
+                        out.tokens_in,
+                        out.tokens_out,
+                        model_label(provider, out.model),
+                        key_id,
+                    )
                 else:
                     if quota_only:
-                        reason = "daily quota used up on every key" if daily_everywhere else "rate limit on every key"
+                        reason = (
+                            "daily quota used up on every key"
+                            if daily_everywhere
+                            else "rate limit on every key"
+                        )
                         if not tried:
-                            log.info("%s skipped without a request: %s (local count)", label, reason)
+                            log.info(
+                                "%s skipped without a request: %s (local count)", label, reason
+                            )
                         # A per-minute limit that frees up within seconds is worth the second pass.
                         failures[(provider, model)] = _Transient(
-                            reason, retry_soon=soonest <= 3, daily_quota=daily_everywhere, scope="quota"
+                            reason,
+                            retry_soon=soonest <= 3,
+                            daily_quota=daily_everywhere,
+                            scope="quota",
                         )
         if failures and all(f.daily_quota for f in failures.values()):
             raise LLMError(
@@ -173,7 +208,9 @@ class LLMClient:
                 "provider to LLM_FALLBACK_MODELS."
             )
         detail = "; ".join(f"{model_label(*e)}: {f}" for e, f in failures.items())
-        raise LLMError(f"All configured models are unavailable right now; try again in a minute. ({detail})")
+        raise LLMError(
+            f"All configured models are unavailable right now; try again in a minute. ({detail})"
+        )
 
 
 def _outcome(exc: _Transient) -> str:
@@ -182,4 +219,6 @@ def _outcome(exc: _Transient) -> str:
         return "daily_quota" if exc.daily_quota else "rate_limited"
     if exc.scope == "key":
         return "key_rejected"
-    return "timeout" if "timed out" in str(exc) else "unavailable"  # overloaded (503), not offered, unreachable
+    return (
+        "timeout" if "timed out" in str(exc) else "unavailable"
+    )  # overloaded (503), not offered, unreachable

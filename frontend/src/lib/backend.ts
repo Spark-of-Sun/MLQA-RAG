@@ -38,6 +38,21 @@ export const requireMe = cache(async (): Promise<Me> => {
   return (await response.json()) as Me;
 });
 
+/**
+ * Whether the public website and its docs (`(site)`) are on: the frozen `public_site` feature (DEV-21, pending Q-04).
+ * Read from the public health check because visitors are not signed in. Fails closed: unreachable means off.
+ */
+export const publicSiteEnabled = cache(async (): Promise<boolean> => {
+  try {
+    const response = await fetch(`${API_URL}/v1/health`, { cache: "no-store" });
+    if (!response.ok) return false;
+    const body = (await response.json()) as { public_site?: unknown };
+    return body.public_site === true;
+  } catch {
+    return false;
+  }
+});
+
 /** Route a principal to its home screen (blueprint 17.1 routing table). */
 export function homeFor(me: Me): string {
   const m = me.membership;

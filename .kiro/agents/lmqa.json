@@ -1,0 +1,106 @@
+{
+  "name": "lmqa",
+  "description": "LMQA dev agent with no access to secret files",
+  "tools": [
+    "read",
+    "shell",
+    "write"
+  ],
+  "allowedTools": [
+    "fs_read"
+  ],
+  "toolsSettings": {
+    "fs_read": {
+      "deniedPaths": [
+        "**/.env",
+        "**/.env.bak",
+        "**/.env.local",
+        "**/.env.prod*",
+        "**/*.pem",
+        "**/*.key",
+        "**/*.tfstate",
+        "**/*.tfvars",
+        "~/.config/lmqa/**",
+        "~/.aws/**",
+        "~/.ssh/**"
+      ]
+    },
+    "fs_write": {
+      "deniedPaths": [
+        "**/.env",
+        "**/.env.bak",
+        "**/*.pem",
+        "**/*.key"
+      ]
+    },
+    "execute_bash": {
+      "autoAllowReadonly": false,
+      "deniedCommands": [
+        ".*\\bprintenv\\b.*",
+        ".*docker compose.* config.*",
+        ".*docker inspect.*",
+        ".*\\.aws/.*",
+        ".*\\.ssh/.*"
+      ]
+    }
+  },
+  "permissions": {
+    "rules": [
+      {
+        "capability": "shell",
+        "match": [
+          "*printenv*",
+          "*docker compose* config*",
+          "*docker inspect*",
+          "*.aws/*",
+          "*.ssh/*"
+        ],
+        "effect": "deny"
+      },
+      {
+        "capability": "fs_read",
+        "match": [
+          "**/.env",
+          "**/.env/**",
+          "**/.env.bak",
+          "**/.env.bak/**",
+          "**/.env.local",
+          "**/.env.local/**",
+          "**/.env.prod*",
+          "**/.env.prod*/**",
+          "**/*.pem",
+          "**/*.pem/**",
+          "**/*.key",
+          "**/*.key/**",
+          "**/*.tfstate",
+          "**/*.tfstate/**",
+          "**/*.tfvars",
+          "**/*.tfvars/**",
+          "~/.config/lmqa/**",
+          "~/.aws/**",
+          "~/.ssh/**"
+        ],
+        "effect": "deny"
+      },
+      {
+        "capability": "fs_write",
+        "match": [
+          "**/.env",
+          "**/.env.bak",
+          "**/*.pem",
+          "**/*.key"
+        ],
+        "effect": "deny"
+      },
+      {
+        "capability": "fs_read",
+        "effect": "allow"
+      }
+    ]
+  },
+  "kiroUpgrade": {
+    "revision": 3,
+    "fingerprint": "sha256:be9c62de729b3335cfffe75e07dfd960f7b6c6270d43d96a942ef4c6b9dbcde4",
+    "source": "sha256:8155e2e018edbb88f538c76cca867d56ee4db121d0e4439928f69e13f37619b7"
+  }
+}

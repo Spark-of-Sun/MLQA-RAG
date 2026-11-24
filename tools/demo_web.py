@@ -2,10 +2,11 @@
 
   make demo-web        (runs `make demo` first if the lmqa_demo database does not exist)
 
-Starts a second gateway on 127.0.0.1:8001 (demo database, demo token issuer) and the built Next.js app on
-http://localhost:3001, then mints Auth0 SDK session cookies with the SDK's own testing helper and requests
-pages as Alice (Super Admin), Bob (admin), Carol (member) and a brand-new user. What is simulated: only the
-Auth0 login itself. Everything after it (proxy.ts, server layouts, the BFF, the gateway, RLS, Gemini) is real.
+Starts a second gateway on 127.0.0.1:8001 (demo database, the real Auth0 tenant) and the built Next.js app on
+http://localhost:3001, then requests pages as Alice (Super Admin), Bob (admin), Carol (member) and a brand-new
+user. Each is a real Auth0 account signed in through the auth harness (labels demo-alice, demo-bob, demo-carol,
+demo-newcomer; see tools/real_identity.py). Their real access tokens are wrapped in an Auth0 SDK session cookie
+with the SDK's testing helper; no token is signed locally and the gateway verifies each one against Auth0.
 Your running app on :3000/:8000 is not touched.
 """
 
@@ -19,15 +20,18 @@ import threading
 import time
 import uuid
 import warnings
+from typing import Any
 
 import httpx
 import psycopg
 import uvicorn
 
 warnings.filterwarnings("ignore")
-import demo  # noqa: E402  (tools/demo.py: IdP, constants, check helpers)
+import demo  # noqa: E402  (tools/demo.py: constants, check helpers)
+from real_identity import load  # noqa: E402
 
 from gateway.app import create_app  # noqa: E402
+from lmqa_db import connect_role as connect  # noqa: E402
 from lmqa_models.envfile import ROOT, merged_env  # noqa: E402
 from lmqa_models.settings import load_settings  # noqa: E402
 
@@ -36,10 +40,12 @@ API_PORT = 8001
 check, step, results = demo.check, demo.step, demo.results
 
 
-def demo_db_ready(settings) -> bool:  # type: ignore[no-untyped-def]
+def demo_db_ready(settings: Any, subs: list[str]) -> bool:
     try:
-        with psycopg.connect(settings.dsn("lmqa_system", database=demo.DEMO_DB), connect_timeout=3) as conn:
-            row = conn.execute("select count(*) from users where email like '%%@hale-partners.example'").fetchone()
+        with connect(settings, "svc_identity", database=demo.DEMO_DB, connect_timeout=3) as conn:
+            row = conn.execute(
+                "select count(*) from users where auth0_sub = any(%s)", [subs]
+            ).fetchone()
             return bool(row and row[0] >= 3)
     except psycopg.Error:
         return False
@@ -50,7 +56,11 @@ def session_cookie(token: str, sub: str, email: str, name: str) -> str:
     now = int(time.time())
     session = {
         "user": {"sub": sub, "email": email, "name": name},
-        "tokenSet": {"accessToken": token, "expiresAt": now + 3600, "scope": "openid profile email"},
+        "tokenSet": {
+            "accessToken": token,
+            "expiresAt": now + 3600,
+            "scope": "openid profile email",
+        },
         "internal": {"sid": uuid.uuid4().hex, "createdAt": now},
     }
     script = (
@@ -70,33 +80,36 @@ def session_cookie(token: str, sub: str, email: str, name: str) -> str:
     return out.stdout.decode()
 
 
-def main() -> int:
+def main() -> int:  # noqa: C901, PLR0915 - one linear flow; splitting it is a DEV-33 follow-up
     base = load_settings()
-    idp = demo.IdP(base.auth0_claims_namespace)
+    cast = load(
+        ["demo-alice", "demo-bob", "demo-carol", "demo-newcomer"], base.auth0_claims_namespace
+    )
     settings = base.with_overrides(
         db_name=demo.DEMO_DB,
-        auth0_issuer_override=demo.ISSUER,
-        auth0_jwks_url_override=idp.jwks_url,
-        auth0_audience=demo.AUDIENCE,
         data_dir=ROOT / "data" / "demo",
         api_port=API_PORT,
     )
-    if not demo_db_ready(settings):
+    if not demo_db_ready(settings, [cast[k].sub for k in ("demo-alice", "demo-bob", "demo-carol")]):
         print("Preparing the demo database (tools/demo.py --keep) …", flush=True)
         subprocess.run([sys.executable, str(ROOT / "tools" / "demo.py"), "--keep"], check=True)  # noqa: S603
         results.clear()
 
-    with psycopg.connect(settings.dsn("lmqa_system", database=demo.DEMO_DB)) as conn:
-        users = {
-            r[0]: (r[1], r[2])
-            for r in conn.execute("select email, auth0_sub, name from users where email like '%%.example'").fetchall()
-        }
-
     server = uvicorn.Server(
-        uvicorn.Config(create_app(settings, resume_jobs=False), host="127.0.0.1", port=API_PORT, log_level="warning")
+        uvicorn.Config(
+            create_app(settings, resume_jobs=False),
+            host="127.0.0.1",
+            port=API_PORT,
+            log_level="warning",
+        )
     )
     threading.Thread(target=server.run, daemon=True).start()
-    env = {**os.environ, **merged_env(), "APP_BASE_URL": WEB, "LMQA_API_INTERNAL_URL": f"http://127.0.0.1:{API_PORT}"}
+    env = {
+        **os.environ,
+        **merged_env(),
+        "APP_BASE_URL": WEB,
+        "LMQA_API_INTERNAL_URL": f"http://127.0.0.1:{API_PORT}",
+    }
     web = subprocess.Popen(
         ["pnpm", "exec", "next", "start", "--hostname", "127.0.0.1", "--port", "3001"],  # noqa: S607
         cwd=ROOT / "frontend",
@@ -112,27 +125,32 @@ def main() -> int:
                     break
             except httpx.HTTPError:
                 time.sleep(0.5)
-        print(f"{demo.B}Frontend simulation{demo.X}  {demo.D}{WEB} -> gateway :{API_PORT} -> {demo.DEMO_DB}{demo.X}")
+        print(
+            f"{demo.B}Frontend simulation{demo.X}  {demo.D}{WEB} -> gateway :{API_PORT} -> {demo.DEMO_DB}{demo.X}"
+        )
 
-        def browser(email: str, name: str) -> tuple[httpx.Client, str]:
-            sub = users[email][0] if email in users else f"auth0|{uuid.uuid4().hex[:16]}"
-            token = idp.token(sub, email, name)
-            cookie = session_cookie(token, sub, email, name)
-            client = httpx.Client(base_url=WEB, cookies={"__session": cookie}, timeout=120, follow_redirects=False)
+        def browser(label: str) -> tuple[httpx.Client, str]:
+            who = cast[label]
+            token = who.token
+            cookie = session_cookie(token, who.sub, who.email, who.name)
+            client = httpx.Client(
+                base_url=WEB, cookies={"__session": cookie}, timeout=120, follow_redirects=False
+            )
             return client, token
 
         def where(client: httpx.Client, path: str) -> tuple[int, str]:
             r = client.get(path)
             return r.status_code, r.headers.get("location", "")
 
-        alice, alice_token = browser("alice@hale-partners.example", "Alice Hale")
-        bob, bob_token = browser("bob@hale-partners.example", "Bob Ortiz")
-        carol, _ = browser("carol@hale-partners.example", "Carol Diaz")
-        newbie, _ = browser(f"new-{uuid.uuid4().hex[:6]}@example.org", "New Person")
+        alice, alice_token = browser("demo-alice")
+        bob, bob_token = browser("demo-bob")
+        carol, _ = browser("demo-carol")
+        newbie, _ = browser("demo-newcomer")
 
         step("Sign-in robustness")
         loop = httpx.get(
-            WEB.replace("localhost", "127.0.0.1") + "/auth/login?screen_hint=signup", follow_redirects=False
+            WEB.replace("localhost", "127.0.0.1") + "/auth/login?screen_hint=signup",
+            follow_redirects=False,
         )
         check(
             "a login started at 127.0.0.1 is moved to localhost first",
@@ -146,17 +164,28 @@ def main() -> int:
             stale.headers.get("location", ""),
         )
         landing = httpx.get(f"{WEB}/?auth_error=invalid_state")
-        check("the start page explains it and offers sign-in", "already used or has expired" in landing.text)
+        check(
+            "the start page explains it and offers sign-in",
+            "already used or has expired" in landing.text,
+        )
 
         step("Role routing after sign-in (blueprint 17.1)")
-        check("Super Admin lands on Manage admins", where(alice, "/home") == (307, "/manage-admins"))
+        check(
+            "Super Admin lands on Manage admins", where(alice, "/home") == (307, "/manage-admins")
+        )
         check("Super Admin is sent away from Ask", where(alice, "/chat") == (307, "/manage-admins"))
         check("admin lands on Ask", where(bob, "/home") == (307, "/chat"))
         check("member lands on Ask", where(carol, "/home") == (307, "/chat"))
         check("new user lands on onboarding", where(newbie, "/home") == (307, "/onboarding"))
         check("admin cannot open Manage admins (404)", bob.get("/manage-admins").status_code == 404)
-        check("member cannot open Manage members (404)", carol.get("/manage-tenants").status_code == 404)
-        check("Super Admin cannot open Manage members (404)", alice.get("/manage-tenants").status_code == 404)
+        check(
+            "member cannot open Manage members (404)",
+            carol.get("/manage-tenants").status_code == 404,
+        )
+        check(
+            "Super Admin cannot open Manage members (404)",
+            alice.get("/manage-tenants").status_code == 404,
+        )
 
         step("Pages render for the right roles")
         pages = [
@@ -178,11 +207,15 @@ def main() -> int:
         for client, path, text in pages:
             r = client.get(path)
             bodies.append(r.text)
-            check(f"{path} renders", r.status_code == 200 and text in r.text, f"HTTP {r.status_code}")
+            check(
+                f"{path} renders", r.status_code == 200 and text in r.text, f"HTTP {r.status_code}"
+            )
 
         step("Browser -> BFF -> gateway, with the token kept server-side")
         docs = bob.get("/api/backend/documents")
-        check("BFF lists documents for the admin", docs.status_code == 200 and len(docs.json()) >= 1)
+        check(
+            "BFF lists documents for the admin", docs.status_code == 200 and len(docs.json()) >= 1
+        )
         r = bob.post(
             "/api/backend/queries",
             headers={"origin": WEB},
@@ -201,7 +234,10 @@ def main() -> int:
         r = bob.post(
             "/api/backend/queries",
             headers={"origin": WEB},
-            json={"question": "And what must the Executive sign first?", "conversation_id": chat_id},
+            json={
+                "question": "And what must the Executive sign first?",
+                "conversation_id": chat_id,
+            },
         )
         follow = r.json() if r.status_code == 200 else {}
         check(
@@ -212,7 +248,11 @@ def main() -> int:
         after = bob.get("/api/backend/conversations").json()
         check("no new chat was created for the follow-up", {c["id"] for c in after} == before)
         mine = next((c for c in after if c["id"] == chat_id), {})
-        check("the chat list shows one chat with both questions", mine.get("turns") == 2, mine.get("title", ""))
+        check(
+            "the chat list shows one chat with both questions",
+            mine.get("turns") == 2,
+            mine.get("title", ""),
+        )
         page = bob.get(f"/chat/{chat_id}")
         check(
             "the chat has its own address (/chat/<id>) to come back to",
@@ -223,24 +263,39 @@ def main() -> int:
         check(
             "re-opening it returns the questions in order",
             [t["question"] for t in thread.get("turns", [])]
-            == ["When must the severance benefit be paid?", "And what must the Executive sign first?"],
+            == [
+                "When must the severance benefit be paid?",
+                "And what must the Executive sign first?",
+            ],
         )
         check(
             "another person's chat address shows nothing (404)",
             carol.get(f"/api/backend/conversations/{chat_id}").status_code == 404,
         )
-        check("a malformed chat address is a 404 page", bob.get("/chat/not-a-chat").status_code == 404)
+        check(
+            "a malformed chat address is a 404 page", bob.get("/chat/not-a-chat").status_code == 404
+        )
 
         step("Profile, sharing and audit through the BFF")
         prof = carol.get("/api/backend/profile")
-        check("a member reads her profile", prof.status_code == 200 and prof.json().get("role") == "tenant")
-        r = carol.patch("/api/backend/profile", headers={"origin": WEB}, json={"department": "Commercial disputes"})
-        check("and updates it", r.status_code == 200 and r.json().get("department") == "Commercial disputes")
+        check(
+            "a member reads her profile",
+            prof.status_code == 200 and prof.json().get("role") == "tenant",
+        )
+        r = carol.patch(
+            "/api/backend/profile",
+            headers={"origin": WEB},
+            json={"department": "Commercial disputes"},
+        )
+        check(
+            "and updates it",
+            r.status_code == 200 and r.json().get("department") == "Commercial disputes",
+        )
         row = next(
             (
                 m
                 for m in bob.get("/api/backend/workspace/members").json()
-                if m["email"] == "carol@hale-partners.example"
+                if m["email"] == cast["demo-carol"].email
             ),
             {},
         )
@@ -252,7 +307,8 @@ def main() -> int:
         labels = {d["title"]: d.get("shared_by") for d in bob.get("/api/backend/documents").json()}
         check(
             "the admin's library labels who shared each document",
-            labels.get("Rivera witness preparation note") == "member" and labels.get("Briefing for Carol") == "you",
+            labels.get("Rivera witness preparation note") == "member"
+            and labels.get("Briefing for Carol") == "you",
         )
         chats = carol.get("/api/backend/audit?category=chats").json()
         check(
@@ -264,11 +320,21 @@ def main() -> int:
         check("the member can verify the hash chain", v.status_code == 200 and "ok" in v.json())
 
         step("Browser -> BFF security")
-        r = bob.post("/api/backend/queries", headers={"origin": "https://evil.example"}, json={"question": "x?"})
+        r = bob.post(
+            "/api/backend/queries",
+            headers={"origin": "https://evil.example"},
+            json={"question": "x?"},
+        )
         check("cross-site POST refused by the BFF (403)", r.status_code == 403)
-        r = alice.post("/api/backend/queries", headers={"origin": WEB}, json={"question": "hello there?"})
+        r = alice.post(
+            "/api/backend/queries", headers={"origin": WEB}, json={"question": "hello there?"}
+        )
         check("Super Admin has no route to questions, even via the BFF (404)", r.status_code == 404)
-        leaked = any(t in body for body in [*bodies, docs.text, json.dumps(answer)] for t in (alice_token, bob_token))
+        leaked = any(
+            t in body
+            for body in [*bodies, docs.text, json.dumps(answer)]
+            for t in (alice_token, bob_token)
+        )
         check("no access token appears in any page or API response", not leaked)
         csp = bob.get("/chat").headers.get("content-security-policy", "")
         check(
@@ -316,7 +382,10 @@ def main() -> int:
         check("member: Super Admin pages are walled", walled(carol, owner, "for other roles"))
         check("admin: reads admin and member pages", reads(bob, admin) and reads(bob, member))
         check("admin: Super Admin pages are walled", walled(bob, owner, "for other roles"))
-        check("Super Admin: reads every page", all(reads(alice, p) for p in (public, member, admin, owner)))
+        check(
+            "Super Admin: reads every page",
+            all(reads(alice, p) for p in (public, member, admin, owner)),
+        )
         check("an unknown docs page is 404", anon.get("/docs/no-such-page").status_code == 404)
     finally:
         os.killpg(web.pid, 15)
@@ -324,7 +393,9 @@ def main() -> int:
         time.sleep(1)
 
     passed = sum(ok for _, ok in results)
-    print(f"\n{demo.B}{demo.G if passed == len(results) else demo.R}{passed}/{len(results)} checks passed{demo.X}")
+    print(
+        f"\n{demo.B}{demo.G if passed == len(results) else demo.R}{passed}/{len(results)} checks passed{demo.X}"
+    )
     for label, ok in results:
         if not ok:
             print(f"  {demo.R}✗ {label}{demo.X}")

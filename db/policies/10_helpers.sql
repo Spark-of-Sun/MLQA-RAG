@@ -56,3 +56,18 @@ as $$
         where d.id = p_document and d.owner_id = app_user_id() and d.workspace_id = app_active_workspace()
     )
 $$;
+
+-- The organization the caller governs as Super Admin (blueprint 5.3), else NULL. A Super Admin context switches
+-- svc_identity from its control-plane policies to the restricted set in 16_super_admin.sql (R-3 criterion 3).
+create or replace function app_super_admin_org() returns uuid
+    language sql stable security definer set search_path = public, pg_temp
+as $$
+    select m.org_id from memberships m
+    where m.user_id = app_user_id() and m.role = 'super_admin' and m.status = 'active'
+    limit 1
+$$;
+
+-- The organization of the caller's active workspace (embedding cache scope for svc_ingestion).
+create or replace function app_active_org() returns uuid
+    language sql stable security definer set search_path = public, pg_temp
+as $$ select w.org_id from workspaces w where w.id = app_active_workspace() $$;

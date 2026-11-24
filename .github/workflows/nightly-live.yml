@@ -1,0 +1,60 @@
+# Nightly live lanes (R-85, R-93): real Auth0 test tenant, real AWS KMS and real model calls under the
+# LLM_TEST_BUDGET_USD spend cap. `make doctor` runs first so a missing account fails with a named setting.
+name: nightly-live
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-live
+  cancel-in-progress: false
+
+jobs:
+  live:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: live
+    permissions:
+      contents: read
+      id-token: write # AWS OIDC for the KMS lane
+    env:
+      KMS_PROVIDER: ${{ vars.KMS_PROVIDER }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      LLM_TEST_BUDGET_USD: ${{ vars.LLM_TEST_BUDGET_USD }}
+      AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
+      AUTH0_AUDIENCE_MAIN: ${{ secrets.AUTH0_AUDIENCE_MAIN }}
+      AUTH0_CLIENT_ID_BFF: ${{ secrets.AUTH0_CLIENT_ID_BFF }}
+      AUTH0_CLIENT_SECRET_BFF: ${{ secrets.AUTH0_CLIENT_SECRET_BFF }}
+      AUTH0_M2M_CLIENT_ID: ${{ secrets.AUTH0_M2M_CLIENT_ID }}
+      AUTH0_M2M_CLIENT_SECRET: ${{ secrets.AUTH0_M2M_CLIENT_SECRET }}
+      AUTH0_CLIENT_ID_HARNESS: ${{ secrets.AUTH0_CLIENT_ID_HARNESS }}
+      AUTH0_CLIENT_SECRET_HARNESS: ${{ secrets.AUTH0_CLIENT_SECRET_HARNESS }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          enable-cache: true
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        if: vars.AWS_LIVE_ROLE_ARN != ''
+        with:
+          role-to-assume: ${{ vars.AWS_LIVE_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Install Python dependencies
+        run: uv sync --frozen
+      - name: Generate throwaway local secrets for the runner's stack
+        run: uv run --frozen python tools/gen_env.py
+      - run: make up
+      - run: make doctor
+      - name: pytest live lanes
+        run: uv run --frozen pytest -m "live_auth0 or live_kms or live_llm"
+      - name: Stop the stack
+        if: always()
+        run: make down

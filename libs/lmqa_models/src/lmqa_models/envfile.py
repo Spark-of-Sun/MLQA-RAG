@@ -1,10 +1,9 @@
 """Load settings for every service and tool.
 
 Layers, lowest to highest precedence:
-  .secrets.generated   local-only secrets made by `make setup` (database passwords, code pepper, session secret)
-  .env                 your values (Auth0, Gemini); `make doctor` names any setting that is missing
-  .secrets             your values, if you prefer this name (same format)
-  process environment
+  .env                 the only settings file: your values (Auth0, Gemini) and the local-only secrets that
+                       `make setup` adds when missing (database passwords, code pepper, session secret)
+  process environment  the shell; overrides .env
 A value that is empty or still a template placeholder such as `<AUTH0_BFF_CLIENT_ID>` counts as unset, so a
 half-filled file never leaks placeholder text into a running service. Values are never printed.
 """
@@ -13,6 +12,7 @@ from __future__ import annotations
 
 import os
 import re
+import tempfile
 from pathlib import Path
 
 
@@ -27,8 +27,7 @@ def _find_root() -> Path:
 
 
 ROOT = _find_root()
-GENERATED = ROOT / ".secrets.generated"
-USER_FILES = (ROOT / ".env", ROOT / ".secrets")
+ENV_FILE = ROOT / ".env"
 _PLACEHOLDER = re.compile(r"^<[^<>]*>$")
 
 
@@ -53,19 +52,69 @@ def parse_env_file(path: Path) -> dict[str, str]:
         if value[:1] in {'"', "'"} and value[:1] in value[1:]:
             value = value[1 : value.index(value[0], 1)]
         else:
-            value = re.split(r"\s+#", value, maxsplit=1)[0].strip()
+            value = re.split(r"(?:^|\s+)#", value, maxsplit=1)[0].strip()  # `KEY=  # note` is empty
         out[key] = value
     return out
 
 
 def merged_env() -> dict[str, str]:
     merged: dict[str, str] = {}
-    layers = [parse_env_file(GENERATED), *(parse_env_file(p) for p in USER_FILES), dict(os.environ)]
-    for layer in layers:
+    for layer in (parse_env_file(ENV_FILE), dict(os.environ)):
         for key, value in layer.items():
             if not is_placeholder(value):
                 merged[key] = value
     return merged
+
+
+def _format_value(value: str) -> str:
+    if re.fullmatch(r"[^\s#'\"]*", value):
+        return value
+    if '"' not in value:
+        return f'"{value}"'
+    if "'" not in value:
+        return f"'{value}'"
+    raise ValueError("a value with both quote characters cannot be written to an env file")
+
+
+def fill_missing(path: Path, values: dict[str, str]) -> list[str]:
+    """Write each value whose key is missing or a placeholder in `path`; never overwrite a set value.
+
+    A placeholder line (`KEY=<generated>  # note`) is filled in place and keeps its comment; other keys are
+    appended. The file is replaced atomically and stays mode 600. Returns the key names written, never values.
+    """
+    current = parse_env_file(path)
+    todo = {k: v for k, v in values.items() if is_placeholder(current.get(k))}
+    if not todo:
+        return []
+    lines = path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
+    placed: set[str] = set()
+    for i, raw in enumerate(lines):
+        m = re.match(r"^(\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=)(.*)$", raw)
+        if not m or m.group(2) not in todo:
+            continue
+        rest = m.group(3)
+        tail = None if rest.strip()[:1] in {'"', "'"} else re.search(r"\s+#.*$", rest)
+        lines[i] = m.group(1) + _format_value(todo[m.group(2)]) + (tail.group(0) if tail else "")
+        placed.add(m.group(2))
+    appended = [k for k in todo if k not in placed]
+    if appended:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.append(
+            "# Added by `make setup` (tools/gen_env.py): local-only secrets. Never commit."
+        )
+        lines.extend(f"{k}={_format_value(todo[k])}" for k in appended)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(lines) + "\n")
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+    os.chmod(path, 0o600)
+    return list(todo)
 
 
 def apply_to_process() -> None:

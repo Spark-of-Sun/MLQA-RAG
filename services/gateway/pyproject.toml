@@ -9,9 +9,11 @@ dependencies = [
     "python-multipart>=0.0.34",
     "lmqa-models", "lmqa-db", "lmqa-audit", "lmqa-auth",
     "identity", "ingestion", "retrieval", "generation", "citation-validator", "audit",
+    "lmqa-keys", "valkey>=6.2",
 ]
 
 [tool.uv.sources]
+lmqa-keys = { workspace = true }
 lmqa-models = { workspace = true }
 lmqa-db = { workspace = true }
 lmqa-audit = { workspace = true }

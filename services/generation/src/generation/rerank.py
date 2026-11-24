@@ -21,7 +21,9 @@ from lmqa_models.settings import Settings, model_label
 
 log = logging.getLogger(__name__)
 
-MAX_PASSAGE_CHARS = 2000  # about 500 tokens: enough to judge relevance, and 40 candidates stay near 20k tokens
+MAX_PASSAGE_CHARS = (
+    2000  # about 500 tokens: enough to judge relevance, and 40 candidates stay near 20k tokens
+)
 MAX_SCORE = 10
 
 
@@ -49,7 +51,9 @@ class LLMReranker:
     def score(self, query: str, passages: list[str]) -> list[float]:
         if not passages:
             return []
-        clipped = [p if len(p) <= MAX_PASSAGE_CHARS else p[:MAX_PASSAGE_CHARS] + "…" for p in passages]
+        clipped = [
+            p if len(p) <= MAX_PASSAGE_CHARS else p[:MAX_PASSAGE_CHARS] + "…" for p in passages
+        ]
         try:
             out = self.client.generate_json(
                 system=load_prompts().rerank_system,
@@ -71,6 +75,8 @@ class LLMReranker:
                 scores.setdefault(n, min(max(value, 0.0), MAX_SCORE) / MAX_SCORE)
         if len(scores) < len(passages):
             # A partial reply would silently drop the passages it left out; use the fused order instead.
-            raise RerankError(f"LLM re-ranking scored {len(scores)} of {len(passages)} passages ({out.model})")
+            raise RerankError(
+                f"LLM re-ranking scored {len(scores)} of {len(passages)} passages ({out.model})"
+            )
         log.debug("re-ranked %d passages with %s", len(passages), out.model)
         return [scores[i] for i in range(1, len(passages) + 1)]

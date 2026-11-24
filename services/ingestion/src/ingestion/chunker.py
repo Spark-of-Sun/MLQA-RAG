@@ -87,8 +87,10 @@ def _tail(text: str, limit: int = OVERLAP_CHARS) -> str:
     return text[cut + 1 :] if cut >= 0 else ""
 
 
-def build_chunks(blocks: list[Block]) -> tuple[list[Chunk], str]:
-    has_structure = any(b.heading or looks_like_heading(b.text) or clause_label(b.text) for b in blocks)
+def build_chunks(blocks: list[Block]) -> tuple[list[Chunk], str]:  # noqa: C901 - one linear flow; splitting it is a DEV-33 follow-up
+    has_structure = any(
+        b.heading or looks_like_heading(b.text) or clause_label(b.text) for b in blocks
+    )
     chunks: list[Chunk] = []
     parts: list[tuple[str, bool]] = []  # (text, is_heading)
     pages: list[int] = []
@@ -163,7 +165,11 @@ def merge_small(chunks: list[Chunk], min_chars: int = 160) -> list[Chunk]:
     carry: Chunk | None = None
     for c in chunks:
         if carry is not None:
-            pages = [p for p in (carry.page_start, carry.page_end, c.page_start, c.page_end) if p is not None]
+            pages = [
+                p
+                for p in (carry.page_start, carry.page_end, c.page_start, c.page_end)
+                if p is not None
+            ]
             c = Chunk(
                 0,
                 c.kind,
@@ -180,7 +186,11 @@ def merge_small(chunks: list[Chunk], min_chars: int = 160) -> list[Chunk]:
     if carry is not None:
         if out:
             last = out[-1]
-            pages = [p for p in (last.page_start, last.page_end, carry.page_start, carry.page_end) if p is not None]
+            pages = [
+                p
+                for p in (last.page_start, last.page_end, carry.page_start, carry.page_end)
+                if p is not None
+            ]
             out[-1] = Chunk(
                 0,
                 last.kind,

@@ -54,7 +54,7 @@ export function Onboarding({ me }: { me: Me }) {
           <div>
             <button
               type="button"
-              onClick={() => setFlow("choose")}
+              onClick={() => { setFlow("choose"); }}
               className="mb-4 inline-flex items-center gap-1 text-sm text-ink-500 hover:text-ink-800"
             >
               <ArrowLeft className="size-4" aria-hidden /> Back
@@ -99,7 +99,7 @@ function Choose({ onPick }: { onPick: (f: Flow) => void }) {
           <button
             key={flow}
             type="button"
-            onClick={() => onPick(flow)}
+            onClick={() => { onPick(flow); }}
             className="rounded-2xl border border-ink-200 p-5 text-left shadow-sm transition hover:border-brand-300 hover:shadow-md"
           >
             <Icon className="size-5 text-link" aria-hidden />
@@ -158,7 +158,7 @@ function CreateOrg() {
           <input
             id="org-name"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => { setName(e.target.value); }}
             maxLength={120}
             required
             placeholder="Hale & Partners LLP"
@@ -175,7 +175,7 @@ function CreateOrg() {
                   kind === k ? "border-brand-400 bg-brand-50 text-brand-700" : "border-ink-200 text-ink-600 hover:bg-surface-hover"
                 }`}
               >
-                <input type="radio" name="kind" value={k} checked={kind === k} onChange={() => setKind(k)} className="sr-only" />
+                <input type="radio" name="kind" value={k} checked={kind === k} onChange={() => { setKind(k); }} className="sr-only" />
                 {k}
               </label>
             ))}
@@ -200,7 +200,7 @@ function CodeInput({ length, value, onChange }: { length: 32 | 64; value: string
       <textarea
         id="code"
         value={formatCode(value)}
-        onChange={(e) => onChange(normalizeCode(e.target.value))}
+        onChange={(e) => { onChange(normalizeCode(e.target.value)); }}
         rows={length === 64 ? 2 : 1}
         spellCheck={false}
         autoComplete="off"
@@ -250,7 +250,7 @@ function JoinAdmin({ prefill }: { prefill: string }) {
           <input
             id="ws-name"
             value={workspace}
-            onChange={(e) => setWorkspace(e.target.value)}
+            onChange={(e) => { setWorkspace(e.target.value); }}
             maxLength={120}
             placeholder="Litigation, Cardiology, …"
             className="mt-1.5 w-full rounded-lg border border-ink-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
@@ -312,7 +312,7 @@ function JoinTenant({ prefill }: { prefill: string }) {
             <Button busy={busy} onClick={join}>
               Request to join
             </Button>
-            <Button variant="secondary" onClick={() => setPreview(null)}>
+            <Button variant="secondary" onClick={() => { setPreview(null); }}>
               Use another code
             </Button>
           </div>
@@ -380,7 +380,7 @@ function Pending({ me }: { me: Me }) {
         </div>
       )}
       <div className="mt-6 flex justify-center gap-2">
-        <Button variant="secondary" onClick={() => router.refresh()}>
+        <Button variant="secondary" onClick={() => { router.refresh(); }}>
           Check again
         </Button>
         {m.status === "pending" && (

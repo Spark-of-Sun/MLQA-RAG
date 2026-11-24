@@ -1,0 +1,13 @@
+[project]
+name = "lmqa-keys"
+version = "0.1.0"
+description = "Key providers (AWS KMS, OpenBao Transit), envelope encryption, DEK cache, KeyGuard (blueprint 12)."
+requires-python = ">=3.14"
+dependencies = ["lmqa-models", "cryptography>=46", "httpx>=0.28", "boto3>=1.44"]
+
+[tool.uv.sources]
+lmqa-models = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

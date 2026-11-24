@@ -3,7 +3,12 @@ name = "lmqa-db"
 version = "0.1.0"
 description = "The only code that opens database connections: scoped (RLS) and system sessions, migrations."
 requires-python = ">=3.14"
-dependencies = ["lmqa-models", "psycopg[binary]>=3.3", "psycopg-pool>=3.3"]
+dependencies = [
+    "lmqa-models",
+    "psycopg[binary]>=3.3",
+    "psycopg-pool>=3.3",
+    "alembic>=1.16",
+]
 
 [tool.uv.sources]
 lmqa-models = { workspace = true }

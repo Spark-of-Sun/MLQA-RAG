@@ -4,10 +4,33 @@ name = "legal-medical-qa"
 version = "0.1.0"
 description = "Cited, verified question answering over legal and medical documents (MVP)."
 requires-python = ">=3.14"
-dependencies = ["gateway"]
+dependencies = ["gateway", "ops"]
 
 [dependency-groups]
-dev = ["ruff>=0.17"]
+dev = [
+    "boto3>=1.44.9",
+    "hypothesis>=6.170.17",
+    "import-linter>=2.17",
+    "jsonschema>=4.26.0",
+    "lmqa-keys",
+    "lmqa-testing",
+    "mutmut>=3.8.1",
+    "openapi-spec-validator>=0.9.0",
+    "pip-audit>=2.10.1",
+    "playwright>=1.65.2",
+    "procrastinate>=3.12.0",
+    "pyright>=1.1.414",
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.5.0",
+    "pytest-cov>=7.1.0",
+    "pytest-randomly>=5.1.0",
+    "pytest-timeout>=2.4.0",
+    "pytest-xdist>=3.8.0",
+    "qdrant-client>=1.20,<1.21",
+    "ruff>=0.17",
+    "schemathesis>=4.34.0",
+    "valkey>=6.2.0",
+]
 
 [tool.uv]
 package = false
@@ -17,20 +40,204 @@ members = ["libs/*", "services/*"]
 
 [tool.uv.sources]
 gateway = { workspace = true }
+ops = { workspace = true }
+lmqa-testing = { workspace = true }
+lmqa-keys = { workspace = true }
 
 [tool.ruff]
-line-length = 120
+line-length = 100
 target-version = "py314"
+extend-exclude = ["corpus/data", "frontend", "tests/controls"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "TID"]
-ignore = ["S101", "S311", "S608", "RUF001", "RUF002", "RUF003"]
+select = ["ALL"]
+ignore = [
+    "COM812", "ISC001",  # conflict with `ruff format`
+    "D",                 # docstring style is not enforced (R-91.1 lean scope)
+    "CPY001",            # no per-file copyright header
+    "TRY003", "EM101", "EM102",  # inline exception messages are the house style
+    "S311",              # `random` is used for jitter and sampling, never for secrets
+    "RUF001", "RUF002", "RUF003",  # legal and medical text uses non-ASCII punctuation on purpose
+    "TC001", "TC002", "TC003",  # Pydantic and FastAPI resolve annotations at runtime
+    "N818",              # exception names are public API (`NotFound`, `Conflict`); renaming is a break
+    # Follow-up (DEV-33): too many sites to fix inside task 1.1 without behavior risk.
+    "ANN401",            # `Any` for DB rows and connections; needs typed row models
+    "PLC0415",           # function-level imports break import cycles and defer heavy deps
+    "S101",              # asserts narrow Optional after invariant checks; replace with raises
+    "PLR2004",           # magic numbers (HTTP codes, limits); move to named constants
+    "FBT001", "FBT002", "FBT003",  # boolean positional args; making them keyword-only changes APIs
+    "BLE001",            # broad catches at worker and request boundaries; narrow per site
+    "PTH101", "PTH105", "PTH119",  # os/os.path calls; migrate to pathlib
+    "PT018", "PLW0603", "PLW2901", "SLF001", "TRY301", "TRY004", "ISC004", "ERA001",
+    "N803", "N806", "ARG001", "ARG002", "FAST002", "PERF401", "PERF403", "RET503",
+    "FURB162", "FURB171", "ANN001", "ANN201", "ANN202", "ANN204",
+]
+
+[tool.ruff.lint.pycodestyle]
+# Follow-up (DEV-33): the formatter wraps code at 100; ~900 prose lines (docstrings, comments,
+# messages) of 101 to 120 characters remain and are rewrapped by hand over time.
+max-line-length = 120
+
+[tool.ruff.lint.per-file-ignores]
+# Tests assert with `assert` and compare against literal expected values.
+"**/tests/**" = ["S101", "PLR2004"]
+"tests/**" = ["S101", "PLR2004"]
+"conftest.py" = ["S101"]
+# Command-line tools and scripts report to stdout and are run as files, not imported as packages.
+"tools/**" = ["T201", "INP001"]
+"eval/**" = ["T201", "INP001"]
+"corpus/**" = ["T201", "INP001"]
+"infra/**" = ["T201", "INP001"]
+"tests/run_pipeline.py" = ["T201"]
+# pytest runs with --import-mode=importlib, so test directories need no __init__.py.
+"tests/**/*.py" = ["INP001"]
+# lmqa_db is the only code that may open database connections (blueprint 4.7); every other caller uses it.
+"libs/lmqa_db/**" = ["TID251"]
+# Negative-control fixtures (tests/controls.md): files that must make a gate fail. Excluded from the normal run.
+"tests/controls/**" = ["TID251", "S105", "F401"]
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
-"unittest.mock".msg = "No mocks (blueprint 19.1): verify against real PostgreSQL, real documents and real Gemini."
+# Real-data rules R1, R2, R7 (blueprint 19.1, G0.11) and connection ownership (4.7).
+"unittest.mock".msg = "R2: use real systems (no mocks)"
+"pytest_mock".msg = "R2: use real systems (no mocks)"
+"respx".msg = "R2: use real systems (no mocks)"
+"responses".msg = "R2: use real systems (no mocks)"
+"faker".msg = "R1: no fake data"
+"factory".msg = "R1: no fake data"
+"freezegun".msg = "R7: time acceleration through configuration only"
+"pydantic.v1".msg = "Pydantic v2 only"
+"sqlalchemy.create_engine".msg = "use lmqa_db (scoped session or lmqa_db.connect)"
+"psycopg.connect".msg = "use lmqa_db (scoped session or lmqa_db.connect)"
 
 [tool.ruff.lint.isort]
 known-first-party = [
+    "lmqa_models", "lmqa_db", "lmqa_testing", "lmqa_keys", "lmqa_audit", "lmqa_auth", "lmqa_security", "lmqa_vectorstore", "lmqa_objectstore",
+    "gateway", "identity", "ingestion", "retrieval", "generation", "citation_validator", "audit", "ops",
+]
+
+# blueprint 19.2, 19.4. Every test carries exactly one stage marker and one kind marker (enforced in conftest.py).
+[tool.pytest.ini_options]
+minversion = "9.1"
+addopts = "-ra --strict-markers --strict-config --import-mode=importlib -p no:cacheprovider"
+testpaths = ["tests", "libs", "services"]
+norecursedirs = [".*", "tests/controls", "corpus/data", "frontend", "node_modules", ".venv", "data"]
+xfail_strict = true
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
+timeout = 180
+filterwarnings = ["error"]
+markers = [
+    "unit: pure functions only, no I/O, no clock, no network",
+    "integration: one or more services against real infrastructure",
+    "contract: OpenAPI, claims, state machines and the authorization matrix against the implementation",
+    "e2e: browser or API flows through the whole stack",
+    "isolation: the cross-scope suite (blueprint 21)",
+    "perf: load budgets (blueprint 22)",
+    "chaos: fault injection (blueprint 22)",
+    "live_auth0: real Auth0 tenant",
+    "live_kms: real AWS KMS",
+    "live_llm: real model calls with a spend cap",
+    "control: a planted-fault negative control listed in tests/controls.md",
+    "stage0", "stage1", "stage2", "stage3", "stage4", "stage5", "stage6",
+    "stage7", "stage8", "stage9", "stage10", "stage11",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["libs", "services"]
+omit = ["*/tests/*"]
+
+[tool.coverage.report]
+skip_empty = true
+# blueprint 19.5, R-92.1. With `branch = true` coverage.py combines lines and branches into one total, so this is
+# the combined floor; the separate line and branch floors per package are in [tool.lmqa.coverage-floors].
+fail_under = 90
+
+# blueprint 19.5, R-92. Per-package floors in percent, checked against `gates/coverage.json` by
+# `tools/coverage_floors.py` (a gate step after pytest). `default` applies to every package under libs/ and
+# services/; a more specific path prefix overrides it.
+[tool.lmqa.coverage-floors]
+default = { line = 90, branch = 85 }
+"libs/lmqa_auth/" = { line = 95, branch = 90 }
+"libs/lmqa_keys/" = { line = 95, branch = 90 }
+"libs/lmqa_security/" = { line = 95, branch = 90 }
+"libs/lmqa_db/" = { line = 95, branch = 90 }
+"services/identity/" = { line = 95, branch = 90 }
+"services/gateway/src/gateway/trust.py" = { line = 95, branch = 90 }
+"services/citation_validator/" = { line = 95, branch = 90 }
+
+# blueprint 19.5, R-92.2 and R-92.3. Minimum mutation score in percent (killed / total mutants, mutmut).
+[tool.lmqa.mutation-floors]
+"libs/lmqa_security/" = 75
+"libs/lmqa_keys/" = 75
+"services/citation_validator/" = 80
+
+# blueprint 4.5, R-89.1, R-93.1. Blocking under the `full` gate profile (stages.toml); strict on libs/.
+[tool.pyright]
+pythonVersion = "3.14"
+venvPath = "."
+venv = ".venv"
+include = ["libs", "services", "tools", "eval", "corpus", "tests", "conftest.py"]
+exclude = ["tests/controls", "corpus/data", "frontend", "**/node_modules", "**/__pycache__", ".venv", "data"]
+typeCheckingMode = "standard"
+strict = ["libs"]
+
+# Import boundaries (blueprint 4.7, G0.5). `make lint` runs `lint-imports`; tests/contract proves a violating
+# fixture package fails it (negative control). MVP deviation 1: the gateway still composes the services in one
+# process, so its forbidden contract checks direct imports only; the independence contract covers the rest.
+[tool.importlinter]
+root_packages = [
+    "lmqa_models", "lmqa_db", "lmqa_keys", "lmqa_audit", "lmqa_auth", "lmqa_security", "lmqa_vectorstore", "lmqa_objectstore",
+    "lmqa_testing", "gateway", "identity", "ingestion", "retrieval", "generation", "citation_validator", "audit",
+    "ops",
+]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "No service imports another service (except the MVP gateway composition)"
+type = "independence"
+modules = ["identity", "ingestion", "retrieval", "generation", "citation_validator", "audit"]
+
+[[tool.importlinter.contracts]]
+name = "Libraries never import services"
+type = "forbidden"
+source_modules = [
     "lmqa_models", "lmqa_db", "lmqa_audit", "lmqa_auth", "lmqa_security", "lmqa_vectorstore", "lmqa_objectstore",
+    "lmqa_testing",
+]
+forbidden_modules = ["gateway", "identity", "ingestion", "retrieval", "generation", "citation_validator", "audit"]
+
+[[tool.importlinter.contracts]]
+name = "Gateway does not touch vectors or objects directly"
+type = "forbidden"
+source_modules = ["gateway"]
+forbidden_modules = ["lmqa_vectorstore", "lmqa_objectstore", "qdrant_client", "boto3"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "Retrieval reads no objects and calls no LLM"
+type = "forbidden"
+source_modules = ["retrieval"]
+forbidden_modules = ["lmqa_objectstore", "generation", "boto3"]
+
+[[tool.importlinter.contracts]]
+name = "Citation validator calls no generative model and reads no vectors or objects"
+type = "forbidden"
+source_modules = ["citation_validator"]
+forbidden_modules = ["generation", "lmqa_vectorstore", "lmqa_objectstore", "qdrant_client", "boto3"]
+
+[[tool.importlinter.contracts]]
+name = "Identity reads no documents, chunks, vectors or audit payloads"
+type = "forbidden"
+source_modules = ["identity"]
+forbidden_modules = ["ingestion", "retrieval", "lmqa_vectorstore", "lmqa_objectstore", "audit"]
+
+[[tool.importlinter.contracts]]
+name = "Only lmqa_vectorstore holds a Qdrant client"
+type = "forbidden"
+source_modules = [
+    "lmqa_models", "lmqa_db", "lmqa_audit", "lmqa_auth", "lmqa_security", "lmqa_objectstore", "lmqa_testing",
     "gateway", "identity", "ingestion", "retrieval", "generation", "citation_validator", "audit",
 ]
+forbidden_modules = ["qdrant_client"]
+allow_indirect_imports = true

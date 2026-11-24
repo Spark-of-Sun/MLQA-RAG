@@ -36,11 +36,14 @@ from typing import Any
 warnings.filterwarnings("ignore")
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
-import demo  # noqa: E402  (tools/demo.py: simulated IdP)
+import demo  # noqa: E402  (tools/demo.py: colours)
 from fastapi.testclient import TestClient  # noqa: E402
+from real_identity import Identity, load  # noqa: E402  (real Auth0 accounts, R-27)
 
 from gateway.app import create_app  # noqa: E402
+from lmqa_db import Claims  # noqa: E402
 from lmqa_db.migrate import drop_database, migrate  # noqa: E402
+from lmqa_keys import Field  # noqa: E402
 from lmqa_models.envfile import ROOT  # noqa: E402
 from lmqa_models.settings import load_settings  # noqa: E402
 from retrieval import RetrievalService  # noqa: E402
@@ -49,16 +52,24 @@ EVAL_DB = "lmqa_eval"
 EVAL_DIR = ROOT / "eval"
 CORPUS = ROOT / "corpus" / "data"
 RESULTS = ROOT / "data" / "eval" / "results"
-OWNER = ("eval|owner", "owner@eval.example", "Eval Owner")
-SUFFIX = {"pdf": ".pdf", "html": ".htm", "xml": ".xml", "jats": ".xml", "spl": ".xml", "docx": ".docx", "txt": ".txt"}
-ADMIN = ("eval|admin", "admin@eval.example", "Eval Admin")
+OWNER = "eval-owner"  # auth harness labels of real Auth0 accounts
+SUFFIX = {
+    "pdf": ".pdf",
+    "html": ".htm",
+    "xml": ".xml",
+    "jats": ".xml",
+    "spl": ".xml",
+    "docx": ".docx",
+    "txt": ".txt",
+}
+ADMIN = "eval-admin"
 B, G, R, Y, D, X = demo.B, demo.G, demo.R, demo.Y, demo.D, demo.X
 
 
 class Client:
-    def __init__(self, client: TestClient, idp: demo.IdP, who: tuple[str, str, str]) -> None:
+    def __init__(self, client: TestClient, who: Identity) -> None:
         self.client = client
-        self.headers = {"authorization": f"Bearer {idp.token(*who)}"}
+        self.headers = who.headers
 
     def get(self, path: str) -> Any:
         return self.client.get(f"/v1{path}", headers=self.headers).json()
@@ -71,9 +82,11 @@ def norm(text: str) -> str:
     return " ".join(text.split()).casefold()
 
 
-def ensure_corpus(client: TestClient, idp: demo.IdP, manifest: list[dict[str, Any]]) -> Client:
+def ensure_corpus(  # noqa: C901 - one linear flow; splitting it is a DEV-33 follow-up
+    client: TestClient, idp: dict[str, Identity], manifest: list[dict[str, Any]]
+) -> Client:
     """Organization, approved admin and every corpus document indexed. Idempotent."""
-    owner, admin = Client(client, idp, OWNER), Client(client, idp, ADMIN)
+    owner, admin = Client(client, idp[OWNER]), Client(client, idp[ADMIN])
     if owner.get("/me")["membership"] is None:
         owner.post("/onboarding/organization", {"name": "Evaluation", "kind": "both"})
     if admin.get("/me")["membership"] is None:
@@ -94,7 +107,7 @@ def ensure_corpus(client: TestClient, idp: demo.IdP, manifest: list[dict[str, An
                 "/v1/documents",
                 headers=admin.headers,
                 files={"file": (name, data)},
-                data={"visibility": "workspace", "title": item["title"][:200]},
+                data={"visibility": "private", "title": item["title"][:200]},
             )
             if r.status_code != 201:
                 print(f"   {R}upload failed: {name}: {r.text[:200]}{X}")
@@ -118,17 +131,32 @@ def ensure_corpus(client: TestClient, idp: demo.IdP, manifest: list[dict[str, An
     return admin
 
 
-def relevant_ids(svc: Any, cases: list[dict[str, Any]]) -> dict[str, list[set[str]]]:
+def relevant_ids(
+    svc: Any, cases: list[dict[str, Any]], admin_sub: str
+) -> dict[str, list[set[str]]]:
     """case id -> one set of chunk ids per expected answer (any chunk of a set satisfies it)."""
-    with svc.db.system() as conn:
-        rows = conn.execute(
-            "select c.id, c.text, d.filename from chunks c join documents d on d.id = c.document_id"
-            " join users u on u.id = d.owner_id where u.auth0_sub = %s",
-            [ADMIN[0]],
-        ).fetchall()
+    with svc.db.as_service("identity", Claims(actor="eval")) as conn:
+        owner = conn.execute("select id from users where auth0_sub = %s", [admin_sub]).fetchone()
     by_file: dict[str, list[tuple[str, str]]] = {}
-    for r in rows:
-        by_file.setdefault(r["filename"], []).append((str(r["id"]), norm(r["text"])))
+    if owner is None:
+        return {c["id"]: [set() for _ in c.get("expect", [])] for c in cases}
+    # Text and file names are sealed (lmqa_keys): read as the admin under RLS, then open them.
+    with svc.db.scoped(str(owner["id"])) as scope:
+        rows = scope.execute(
+            "select c.id, c.org_id, c.workspace_id, c.document_id, c.version, c.text_ct, d.filename_ct"
+            " from chunks c join documents d on d.id = c.document_id where d.owner_id = %s",
+            [owner["id"]],
+        ).fetchall()
+        for r in rows:
+            chunk = svc.keys.open_chunk_row(scope, dict(r))
+            filename = svc.keys.open(
+                scope,
+                Field.document(
+                    "document.filename", r["org_id"], r["workspace_id"], r["document_id"]
+                ),
+                r["filename_ct"],
+            )
+            by_file.setdefault(str(filename), []).append((str(r["id"]), norm(chunk["text"])))
     out: dict[str, list[set[str]]] = {}
     for c in cases:
         out[c["id"]] = [
@@ -138,7 +166,7 @@ def relevant_ids(svc: Any, cases: list[dict[str, Any]]) -> dict[str, list[set[st
     return out
 
 
-def evaluate(
+def evaluate(  # noqa: PLR0913, PLR0917 - one linear flow; splitting it is a DEV-33 follow-up
     name: str,
     service: RetrievalService,
     principal: Any,
@@ -149,7 +177,9 @@ def evaluate(
 ) -> dict[str, Any]:
     rows = []
     for c in cases:
-        found = service.retrieve(principal, c["question"], alternatives=plans.get(c["id"], []), budget_tokens=budget)
+        found = service.retrieve(
+            principal, c["question"], alternatives=plans.get(c["id"], []), budget_tokens=budget
+        )
         ids = [s.chunk_id for s in found.sources]
         groups = relevant[c["id"]]
         ranks = [next((i for i, cid in enumerate(ids, start=1) if cid in g), None) for g in groups]
@@ -160,7 +190,10 @@ def evaluate(
                 "answerable": bool(groups),
                 "kept": len(ids),
                 "rank": first,
-                "top": [f"{s.document_title[:40]} · {(s.section or '')[-40:]} ({s.score})" for s in found.sources[:3]],
+                "top": [
+                    f"{s.document_title[:40]} · {(s.section or '')[-40:]} ({s.score})"
+                    for s in found.sources[:3]
+                ],
                 **{k: v for k, v in found.stats.items() if k.endswith("_ms")},
             }
         )
@@ -181,11 +214,14 @@ def evaluate(
 
 
 def answer_eval(
-    client: TestClient, idp: demo.IdP, cases: list[dict[str, Any]], relevant: dict[str, list[set[str]]]
+    client: TestClient,
+    idp: dict[str, Identity],
+    cases: list[dict[str, Any]],
+    relevant: dict[str, list[set[str]]],
 ) -> dict[str, Any]:
     """End to end: answerable cases should get verified sentences citing a labelled passage; unanswerable ones the
     refusal. Uses the answer model (about three calls per case)."""
-    admin = Client(client, idp, ADMIN)
+    admin = Client(client, idp[ADMIN])
     out = {
         "answered_with_cited_answer": 0,
         "answerable": 0,
@@ -215,11 +251,17 @@ def answer_eval(
     return out
 
 
-def main() -> int:
+def main() -> int:  # noqa: C901, PLR0912, PLR0915 - one linear flow; splitting it is a DEV-33 follow-up
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--set", default="sets/corpus.toml")
-    ap.add_argument("--rebuild", action="store_true", help="drop the lmqa_eval database and index the corpus again")
-    ap.add_argument("--no-llm", action="store_true", help="skip query expansion (no answer-model calls)")
+    ap.add_argument(
+        "--rebuild",
+        action="store_true",
+        help="drop the lmqa_eval database and index the corpus again",
+    )
+    ap.add_argument(
+        "--no-llm", action="store_true", help="skip query expansion (no answer-model calls)"
+    )
     ap.add_argument("--answers", action="store_true", help="also ask every case end to end")
     ap.add_argument("--only", default="", help="comma-separated case ids")
     args = ap.parse_args()
@@ -241,12 +283,9 @@ def main() -> int:
         cases = [c for c in cases if c["id"] in wanted]
     floors = tomllib.loads((EVAL_DIR / "floors.toml").read_text())["retrieval"]
 
-    idp = demo.IdP(base.auth0_claims_namespace)
+    idp = load([OWNER, ADMIN], base.auth0_claims_namespace)
     settings = base.with_overrides(
         db_name=EVAL_DB,
-        auth0_issuer_override=demo.ISSUER,
-        auth0_jwks_url_override=idp.jwks_url,
-        auth0_audience=demo.AUDIENCE,
         data_dir=ROOT / "data" / "eval" / "objects",
     )
     print(f"{B}Retrieval evaluation{X}  {D}database={EVAL_DB} set={args.set} cases={len(cases)}{X}")
@@ -258,20 +297,26 @@ def main() -> int:
     with TestClient(app) as client:
         svc = app.state.services
         ensure_corpus(client, idp, manifest)
-        principal = svc.identity.resolve(*ADMIN)
-        relevant = relevant_ids(svc, cases)
+        principal = svc.identity.resolve(idp[ADMIN].sub, idp[ADMIN].email, idp[ADMIN].name)
+        relevant = relevant_ids(svc, cases, idp[ADMIN].sub)
         unlabelled = [c["id"] for c in cases if c.get("expect") and not all(relevant[c["id"]])]
         if unlabelled:
-            print(f"   {Y}labels with no matching passage (corpus or chunking changed?): {', '.join(unlabelled)}{X}")
+            print(
+                f"   {Y}labels with no matching passage (corpus or chunking changed?): {', '.join(unlabelled)}{X}"
+            )
 
         plans: dict[str, list[str]] = {}
         if settings.query_expansion and not args.no_llm:
             for c in cases:
-                plans[c["id"]] = svc.generation.plan_query([], c["question"], expand=True).alternatives
+                plans[c["id"]] = svc.generation.plan_query(
+                    [], c["question"], expand=True
+                ).alternatives
 
         reranker = svc.retrieval.reranker
         if reranker is not None and reranker.local:
-            reranker.score("warm-up", ["warm-up"])  # load the local model before timing (an LLM needs no warm-up)
+            reranker.score(
+                "warm-up", ["warm-up"]
+            )  # load the local model before timing (an LLM needs no warm-up)
         budget = settings.context_budget_tokens - 1500
         variants = [
             ("fused", replace(settings, rerank_model=None, retrieval_neighbors=0), {}),
@@ -282,7 +327,9 @@ def main() -> int:
         for name, s, case_plans in variants:
             if name != "fused" and reranker is None:
                 continue
-            service = RetrievalService(s, svc.db, svc.retrieval._embedder)  # share one embedding client
+            service = RetrievalService(
+                s, svc.db, svc.retrieval._embedder, svc.keys
+            )  # share one embedding client
             service.reranker = reranker if s.rerank_model else None
             reports.append(evaluate(name, service, principal, cases, relevant, case_plans, budget))
 
@@ -301,9 +348,13 @@ def main() -> int:
         print(f"\n{B}Misses in '{final['config']}'{X}")
         for r in final["cases"]:
             if r["answerable"] and r["rank"] is None:
-                print(f"   {R}✗ {r['id']}{X} {D}kept {r['kept']}; top: {' | '.join(r['top']) or '-'}{X}")
+                print(
+                    f"   {R}✗ {r['id']}{X} {D}kept {r['kept']}; top: {' | '.join(r['top']) or '-'}{X}"
+                )
             elif not r["answerable"] and r["kept"]:
-                print(f"   {Y}✗ {r['id']} (unanswerable, kept {r['kept']}){X} {D}top: {' | '.join(r['top'])}{X}")
+                print(
+                    f"   {Y}✗ {r['id']} (unanswerable, kept {r['kept']}){X} {D}top: {' | '.join(r['top'])}{X}"
+                )
 
         answers = None
         if args.answers:
@@ -318,11 +369,17 @@ def main() -> int:
 
     RESULTS.mkdir(parents=True, exist_ok=True)
     out = RESULTS / f"{time.strftime('%Y%m%d-%H%M%S')}.json"
-    out.write_text(json.dumps({"set": args.set, "reports": reports, "answers": answers, "plans": plans}, indent=2))
+    out.write_text(
+        json.dumps(
+            {"set": args.set, "reports": reports, "answers": answers, "plans": plans}, indent=2
+        )
+    )
     m = final["metrics"]
     below = [k for k in ("recall_at_k", "mrr", "abstention") if m[k] < floors[k]]
     if below:
-        print(f"\n{R}below floor: {', '.join(f'{k} {m[k]:.2f} < {floors[k]}' for k in below)}{X}  {D}({out}){X}")
+        print(
+            f"\n{R}below floor: {', '.join(f'{k} {m[k]:.2f} < {floors[k]}' for k in below)}{X}  {D}({out}){X}"
+        )
         return 1
     print(f"\n{G}all floors met{X}  {D}({out}){X}")
     return 0

@@ -115,7 +115,9 @@ def _common_errors(resp: httpx.Response, who: str) -> None:
     """Map HTTP failures that mean the same thing for every provider."""
     if resp.status_code in {401, 403}:
         # A bad or unauthorised key for this provider: skip it for an hour, other providers may still answer.
-        raise _Transient(f"{who} rejected the API key", retry_soon=False, cooldown=3600, scope="key")
+        raise _Transient(
+            f"{who} rejected the API key", retry_soon=False, cooldown=3600, scope="key"
+        )
     if resp.status_code == 404:
         raise _Transient("model not available to this key", retry_soon=False, cooldown=24 * 3600)
     if resp.status_code in TRANSIENT:
@@ -188,9 +190,15 @@ class GeminiProvider(Provider):
         resp = self._post(f"{self._base}/models/{model}:generateContent", headers, body)
         if resp.status_code == 429:
             raise _gemini_quota(resp)
-        if resp.status_code == 400 and "thinking" in _message(resp).lower() and "thinkingConfig" in config:
+        if (
+            resp.status_code == 400
+            and "thinking" in _message(resp).lower()
+            and "thinkingConfig" in config
+        ):
             with self._lock:
-                self._no_thinking.add(model)  # this model does not accept thinkingLevel; retry once without it
+                self._no_thinking.add(
+                    model
+                )  # this model does not accept thinkingLevel; retry once without it
             return self.generate(model, system, user, schema, key)
         _common_errors(resp, "Gemini")
         if resp.status_code != 200:
@@ -209,13 +217,16 @@ class GeminiProvider(Provider):
         return Completion(
             data=parse_json_object(text, "Gemini"),
             tokens_in=int(usage.get("promptTokenCount", 0)),
-            tokens_out=int(usage.get("candidatesTokenCount", 0)) + int(usage.get("thoughtsTokenCount", 0)),
+            tokens_out=int(usage.get("candidatesTokenCount", 0))
+            + int(usage.get("thoughtsTokenCount", 0)),
             model=str(data.get("modelVersion") or model),
         )
 
     def list_models(self) -> list[str]:
         resp = self._http.get(
-            f"{self._base}/models", headers={"x-goog-api-key": self._key or ""}, params={"pageSize": 200}
+            f"{self._base}/models",
+            headers={"x-goog-api-key": self._key or ""},
+            params={"pageSize": 200},
         )
         if resp.status_code != 200:
             raise LLMError(f"Gemini returned {resp.status_code}: {_message(resp)}")
@@ -236,9 +247,15 @@ def _gemini_quota(resp: httpx.Response) -> _Transient:
         pass
     if any("perday" in q.lower() for q in quota_ids):
         return _Transient(
-            "daily quota used up", retry_soon=False, cooldown=max(delay, 3600), daily_quota=True, scope="quota"
+            "daily quota used up",
+            retry_soon=False,
+            cooldown=max(delay, 3600),
+            daily_quota=True,
+            scope="quota",
         )
-    return _Transient("rate limited", retry_soon=delay <= 5, cooldown=max(min(delay, 300), 30), scope="quota")
+    return _Transient(
+        "rate limited", retry_soon=delay <= 5, cooldown=max(min(delay, 300), 30), scope="quota"
+    )
 
 
 # ------------------------------------------------------------------------------------------------ OpenAI-compatible
@@ -250,7 +267,7 @@ class OpenAIProvider(Provider):
         self._json_mode_only: set[str] = set()
         self._lock = threading.Lock()
 
-    def generate(
+    def generate(  # noqa: C901 - one linear flow; splitting it is a DEV-33 follow-up
         self, model: str, system: str, user: str, schema: dict[str, Any], key: str | None = None
     ) -> Completion:
         strict = json_schema(schema)
@@ -269,7 +286,10 @@ class OpenAIProvider(Provider):
             )
         body: dict[str, Any] = {
             "model": model,
-            "messages": [{"role": "system", "content": instructions}, {"role": "user", "content": user}],
+            "messages": [
+                {"role": "system", "content": instructions},
+                {"role": "user", "content": user},
+            ],
             "response_format": response_format,
         }
         # OpenAI's current models want max_completion_tokens; most compatible servers still read max_tokens.
@@ -317,7 +337,10 @@ class OpenAIProvider(Provider):
 
 def _rejects_schema(message: str) -> bool:
     m = message.lower()
-    return any(w in m for w in ("response_format", "json_schema", "json schema", "structured output", "schema"))
+    return any(
+        w in m
+        for w in ("response_format", "json_schema", "json schema", "structured output", "schema")
+    )
 
 
 def _openai_quota(resp: httpx.Response) -> _Transient:
@@ -328,10 +351,14 @@ def _openai_quota(resp: httpx.Response) -> _Transient:
     except ValueError:
         code = ""
     if "insufficient_quota" in code or "quota" in _message(resp).lower():
-        return _Transient("quota used up", retry_soon=False, cooldown=3600, daily_quota=True, scope="quota")
+        return _Transient(
+            "quota used up", retry_soon=False, cooldown=3600, daily_quota=True, scope="quota"
+        )
     retry = resp.headers.get("retry-after", "")
     delay = float(retry) if retry.replace(".", "", 1).isdigit() else 30.0
-    return _Transient("rate limited", retry_soon=delay <= 5, cooldown=max(min(delay, 300), 30), scope="quota")
+    return _Transient(
+        "rate limited", retry_soon=delay <= 5, cooldown=max(min(delay, 300), 30), scope="quota"
+    )
 
 
 # ------------------------------------------------------------------------------------------------ Anthropic
@@ -366,7 +393,12 @@ class AnthropicProvider(Provider):
         if resp.status_code == 429:
             retry = resp.headers.get("retry-after", "")
             delay = float(retry) if retry.replace(".", "", 1).isdigit() else 30.0
-            raise _Transient("rate limited", retry_soon=delay <= 5, cooldown=max(min(delay, 300), 30), scope="quota")
+            raise _Transient(
+                "rate limited",
+                retry_soon=delay <= 5,
+                cooldown=max(min(delay, 300), 30),
+                scope="quota",
+            )
         _common_errors(resp, "Anthropic")
         if resp.status_code != 200:
             raise LLMError(f"Anthropic returned {resp.status_code}: {_message(resp)}")
@@ -374,7 +406,11 @@ class AnthropicProvider(Provider):
         if data.get("stop_reason") == "max_tokens":
             raise LLMError("Anthropic stopped early (output token limit)")
         block = next(
-            (b for b in data.get("content") or [] if b.get("type") == "tool_use" and b.get("name") == self.TOOL),
+            (
+                b
+                for b in data.get("content") or []
+                if b.get("type") == "tool_use" and b.get("name") == self.TOOL
+            ),
             None,
         )
         if block is None or not isinstance(block.get("input"), dict):
@@ -388,7 +424,11 @@ class AnthropicProvider(Provider):
         )
 
 
-KINDS: dict[str, type[Provider]] = {"gemini": GeminiProvider, "openai": OpenAIProvider, "anthropic": AnthropicProvider}
+KINDS: dict[str, type[Provider]] = {
+    "gemini": GeminiProvider,
+    "openai": OpenAIProvider,
+    "anthropic": AnthropicProvider,
+}
 
 
 def build_provider(name: str, settings: Settings, http: httpx.Client) -> Provider:

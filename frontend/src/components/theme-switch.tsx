@@ -45,7 +45,7 @@ export function ThemeSwitch({ className = "" }: { className?: string }) {
     const next: Theme = isDark() ? "light" : "dark";
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (!reduce && "startViewTransition" in document) {
-      document.startViewTransition(() => apply(next));
+      document.startViewTransition(() => { apply(next); });
     } else {
       apply(next);
     }

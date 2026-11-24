@@ -3,9 +3,10 @@ name = "generation"
 version = "0.1.0"
 description = "Generation service: provider client, prompt registry, token budget, drafts (blueprint 11.4-11.8)."
 requires-python = ">=3.14"
-dependencies = ["lmqa-models", "httpx>=0.28"]
+dependencies = ["lmqa-models", "httpx>=0.28", "lmqa-keys", "valkey>=6.2"]
 
 [tool.uv.sources]
+lmqa-keys = { workspace = true }
 lmqa-models = { workspace = true }
 
 [build-system]

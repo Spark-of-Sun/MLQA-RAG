@@ -1,0 +1,9 @@
+{
+  "$comment": "Authentication method names the post-login Action observes (design 8.4, R-21.7, G2.7). A login against the real ci tenant records the names seen; a name that is not listed here fails the contract test, so a vendor change is caught before it weakens auth_strength. `strengths` must equal lmqa_auth.strength.AUTH_STRENGTHS.",
+  "strengths": ["passkey", "webauthn_mfa", "otp_mfa", "password"],
+  "passkey": ["passkey"],
+  "webauthn_second_factor": ["webauthn-platform", "webauthn-roaming"],
+  "second_factor": ["mfa", "otp", "push-notification", "webauthn-roaming", "webauthn-platform"],
+  "first_factor": ["pwd", "passkey", "email", "sms"],
+  "claims": ["org_id", "auth_strength", "amr", "authenticator"]
+}

@@ -62,7 +62,8 @@ RETRY_PAUSE_S = 30
 
 from citation_validator import apply_entailment, build_result, entailment_claims, validate  # noqa: E402
 from generation import GenerationService, LLMError  # noqa: E402
-from lmqa_db import Database  # noqa: E402
+from lmqa_db import Claims, Database  # noqa: E402
+from lmqa_keys import field_cipher_from_settings  # noqa: E402
 from lmqa_models.principal import Membership, Principal  # noqa: E402
 from lmqa_models.quota import question as quota_question  # noqa: E402
 from lmqa_models.settings import load_settings  # noqa: E402
@@ -80,10 +81,16 @@ DOCUMENT_OWNER_SUB = "google-oauth2|118140465854412164325"
 # ------------------------------------------------------------------------------------------------- read-only setup
 def load_owner_principal(db: Database, sub: str) -> Principal:
     """The indexed document's owner, read-only (a plain select; no insert, no last_seen_at bump)."""
-    with db.system() as conn:
-        user = conn.execute("select id, email, name from users where auth0_sub = %s", [sub]).fetchone()
+    keys = field_cipher_from_settings()
+    with db.as_service("identity", Claims(actor="pipeline-test")) as conn:
+        found = conn.execute(
+            "select id, email_ct, name_ct from users where auth0_sub = %s", [sub]
+        ).fetchone()
+        user = keys.open_contact_row(conn, dict(found)) if found else None
         if user is None:
-            raise SystemExit(f"No user with auth0_sub={sub!r}. Edit DOCUMENT_OWNER_SUB in tests/run_pipeline.py.")
+            raise SystemExit(
+                f"No user with auth0_sub={sub!r}. Edit DOCUMENT_OWNER_SUB in tests/run_pipeline.py."
+            )
         row = conn.execute(
             "select m.id, m.role, m.status, m.org_id, o.name as org_name, o.kind as org_kind,"
             " o.status as org_status, m.workspace_id, w.name as workspace_name, w.status as workspace_status"
@@ -124,11 +131,15 @@ def sections_in(text: str) -> set[str]:
     return {s for s in _SECTION_BODY_UNIVERSE if _pattern(s).search(text)}
 
 
-_SECTION_BODY_UNIVERSE: set[str] = set()  # filled in main() from every question's expected_sections/must_not_cite
+_SECTION_BODY_UNIVERSE: set[str] = (
+    set()
+)  # filled in main() from every question's expected_sections/must_not_cite
 
 
 # ------------------------------------------------------------------------------------------------- one question
-def run_one(generation: GenerationService, retrieval: Any, principal: Principal, settings: Any, q: dict) -> dict:
+def run_one(
+    generation: GenerationService, retrieval: Any, principal: Principal, settings: Any, q: dict
+) -> dict:
     out: dict[str, Any] = {"id": q["id"], "question": q["question"]}
     t_start = time.monotonic()
     ledger: dict[str, Any] = {}
@@ -159,7 +170,9 @@ def run_one(generation: GenerationService, retrieval: Any, principal: Principal,
                     }
                     for s in found.sources
                 ],
-                "dropped": [{"reason": d.reason, "score": round(d.score, 3)} for d in found.dropped],
+                "dropped": [
+                    {"reason": d.reason, "score": round(d.score, 3)} for d in found.dropped
+                ],
                 "stats": found.stats,
             }
 
@@ -167,25 +180,35 @@ def run_one(generation: GenerationService, retrieval: Any, principal: Principal,
                 result = build_result(False, [], {})
             else:
                 draft = generation.draft(
-                    q["question"], found.sources, standalone=plan.question, detail_note=plan.detail_note
+                    q["question"],
+                    found.sources,
+                    standalone=plan.question,
+                    detail_note=plan.detail_note,
                 )
                 out["draft"] = {
                     "model": draft.model,
                     "answerable": draft.data.get("answerable"),
                     "sentences": [
-                        {"text": s.get("text"), "citations": [c.get("source") for c in s.get("citations", [])]}
+                        {
+                            "text": s.get("text"),
+                            "citations": [c.get("source") for c in s.get("citations", [])],
+                        }
                         for s in draft.data.get("sentences", [])
                         if isinstance(s, dict)
                     ],
                 }
                 ledger = {s.alias: s for s in draft.sources}
-                answerable, verdicts = validate(draft.data, ledger, entailment=settings.verify_entailment)
+                answerable, verdicts = validate(
+                    draft.data, ledger, entailment=settings.verify_entailment
+                )
                 if settings.verify_entailment:
                     check = generation.entailment(entailment_claims(verdicts), ledger)
                     apply_entailment(verdicts, check.verdicts)
                 out["verifier"] = {
                     "removed": [
-                        {"text": v.text, "aliases": v.aliases, "reason": v.first_failure} for v in verdicts if not v.ok
+                        {"text": v.text, "aliases": v.aliases, "reason": v.first_failure}
+                        for v in verdicts
+                        if not v.ok
                     ]
                 }
                 result = build_result(answerable, verdicts, ledger)
@@ -195,7 +218,9 @@ def run_one(generation: GenerationService, retrieval: Any, principal: Principal,
         return out
 
     chunk_id_to_alias = {s.chunk_id: a for a, s in ledger.items()}
-    out["citation_alias_map"] = {c["n"]: chunk_id_to_alias.get(c["chunk_id"]) for c in result.get("citations", [])}
+    out["citation_alias_map"] = {
+        c["n"]: chunk_id_to_alias.get(c["chunk_id"]) for c in result.get("citations", [])
+    }
     out["_ledger_sections"] = {a: sorted(sections_in(s.text)) for a, s in ledger.items()}
     out["result"] = {
         "outcome": result["outcome"],
@@ -206,7 +231,7 @@ def run_one(generation: GenerationService, retrieval: Any, principal: Principal,
     return out
 
 
-def grade(out: dict, q: dict) -> None:
+def grade(out: dict, q: dict) -> None:  # noqa: C901, PLR0911, PLR0912 - one linear flow; splitting it is a DEV-33 follow-up
     """Fills out['pass'] and out['stage']/out['why'] on failure. Evidence-based: cites the actual data above."""
     if "error" in out:
         out["pass"], out["stage"], out["why"] = False, "error", out["error"]
@@ -224,21 +249,27 @@ def grade(out: dict, q: dict) -> None:
                     cited_sections |= set(out["_ledger_sections"].get(alias, []))
 
     if q["expected_behavior"] == "refuse":
-        only_refused = out["result"]["outcome"] == "refused" and not any(s.get("type") == "sentence" for s in released)
+        only_refused = out["result"]["outcome"] == "refused" and not any(
+            s.get("type") == "sentence" for s in released
+        )
         if only_refused:
             out["pass"] = True
             return
         out["pass"] = False
         out["stage"] = "drafting"
         cites = sorted(cited_sections) or "(none resolvable)"
-        out["why"] = f"expected a refusal; the drafter produced content instead, citing sections {cites}"
+        out["why"] = (
+            f"expected a refusal; the drafter produced content instead, citing sections {cites}"
+        )
         return
 
     # expected_behavior == "answer"
     if forbidden & cited_sections:
         out["pass"] = False
         out["stage"] = "drafting"
-        out["why"] = f"cited a section that must not apply here: {sorted(forbidden & cited_sections)}"
+        out["why"] = (
+            f"cited a section that must not apply here: {sorted(forbidden & cited_sections)}"
+        )
         return
     if expected & cited_sections:
         out["pass"] = True
@@ -269,10 +300,14 @@ def grade(out: dict, q: dict) -> None:
             matching_removed.append(r)
     if matching_removed:
         out["stage"] = "verification"
-        out["why"] = f"a sentence citing the right section was removed: {matching_removed[0]['reason']!r}"
+        out["why"] = (
+            f"a sentence citing the right section was removed: {matching_removed[0]['reason']!r}"
+        )
         return
     out["stage"] = "drafting"
-    draft_cites = sorted({a for s in out.get("draft", {}).get("sentences", []) for a in s["citations"]})
+    draft_cites = sorted(
+        {a for s in out.get("draft", {}).get("sentences", []) for a in s["citations"]}
+    )
     out["why"] = (
         f"the right section was retrieved ({sorted(expected & retrieved_sections)}) but the released answer "
         f"does not cite it; the draft cited {draft_cites}"
@@ -281,10 +316,16 @@ def grade(out: dict, q: dict) -> None:
 
 # ------------------------------------------------------------------------------------------------- driver
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--ids", help="comma-separated question ids to run, e.g. q01,q05,q30")
-    ap.add_argument("--limit", type=int, help="only run the first N questions (after --ids filtering)")
-    ap.add_argument("--out", type=Path, help="where to save results (default: tests/results/<timestamp>.json)")
+    ap.add_argument(
+        "--limit", type=int, help="only run the first N questions (after --ids filtering)"
+    )
+    ap.add_argument(
+        "--out", type=Path, help="where to save results (default: tests/results/<timestamp>.json)"
+    )
     ap.add_argument("--compare", type=Path, help="a previous results file to diff against")
     args = ap.parse_args()
 
@@ -300,7 +341,9 @@ def main() -> int:
         return 1
 
     global _SECTION_BODY_UNIVERSE
-    _SECTION_BODY_UNIVERSE = {s for q in data["questions"] for s in q["expected_sections"] + q["must_not_cite"]}
+    _SECTION_BODY_UNIVERSE = {
+        s for q in data["questions"] for s in q["expected_sections"] + q["must_not_cite"]
+    }
 
     settings = load_settings()
     db = Database(settings)
@@ -308,7 +351,9 @@ def main() -> int:
     try:
         principal = load_owner_principal(db, DOCUMENT_OWNER_SUB)
         generation = GenerationService(settings)
-        retrieval = create_retrieval(settings, db, generation.reranker)
+        retrieval = create_retrieval(
+            settings, db, field_cipher_from_settings(), generation.reranker
+        )
 
         results = []
         for i, q in enumerate(questions, 1):
@@ -317,11 +362,18 @@ def main() -> int:
             for _attempt in range(RETRIES):
                 if "error" not in r:
                     break
-                print(f"    provider error ({r['error'][:90]}); retrying in {RETRY_PAUSE_S}s", flush=True)
+                print(
+                    f"    provider error ({r['error'][:90]}); retrying in {RETRY_PAUSE_S}s",
+                    flush=True,
+                )
                 time.sleep(RETRY_PAUSE_S)
                 r = run_one(generation, retrieval, principal, settings, q)
             results.append(r)
-            status = "PASS" if r.get("pass") else ("ERROR" if "error" in r else f"FAIL ({r.get('stage')})")
+            status = (
+                "PASS"
+                if r.get("pass")
+                else ("ERROR" if "error" in r else f"FAIL ({r.get('stage')})")
+            )
             print(f"    -> {status}  ({r['latency_s']}s)", flush=True)
     finally:
         db.close()
@@ -331,13 +383,19 @@ def main() -> int:
     from generation.prompts import load_prompts
 
     prompts = load_prompts()
-    meta = {"test_config": TEST_CONFIG, "prompt_versions": prompts.versions, "prompt_sha256": prompts.sha256}
+    meta = {
+        "test_config": TEST_CONFIG,
+        "prompt_versions": prompts.versions,
+        "prompt_sha256": prompts.sha256,
+    }
     out_path.write_text(json.dumps({"meta": meta, "questions": results}, indent=2, default=str))
     print(f"\nSaved {out_path}")
 
     print_summary(results)
     if args.compare:
-        print_comparison(json.loads(args.compare.read_text())["questions"], results, args.compare, out_path)
+        print_comparison(
+            json.loads(args.compare.read_text())["questions"], results, args.compare, out_path
+        )
     return 0
 
 
@@ -357,7 +415,9 @@ def print_summary(results: list[dict]) -> None:
             print(f"      {r.get('why', r.get('error'))}")
 
 
-def print_comparison(before: list[dict], after: list[dict], before_path: Path, after_path: Path) -> None:
+def print_comparison(
+    before: list[dict], after: list[dict], before_path: Path, after_path: Path
+) -> None:
     before_by_id = {r["id"]: r for r in before}
     print(f"\nBefore ({before_path.name}) -> after ({after_path.name}):")
     b_pass = sum(r.get("pass") is True for r in before)
@@ -375,7 +435,11 @@ def print_comparison(before: list[dict], after: list[dict], before_path: Path, a
     if changed:
         print("  changed:")
         for qid, b_status, a_status in changed:
-            arrow = "improved" if a_status == "PASS" else ("regressed" if b_status == "PASS" else "changed")
+            arrow = (
+                "improved"
+                if a_status == "PASS"
+                else ("regressed" if b_status == "PASS" else "changed")
+            )
             print(f"    {qid}: {b_status} -> {a_status}  ({arrow})")
     else:
         print("  no question changed status.")

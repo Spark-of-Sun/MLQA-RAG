@@ -13,9 +13,10 @@ routes:
   - { method: GET,    path: /v1/health,                               roles: [public] }
   - { method: GET,    path: /v1/me,                                   roles: [authenticated] }
 
-  # Profile: everyone edits their own; an admin reads members' profiles through Manage Members
-  - { method: GET,    path: /v1/profile,                              roles: [super_admin, admin, tenant] }
-  - { method: PATCH,  path: /v1/profile,                              roles: [super_admin, admin, tenant] }
+  # Profile: everyone edits their own; an admin reads members' profiles through Manage Members.
+  # Frozen MVP-only feature (DEV-21, pending Q-04): 404 while `profiles` is off.
+  - { method: GET,    path: /v1/profile,                              roles: [super_admin, admin, tenant], feature: profiles }
+  - { method: PATCH,  path: /v1/profile,                              roles: [super_admin, admin, tenant], feature: profiles }
 
   # onboarding (blueprint 7)
   - { method: POST,   path: /v1/onboarding/organization,              roles: [authenticated] }
@@ -44,12 +45,37 @@ routes:
   - { method: POST,   path: /v1/queries,                              roles: [admin, tenant] }
   - { method: GET,    path: "/v1/queries/{query_id}",                 roles: [admin, tenant] }
 
-  # Chats: private to their author under RLS; admins cannot read members' chats
-  - { method: GET,    path: /v1/conversations,                        roles: [admin, tenant] }
-  - { method: GET,    path: "/v1/conversations/{conversation_id}",    roles: [admin, tenant] }
-  - { method: PATCH,  path: "/v1/conversations/{conversation_id}",    roles: [admin, tenant] }
-  - { method: DELETE, path: "/v1/conversations/{conversation_id}",    roles: [admin, tenant] }
+  # Chats: private to their author under RLS; admins cannot read members' chats.
+  # Frozen MVP-only feature (DEV-21, pending Q-04 and Q-39): 404 while `chats` is off.
+  - { method: GET,    path: /v1/conversations,                        roles: [admin, tenant], feature: chats }
+  - { method: GET,    path: "/v1/conversations/{conversation_id}",    roles: [admin, tenant], feature: chats }
+  - { method: PATCH,  path: "/v1/conversations/{conversation_id}",    roles: [admin, tenant], feature: chats }
+  - { method: DELETE, path: "/v1/conversations/{conversation_id}",    roles: [admin, tenant], feature: chats }
 
   # Audit: content scoped by role (org-level / workspace / own); everyone can verify the hash chain
   - { method: GET,    path: /v1/audit,                                roles: [super_admin, admin, tenant] }
   - { method: GET,    path: /v1/audit/verify,                         roles: [super_admin, admin, tenant] }
+
+  # --- production routes, each gated by a feature flag (contracts/features.toml): 404 while disabled ---------
+  # Sentence-gated streaming answers (blueprint 11.6, 17.3)
+  - { method: POST,   path: /v1/queries/stream,                       roles: [admin, tenant], feature: sentence_streaming }
+
+  # Governance requests (6.7): initiators and approvers are checked per kind by the identity service
+  - { method: GET,    path: /v1/governance,                           roles: [super_admin, admin], feature: governance_requests }
+  - { method: POST,   path: /v1/governance,                           roles: [super_admin, admin], feature: governance_requests, step_up: true }
+  - { method: POST,   path: "/v1/governance/{request_id}/{action}",   roles: [super_admin, admin], feature: governance_requests, step_up: true }
+
+  # Matters, grants and walls (5.4 to 5.6): the admin of the workspace
+  - { method: GET,    path: /v1/workspace/matters,                    roles: [admin], feature: matters_walls_tiers }
+  - { method: POST,   path: /v1/workspace/matters,                    roles: [admin], feature: matters_walls_tiers }
+  - { method: POST,   path: "/v1/workspace/matters/{matter_id}/grants", roles: [admin], feature: matters_walls_tiers }
+  - { method: DELETE, path: "/v1/workspace/matters/{matter_id}/grants/{user_id}", roles: [admin], feature: matters_walls_tiers }
+  - { method: POST,   path: "/v1/workspace/matters/{matter_id}/walls", roles: [admin], feature: matters_walls_tiers }
+
+  # Emergency access (5.7) and break-glass (5.8)
+  - { method: POST,   path: /v1/emergency-access,                     roles: [tenant], feature: matters_walls_tiers }
+  - { method: DELETE, path: "/v1/emergency-access/{exception_id}",    roles: [admin], feature: matters_walls_tiers }
+  - { method: POST,   path: /v1/break-glass,                          roles: [admin], feature: matters_walls_tiers, step_up: true }
+  - { method: DELETE, path: "/v1/break-glass/{session_id}",           roles: [admin], feature: matters_walls_tiers }
+  - { method: GET,    path: /v1/reviews,                              roles: [admin], feature: matters_walls_tiers }
+  - { method: POST,   path: "/v1/reviews/{task_id}/close",            roles: [admin], feature: matters_walls_tiers }

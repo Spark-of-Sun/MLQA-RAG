@@ -7,6 +7,10 @@ Three channels per query, each a ranked list:
   exact   the unstemmed 'simple' index, only for identifiers in the query: numbers, dosages, section and statute
           references, codes, quoted phrases and proper names (the terms stemming and embeddings both blur)
 
+Both full-text indexes are stored without positions (chunk text is encrypted, 0012_field_encryption), so ranking
+uses ts_rank (term matches) rather than ts_rank_cd (cover density), and an identifier matches when all its words
+occur in the passage rather than as an exact phrase.
+
 Several phrasings of the same question can be searched at once (query expansion); each carries a weight, so the
 question as asked counts more than a rewrite. Every query runs inside the caller's `Scope`, so row-level security
 decides visibility; the explicit workspace filter is defence in depth and helps the planner (blueprint 10.5).
@@ -25,13 +29,17 @@ RRF_K = 60
 # more letters (HIPAA, ACE, FDA), and capitalised words that are not the first word of the question (Metoprolol).
 _TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9.\-/()§]*")
 _QUOTED = re.compile(r"\"([^\"]{3,120})\"|“([^”]{3,120})”")
-_COMMON_CAPS = frozenset({"I", "A", "THE", "AND", "OR", "OF", "IN", "ON", "TO", "IS", "WHAT", "WHEN", "WHO", "HOW"})
+_COMMON_CAPS = frozenset(
+    {"I", "A", "THE", "AND", "OR", "OF", "IN", "ON", "TO", "IS", "WHAT", "WHEN", "WHO", "HOW"}
+)
 
 
 @dataclass(frozen=True)
 class SearchQuery:
     text: str
-    vectors: dict[str, list[float]]  # embedding model -> the query's vector; empty: lexical channels only
+    vectors: dict[
+        str, list[float]
+    ]  # embedding model -> the query's vector; empty: lexical channels only
     weight: float = 1.0
 
 
@@ -67,7 +75,9 @@ def hybrid_candidates(
             scores[key] = scores.get(key, 0.0) + weight / (RRF_K + rank)
 
     if any(q.vectors for q in queries):
-        scope.execute("select set_config('hnsw.ef_search', %s, true)", [str(max(100, prefetch * 2))])
+        scope.execute(
+            "select set_config('hnsw.ef_search', %s, true)", [str(max(100, prefetch * 2))]
+        )
         scope.execute("select set_config('hnsw.iterative_scan', 'strict_order', true)")
     for q in queries:
         for model, vector in q.vectors.items():
@@ -85,21 +95,23 @@ def hybrid_candidates(
                 "select c.id from chunks c,"
                 " lateral (select nullif(replace(plainto_tsquery('english', %s)::text, '&', '|'), '')::tsquery as q) s"
                 " where c.workspace_id = %s and s.q is not null and c.tsv @@ s.q"
-                " order by ts_rank_cd(c.tsv, s.q, 32) desc, c.id limit %s",
+                " order by ts_rank(c.tsv, s.q, 32) desc, c.id limit %s",
                 [q.text, workspace_id, prefetch],
             ).fetchall(),
             q.weight,
         )
         if terms := exact_terms(q.text):
-            # Each term is matched as a phrase of its words; any term may match. Passages matching more of the
-            # identifiers rank higher.
+            # Each term matches when all of its words occur in the passage; any term may match. Passages matching
+            # more of the identifiers rank higher. The index holds no positions (0012_field_encryption), so the
+            # phrase operators are turned into AND: a stripped tsvector never satisfies <->.
             fuse(
                 scope.execute(
                     "select c.id from chunks c,"
-                    " lateral (select nullif(string_agg('(' || nullif(phraseto_tsquery('simple', t)::text, '')"
-                    " || ')', ' | '), '')::tsquery as q from unnest(%s::text[]) t) s"
+                    " lateral (select nullif(string_agg('(' || nullif(regexp_replace("
+                    "phraseto_tsquery('simple', t)::text, '<[0-9]*-?>', '&', 'g'), '') || ')', ' | '), '')::tsquery"
+                    " as q from unnest(%s::text[]) t) s"
                     " where c.workspace_id = %s and s.q is not null and c.tsv_simple @@ s.q"
-                    " order by ts_rank_cd(c.tsv_simple, s.q, 32) desc, c.id limit %s",
+                    " order by ts_rank(c.tsv_simple, s.q, 32) desc, c.id limit %s",
                     [terms, workspace_id, prefetch],
                 ).fetchall(),
                 q.weight,

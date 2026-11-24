@@ -86,7 +86,7 @@ export function CodePanel({ kind }: { kind: "org" | "admin" }) {
           {info ? "Rotate code" : "Generate code"}
         </Button>
       </div>
-      {fresh && <CodeDialog code={fresh} kind={kind} onClose={() => setFresh(null)} />}
+      {fresh && <CodeDialog code={fresh} kind={kind} onClose={() => { setFresh(null); }} />}
     </Card>
   );
 }
@@ -97,7 +97,7 @@ function CodeDialog({ code, kind, onClose }: { code: NewCode; kind: "org" | "adm
   async function copy(value: string, which: "code" | "link") {
     await navigator.clipboard.writeText(value);
     setCopied(which);
-    setTimeout(() => setCopied(null), 2000);
+    setTimeout(() => { setCopied(null); }, 2000);
   }
   return (
     <Modal title={kind === "org" ? "New Organization Code" : "New member invite code"} onClose={onClose}>

@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
-import logging
-
 import uvicorn
 
 from gateway.app import create_app
 from lmqa_models.settings import load_settings
+from lmqa_security.redact import configure_logging
 
 
 def main() -> None:
     settings = load_settings()
-    logging.basicConfig(level=settings.log_level, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    uvicorn.run(create_app(settings), host=settings.api_host, port=settings.api_port, log_level="info")
+    configure_logging(settings.log_level, fmt="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    uvicorn.run(
+        create_app(settings), host=settings.api_host, port=settings.api_port, log_level="info"
+    )
 
 
 if __name__ == "__main__":

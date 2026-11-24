@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { AuditLog } from "@/components/audit/audit-log";
 import { EMPTY_FILTERS, type AuditFilters } from "@/lib/audit-filters";
 import { requireMe } from "@/lib/backend";
+import { hasFeature } from "@/lib/features";
 
 export const metadata: Metadata = { title: "Audit trail" };
 
@@ -29,5 +30,5 @@ function filtersFrom(params: Params): AuditFilters {
 export default async function AuditPage({ searchParams }: { searchParams: Promise<Params> }) {
   const me = await requireMe();
   const role = me.membership?.role ?? "tenant";
-  return <AuditLog role={role} initial={filtersFrom(await searchParams)} />;
+  return <AuditLog role={role} initial={filtersFrom(await searchParams)} chats={hasFeature(me, "chats")} />;
 }

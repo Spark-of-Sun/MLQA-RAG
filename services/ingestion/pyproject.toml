@@ -6,9 +6,12 @@ requires-python = ">=3.14"
 dependencies = [
     "lmqa-models", "lmqa-db", "lmqa-audit", "lmqa-objectstore", "lmqa-vectorstore",
     "pypdf>=7.1", "fonttools>=4.68", "python-docx>=1.2", "defusedxml>=0.7.1",
+    "lmqa-keys", "lmqa-auth", "procrastinate>=3.12", "pypdfium2>=4.30",
 ]
 
 [tool.uv.sources]
+lmqa-keys = { workspace = true }
+lmqa-auth = { workspace = true }
 lmqa-models = { workspace = true }
 lmqa-db = { workspace = true }
 lmqa-audit = { workspace = true }

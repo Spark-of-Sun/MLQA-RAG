@@ -1,38 +1,49 @@
 "use client";
 
-import { BookOpen, CircleUserRound, FileText, History, LogOut, MessageSquareText, ShieldCheck, UserCog, Users } from "lucide-react";
+import { BookOpen, Briefcase, CircleUserRound, ClipboardCheck, Scale, FileText, History, LogOut, MessageSquareText, ShieldCheck, UserCog, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { Logo } from "@/components/logo";
 import { ThemeSwitch } from "@/components/theme-switch";
+import type { Feature } from "@/lib/features";
+import { featuresOf } from "@/lib/features";
 import { BRAND, ROLE_LABEL } from "@/lib/format";
 import type { Me, Role } from "@/lib/types";
 
 // Hidden menu items are convenience, not control: the gateway answers 404 for routes a role does not have.
-const NAV: { href: string; label: string; icon: typeof FileText; roles: Role[] }[] = [
+const NAV: { href: string; label: string; icon: typeof FileText; roles: Role[]; feature?: Feature }[] = [
   { href: "/chat", label: "Ask", icon: MessageSquareText, roles: ["admin", "tenant"] },
   { href: "/library", label: "Library", icon: FileText, roles: ["admin", "tenant"] },
   { href: "/manage-tenants", label: "Manage members", icon: Users, roles: ["admin"] },
   { href: "/manage-admins", label: "Manage admins", icon: UserCog, roles: ["super_admin"] },
+  { href: "/matters", label: "Matters and walls", icon: Briefcase, roles: ["admin"], feature: "matters_walls_tiers" },
+  { href: "/reviews", label: "Review queue", icon: ClipboardCheck, roles: ["admin"], feature: "matters_walls_tiers" },
+  { href: "/governance", label: "Governance", icon: Scale, roles: ["admin"], feature: "governance_requests" },
+  { href: "/org-governance", label: "Governance", icon: Scale, roles: ["super_admin"], feature: "governance_requests" },
   { href: "/audit", label: "Audit trail", icon: History, roles: ["super_admin", "admin", "tenant"] },
-  { href: "/profile", label: "Profile", icon: CircleUserRound, roles: ["super_admin", "admin", "tenant"] },
+  { href: "/profile", label: "Profile", icon: CircleUserRound, roles: ["super_admin", "admin", "tenant"], feature: "profiles" },
 ];
 
 export function AppShell({ me, children }: { me: Me; children: ReactNode }) {
   const pathname = usePathname();
   const m = me.membership;
   if (!m) return null;
-  const items = NAV.filter((n) => n.roles.includes(m.role));
+  const enabled = featuresOf(me);
+  // Frozen MVP-only features (DEV-21): the public site with its docs, and the Profile page.
+  const site = enabled.has("public_site");
+  const profiles = enabled.has("profiles");
+  const items = NAV.filter((n) => n.roles.includes(m.role) && (!n.feature || enabled.has(n.feature)));
   const current = items.find((n) => pathname === n.href || pathname.startsWith(`${n.href}/`));
   const who = me.user.name || me.user.email || "Signed in";
   return (
     <div className="atmosphere flex h-full bg-ink-50">
       <aside className="flex w-60 shrink-0 flex-col border-r border-ink-200 bg-surface dark:bg-surface/80 dark:backdrop-blur-xl">
         <div className="border-b border-ink-100 px-4 py-4">
-          {/* The product mark leads to the public home page, like the logo on any website. */}
-          <Link href="/" className="inline-block rounded-md" title={`${BRAND} home page`}>
+          {/* The product mark leads to the public home page, like the logo on any website (your home screen while
+              the public site is off). */}
+          <Link href={site ? "/" : "/home"} className="inline-block rounded-md" title={`${BRAND} home page`}>
             <Logo />
           </Link>
           <div className="mt-3 rounded-lg bg-ink-50 px-3 py-2">
@@ -70,10 +81,17 @@ export function AppShell({ me, children }: { me: Me; children: ReactNode }) {
           <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-inverse text-xs font-semibold text-on-inverse">
             {who.slice(0, 1).toUpperCase()}
           </div>
-          <Link href="/profile" className="min-w-0 flex-1 rounded-md hover:bg-ink-100" title="Your profile">
-            <p className="truncate text-sm font-medium text-ink-800">{who}</p>
-            {me.user.email && me.user.name && <p className="truncate text-xs text-ink-500">{me.user.email}</p>}
-          </Link>
+          {profiles ? (
+            <Link href="/profile" className="min-w-0 flex-1 rounded-md hover:bg-ink-100" title="Your profile">
+              <p className="truncate text-sm font-medium text-ink-800">{who}</p>
+              {me.user.email && me.user.name && <p className="truncate text-xs text-ink-500">{me.user.email}</p>}
+            </Link>
+          ) : (
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-ink-800">{who}</p>
+              {me.user.email && me.user.name && <p className="truncate text-xs text-ink-500">{me.user.email}</p>}
+            </div>
+          )}
           {/* A full navigation, not a client-side Link: logout ends the server session and the Auth0 session. */}
           <a href="/auth/logout" className="rounded-md p-1.5 text-ink-400 hover:bg-ink-100 hover:text-ink-700" title="Sign out">
             <LogOut className="size-4" aria-label="Sign out" />
@@ -88,9 +106,11 @@ export function AppShell({ me, children }: { me: Me; children: ReactNode }) {
             {current && <span className="font-medium text-ink-900">{current.label}</span>}
           </p>
           <div className="flex items-center gap-4">
-            <Link href="/docs" className="flex items-center gap-1.5 text-sm text-ink-600 hover:text-ink-950">
-              <BookOpen className="size-4" aria-hidden /> Docs
-            </Link>
+            {site && (
+              <Link href="/docs" className="flex items-center gap-1.5 text-sm text-ink-600 hover:text-ink-950">
+                <BookOpen className="size-4" aria-hidden /> Docs
+              </Link>
+            )}
             <ThemeSwitch />
           </div>
         </header>

@@ -78,7 +78,13 @@ def detect_type(filename: str, data: bytes) -> str:
 
 
 def parse(kind: str, data: bytes) -> ParsedDocument:
-    parser = {"pdf": parse_pdf, "docx": parse_docx, "html": parse_html, "xml": parse_xml, "txt": parse_text}
+    parser = {
+        "pdf": parse_pdf,
+        "docx": parse_docx,
+        "html": parse_html,
+        "xml": parse_xml,
+        "txt": parse_text,
+    }
     doc = parser[kind](data)
     doc.blocks = [b for b in doc.blocks if b.text]
     if not doc.blocks:
@@ -143,7 +149,9 @@ def parse_pdf(data: bytes) -> ParsedDocument:
             empty.append(number)
             continue
         blocks.extend(Block(p, page=number) for p in _pdf_paragraphs(text))
-    return ParsedDocument(blocks=blocks, page_count=len(pages), title=title, pages_without_text=empty)
+    return ParsedDocument(
+        blocks=blocks, page_count=len(pages), title=title, pages_without_text=empty
+    )
 
 
 def _pdf_paragraphs(text: str) -> list[str]:
@@ -300,7 +308,20 @@ def parse_html(data: bytes) -> ParsedDocument:
 
 # ---------------------------------------------------------------------------- XML (JATS, SPL, eCFR)
 _XML_HEADING = {"article-title", "title", "head", "hed", "subject"}
-_XML_LEAF = {"p", "paragraph", "item", "li", "caption", "tr", "fp", "td", "list-item", "def", "term", "label"}
+_XML_LEAF = {
+    "p",
+    "paragraph",
+    "item",
+    "li",
+    "caption",
+    "tr",
+    "fp",
+    "td",
+    "list-item",
+    "def",
+    "term",
+    "label",
+}
 _XML_SKIP = {
     "ref-list",
     "contrib-group",
@@ -340,7 +361,7 @@ def _local(tag: object) -> str:
     return str(tag).rsplit("}", 1)[-1].lower() if isinstance(tag, str) else ""
 
 
-def parse_xml(data: bytes) -> ParsedDocument:
+def parse_xml(data: bytes) -> ParsedDocument:  # noqa: C901 - one linear flow; splitting it is a DEV-33 follow-up
     try:
         root = SafeET.fromstring(data)
     except (SafeET.ParseError, DefusedXmlException) as exc:
@@ -406,7 +427,11 @@ def looks_like_heading(line: str) -> bool:
     if _MEDICAL.match(s):
         return True
     letters = [c for c in s if c.isalpha()]
-    if len(letters) >= 4 and sum(c.isupper() for c in letters) / len(letters) > 0.85 and len(s.split()) <= 12:
+    if (
+        len(letters) >= 4
+        and sum(c.isupper() for c in letters) / len(letters) > 0.85
+        and len(s.split()) <= 12
+    ):
         return not s.endswith((",", ";"))
     return bool(_CLAUSE.match(s)) and len(s) <= 70 and not s.rstrip().endswith((",", ";"))
 

@@ -51,7 +51,7 @@ export function ChatList() {
     void load();
     const onChange = () => void load();
     window.addEventListener(CHATS_CHANGED, onChange);
-    return () => window.removeEventListener(CHATS_CHANGED, onChange);
+    return () => { window.removeEventListener(CHATS_CHANGED, onChange); };
   }, [load]);
 
   async function rename(id: string) {
@@ -107,7 +107,7 @@ export function ChatList() {
                           autoFocus
                           value={draft}
                           maxLength={200}
-                          onChange={(e) => setDraft(e.target.value)}
+                          onChange={(e) => { setDraft(e.target.value); }}
                           onKeyDown={(e) => {
                             if (e.key === "Enter") void rename(c.id);
                             if (e.key === "Escape") setEditing(null);
@@ -118,7 +118,7 @@ export function ChatList() {
                         <button type="button" onClick={() => rename(c.id)} className="rounded p-1 text-ink-500 hover:bg-ink-100" aria-label="Save title">
                           <Check className="size-3.5" />
                         </button>
-                        <button type="button" onClick={() => setEditing(null)} className="rounded p-1 text-ink-500 hover:bg-ink-100" aria-label="Cancel">
+                        <button type="button" onClick={() => { setEditing(null); }} className="rounded p-1 text-ink-500 hover:bg-ink-100" aria-label="Cancel">
                           <X className="size-3.5" />
                         </button>
                       </li>
@@ -150,7 +150,7 @@ export function ChatList() {
                             >
                               Delete
                             </button>
-                            <button type="button" onClick={() => setConfirming(null)} className="rounded p-1 text-ink-500 hover:bg-ink-200" aria-label="Keep chat">
+                            <button type="button" onClick={() => { setConfirming(null); }} className="rounded p-1 text-ink-500 hover:bg-ink-200" aria-label="Keep chat">
                               <X className="size-3.5" />
                             </button>
                           </>
@@ -169,7 +169,7 @@ export function ChatList() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => setConfirming(c.id)}
+                              onClick={() => { setConfirming(c.id); }}
                               className="rounded p-1 text-ink-500 hover:bg-ink-200 hover:text-rose-700"
                               aria-label={`Delete ${c.title}`}
                             >

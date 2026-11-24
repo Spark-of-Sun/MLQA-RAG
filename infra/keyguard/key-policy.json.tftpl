@@ -1,0 +1,62 @@
+{
+  "Version": "2012-10-17",
+  "Id": "lmqa-org-cmk",
+  "Statement": [
+    {
+      "Sid": "AccountRootForIAMDelegationOnly",
+      "Effect": "Allow",
+      "Principal": {"AWS": "arn:aws:iam::${account_id}:root"},
+      "Action": ["kms:DescribeKey", "kms:GetKeyPolicy", "kms:ListResourceTags", "kms:GetKeyRotationStatus"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ServicesUseOnlyWithOrgContext",
+      "Effect": "Allow",
+      "Principal": {"AWS": ${service_role_arns}},
+      "Action": ["kms:Encrypt", "kms:Decrypt", "kms:GenerateDataKey", "kms:ReEncrypt*"],
+      "Resource": "*",
+      "Condition": {"StringEquals": {"kms:EncryptionContext:org_id": "${org_id}"}}
+    },
+    {
+      "Sid": "KeyGuardDestroyerWithTwoApprovals",
+      "Effect": "Allow",
+      "Principal": {"AWS": "arn:aws:iam::${account_id}:role/keyguard-destroyer"},
+      "Action": ["kms:ScheduleKeyDeletion", "kms:DisableKey"],
+      "Resource": "*",
+      "Condition": {
+        "Null": {"aws:PrincipalTag/lmqa:approval_1": "false", "aws:PrincipalTag/lmqa:approval_2": "false"},
+        "NumericGreaterThanEquals": {"kms:ScheduleKeyDeletionPendingWindowInDays": "${min_window_days}"}
+      }
+    },
+    {
+      "Sid": "KeyAdminPolicyChangesWithMFA",
+      "Effect": "Allow",
+      "Principal": {"AWS": "arn:aws:iam::${account_id}:role/key-admin"},
+      "Action": ["kms:PutKeyPolicy", "kms:TagResource", "kms:UntagResource", "kms:EnableKeyRotation"],
+      "Resource": "*",
+      "Condition": {"Bool": {"aws:MultiFactorAuthPresent": "true"}}
+    },
+    {
+      "Sid": "ResponderRestoresOnly",
+      "Effect": "Allow",
+      "Principal": {"AWS": "arn:aws:iam::${account_id}:role/keyguard-responder"},
+      "Action": ["kms:CancelKeyDeletion", "kms:EnableKey", "kms:DescribeKey"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "DenyDestructionToEveryoneElse",
+      "Effect": "Deny",
+      "Principal": {"AWS": "*"},
+      "Action": ["kms:ScheduleKeyDeletion", "kms:DisableKey", "kms:PutKeyPolicy", "kms:DeleteImportedKeyMaterial"],
+      "Resource": "*",
+      "Condition": {
+        "ArnNotLike": {
+          "aws:PrincipalArn": [
+            "arn:aws:iam::${account_id}:role/keyguard-destroyer",
+            "arn:aws:iam::${account_id}:role/key-admin"
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -21,15 +21,19 @@ from fastapi.routing import APIRoute
 from pydantic import BaseModel, Field
 
 from audit import AuditService
+from gateway import frozen
 from gateway.conversations import Conversations
+from gateway.production import ProductionServices, StepUpRequired, register_production_routes
 from gateway.query_flow import QueryFlow
+from gateway.trust import needs_step_up, step_up_challenge
 from generation import GenerationService
 from identity import IdentityService
 from identity.ratelimit import SlidingWindow
 from ingestion import create_ingestion
 from lmqa_auth import TokenVerifier, Unauthorized
 from lmqa_db import Database
-from lmqa_models.contracts import authz_matrix
+from lmqa_keys import field_cipher_from_settings
+from lmqa_models.contracts import authz_matrix, feature_enabled, features, route_rules
 from lmqa_models.errors import ServiceError
 from lmqa_models.principal import Principal
 from lmqa_models.settings import ConfigError, Settings, load_settings
@@ -37,6 +41,10 @@ from retrieval import create_retrieval
 
 log = logging.getLogger("gateway")
 MATRIX = authz_matrix()
+RULES = route_rules()
+NOT_FOUND = (
+    "Not Found"  # Starlette's body for a path with no route, so a hidden route looks the same (R-2)
+)
 
 
 class CreateOrg(BaseModel):
@@ -74,19 +82,28 @@ class Services:
         self.settings = settings
         self.db = Database(settings)
         self.verifier = verifier or TokenVerifier(settings)
-        self.identity = IdentityService(settings, self.db)
-        self.documents, self.ingestor = create_ingestion(settings, self.db)
+        # One field cipher (and key cache) for the process; a workspace without a content key gets one from
+        # identity, which holds the key-table grants (R-51.2).
+        self.keys = field_cipher_from_settings()
+        self.identity = IdentityService(settings, self.db, self.keys)
+        self.keys.set_provisioner(self.identity.ensure_keys)
+        self.documents, self.ingestor = create_ingestion(settings, self.db, keys=self.keys)
         self.generation = GenerationService(settings)
-        self.retrieval = create_retrieval(settings, self.db, self.generation.reranker)
-        self.queries = QueryFlow(settings, self.db, self.retrieval, self.generation)
+        self.retrieval = create_retrieval(settings, self.db, self.keys, self.generation.reranker)
+        self.queries = QueryFlow(settings, self.db, self.retrieval, self.generation, self.keys)
         self.conversations = Conversations(self.db, self.queries)
-        self.audit = AuditService(self.db)
+        self.audit = AuditService(self.db, self.keys)
         self.query_limit = SlidingWindow(settings.queries_per_minute, 60)
         self.upload_limit = SlidingWindow(60, 60)
+        self.production = ProductionServices(settings, self)
+        self.policy = self.production.policy
 
 
-def create_app(
-    settings: Settings | None = None, *, verifier: TokenVerifier | None = None, resume_jobs: bool = True
+def create_app(  # noqa: C901, PLR0915 - one linear flow; splitting it is a DEV-33 follow-up
+    settings: Settings | None = None,
+    *,
+    verifier: TokenVerifier | None = None,
+    resume_jobs: bool = True,
 ) -> FastAPI:
     settings = settings or load_settings()
     svc = Services(settings, verifier)
@@ -94,15 +111,19 @@ def create_app(
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         svc.db.open()
+        svc.production.start()  # revocation consumer (Valkey pub/sub)
         svc.retrieval.warm()  # load a local re-ranker in the background (nothing to load for RERANK_MODEL=llm)
         if resume_jobs and (n := svc.ingestor.resume_pending()):
             log.info("resumed %d pending ingestion job(s)", n)
         if not svc.generation.configured:
             log.warning(
-                "no answer model is configured (%s): questions will fail", ", ".join(svc.generation.client.missing())
+                "no answer model is configured (%s): questions will fail",
+                ", ".join(svc.generation.client.missing()),
             )
         if not settings.gemini_api_key:
-            log.warning("GEMINI_API_KEY is not set: uploads and search (Gemini embeddings) will fail until it is")
+            log.warning(
+                "GEMINI_API_KEY is not set: uploads and search (Gemini embeddings) will fail until it is"
+            )
         yield
         svc.ingestor.shutdown()
         svc.db.close()
@@ -117,6 +138,10 @@ def create_app(
     app.state.services = svc
 
     # ------------------------------------------------------------------ errors
+    @app.exception_handler(StepUpRequired)
+    async def _step_up(_: Request, exc: StepUpRequired) -> JSONResponse:
+        return step_up_challenge("passkey", exc.max_age)
+
     @app.exception_handler(ServiceError)
     async def _service_error(_: Request, exc: ServiceError) -> JSONResponse:
         if exc.status >= 500:
@@ -135,9 +160,11 @@ def create_app(
     # ------------------------------------------------------------------ the route guard
     def guard(request: Request) -> Principal | None:
         route = request.scope.get("route")
-        roles = MATRIX.get((request.method, getattr(route, "path", "")))
-        if roles is None:
-            raise HTTPException(404, "Not found")
+        key = (request.method, getattr(route, "path", ""))
+        roles = MATRIX.get(key)
+        if roles is None or not feature_enabled(RULES[key].feature):
+            # A disabled feature's endpoints do not exist (18): same status and body as a path with no route.
+            raise HTTPException(404, NOT_FOUND)
         if "public" in roles:
             return None
         header = request.headers.get("authorization", "")
@@ -148,7 +175,10 @@ def create_app(
             claims = svc.verifier.verify(token)
         except Unauthorized as exc:
             log.info("token rejected: %s", exc)
-            raise HTTPException(401, "Unauthorized", headers={"WWW-Authenticate": "Bearer"}) from None
+            raise HTTPException(
+                401, "Unauthorized", headers={"WWW-Authenticate": "Bearer"}
+            ) from None
+        request.state.claims = claims
         email, name = claims.email, claims.name
         if email is None and not svc.identity.known_email(claims.sub):
             email, name = svc.verifier.userinfo(token)
@@ -157,9 +187,16 @@ def create_app(
             return p
         m = p.membership
         if m is None or m.role not in roles:
-            raise HTTPException(404, "Not found")
+            raise HTTPException(404, NOT_FOUND)
         if not m.active:
             raise HTTPException(403, "membership_not_active")
+        if RULES[key].step_up and needs_step_up(
+            claims.auth_strength,
+            claims.auth_time,
+            required="passkey",
+            max_age=svc.policy.step_up_max_age,
+        ):
+            raise StepUpRequired(svc.policy.step_up_max_age)
         return p
 
     def principal(p: Annotated[Principal | None, Depends(guard)]) -> Principal:
@@ -181,18 +218,20 @@ def create_app(
     # ------------------------------------------------------------------ health and me
     @app.get("/v1/health")
     def health() -> dict[str, Any]:
-        with svc.db.system() as conn:
-            conn.execute("select 1")
+        svc.db.ping()
         return {
             "status": "ok",
             "llm_configured": svc.generation.configured,
             "model": svc.generation.client.model,
             "reranker": svc.retrieval.reranker.model if svc.retrieval.reranker else None,
+            # The public website has no signed-in user to read /v1/me from; it reads this flag (frozen, DEV-21).
+            "public_site": feature_enabled("public_site"),
         }
 
     @app.get("/v1/me")
     def me(p: P) -> dict[str, Any]:
-        return svc.identity.me(p)
+        # Enabled feature flags let the UI hide screens whose routes answer 404 (convenience, not control).
+        return {**svc.identity.me(p), "features": sorted(n for n, on in features().items() if on)}
 
     @app.get("/v1/profile")
     def profile(p: P) -> dict[str, Any]:
@@ -226,7 +265,7 @@ def create_app(
     # ------------------------------------------------------------------ Super Admin
     @app.get("/v1/org/admins")
     def list_admins(p: P) -> list[dict[str, Any]]:
-        return svc.identity.list_admins(p)
+        return frozen.admin_rows(svc.identity.list_admins(p))
 
     @app.post("/v1/org/admins/{membership_id}/{action}")
     def decide_admin(p: P, membership_id: UUID, action: str) -> dict[str, Any]:
@@ -243,7 +282,7 @@ def create_app(
     # ------------------------------------------------------------------ Admin
     @app.get("/v1/workspace/members")
     def list_members(p: P) -> list[dict[str, Any]]:
-        return svc.identity.list_members(p)
+        return frozen.member_rows(svc.identity.list_members(p))
 
     @app.post("/v1/workspace/members/{membership_id}/{action}")
     def decide_member(p: P, membership_id: UUID, action: str) -> dict[str, Any]:
@@ -273,7 +312,9 @@ def create_app(
         if svc.upload_limit.hit(p.user_id):
             raise HTTPException(429, "Too many uploads. Try again in a minute.")
         data = file.file.read(settings.upload_max_mb * 1024 * 1024 + 1)
-        return svc.documents.upload(p, file.filename or "upload", data, visibility, title, share_with)
+        return svc.documents.upload(
+            p, file.filename or "upload", data, visibility, title, share_with
+        )
 
     @app.get("/v1/documents/{doc_id}")
     def get_document(p: P, doc_id: UUID) -> dict[str, Any]:
@@ -299,7 +340,9 @@ def create_app(
         return result
 
     @app.get("/v1/conversations")
-    def list_conversations(p: P, limit: Annotated[int, Query(ge=1, le=200)] = 50) -> list[dict[str, Any]]:
+    def list_conversations(
+        p: P, limit: Annotated[int, Query(ge=1, le=200)] = 50
+    ) -> list[dict[str, Any]]:
         return svc.conversations.list(p, limit)
 
     @app.get("/v1/conversations/{conversation_id}")
@@ -316,7 +359,7 @@ def create_app(
 
     # ------------------------------------------------------------------ audit
     @app.get("/v1/audit")
-    def audit_events(
+    def audit_events(  # noqa: PLR0913, PLR0917 - one linear flow; splitting it is a DEV-33 follow-up
         p: P,
         limit: Annotated[int, Query(ge=1, le=500)] = 100,
         before: Annotated[int | None, Query(ge=1)] = None,
@@ -328,13 +371,22 @@ def create_app(
         q: Annotated[str | None, Query(max_length=100)] = None,
     ) -> list[dict[str, Any]]:
         return svc.audit.events(
-            p, limit, before, category=category, action=action, actor=actor, since=since, until=until, q=q
+            p,
+            limit,
+            before,
+            category=category,
+            action=action,
+            actor=actor,
+            since=since,
+            until=until,
+            q=q,
         )
 
     @app.get("/v1/audit/verify")
     def audit_verify(p: P) -> dict[str, Any]:
         return svc.audit.verify(p)
 
+    register_production_routes(app, svc, P)
     _check_matrix_drift(app)
     return app
 

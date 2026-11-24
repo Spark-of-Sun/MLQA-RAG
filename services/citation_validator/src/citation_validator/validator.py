@@ -35,7 +35,9 @@ from lmqa_models.rag import CANONICAL_REFUSAL, Source
 
 ALIAS = re.compile(r"^S([1-9]\d?)$")
 _SCOPED_REFUSAL = re.compile(r"^The provided documents do not address [^.,;:!?()\[\]\n]{3,140}\.$")
-_SCOPED_LINKS = re.compile(r"\b(?:but|however|although|though|because|since|instead|whereas|while|yet|so|is)\b")
+_SCOPED_LINKS = re.compile(
+    r"\b(?:but|however|although|though|because|since|instead|whereas|while|yet|so|is)\b"
+)
 _INLINE_TAG = re.compile(r"\s*[\[(](?:S\d+(?:\s*[,;]\s*S\d+)*)[\])]")
 _NUMBER = re.compile(r"(?<![A-Za-z])\d+(?:[.,]\d+)*")
 _WORD = re.compile(r"[a-z][a-z'-]{3,}")
@@ -392,7 +394,7 @@ def sha256_text(text: str) -> str:
 
 
 # ---------------------------------------------------------------------------- validation
-def validate(
+def validate(  # noqa: C901, PLR0912, PLR0915 - one linear flow; splitting it is a DEV-33 follow-up
     draft: dict[str, Any], ledger: dict[str, Source], *, entailment: bool = False
 ) -> tuple[bool, list[Verdict]]:
     """Check a model draft against the ledger. Returns (answerable flag, verdict per sentence).
@@ -414,7 +416,11 @@ def validate(
         verdicts.append(v)
 
         detail = text.removeprefix("The provided documents do not address ").lower()
-        if text != CANONICAL_REFUSAL and _SCOPED_REFUSAL.match(text) and not _SCOPED_LINKS.search(detail):  # V7
+        if (
+            text != CANONICAL_REFUSAL
+            and _SCOPED_REFUSAL.match(text)
+            and not _SCOPED_LINKS.search(detail)
+        ):  # V7
             v.refusal = True
             if cites:
                 v.fail("V7", "A refusal must not cite a source")
@@ -479,12 +485,17 @@ def validate(
         if share >= LEXICAL_MIN:
             v.passed("L")
         elif entailment and share >= LEXICAL_FLOOR:
-            v.passed("L", f"Paraphrased: {share:.0%} of the key terms match; meaning checked by entailment (V6)")
+            v.passed(
+                "L",
+                f"Paraphrased: {share:.0%} of the key terms match; meaning checked by entailment (V6)",
+            )
         else:
             v.fail("L", f"Only {share:.0%} of the sentence's key terms appear in the cited source")
             continue
 
-        unresolved = [a for a in v.aliases if not ledger[a].document_title or a not in v.spans]  # V8
+        unresolved = [
+            a for a in v.aliases if not ledger[a].document_title or a not in v.spans
+        ]  # V8
         if unresolved:
             v.fail("V8", f"Citation {unresolved[0]} does not resolve")
             continue
@@ -494,7 +505,10 @@ def validate(
 
 def entailment_claims(verdicts: list[Verdict]) -> list[tuple[int, str, list[str]]]:
     """Claims for V6: only sentences that passed every deterministic check, numbered from 1."""
-    return [(n, v.text, v.aliases) for n, v in enumerate((v for v in verdicts if v.ok and not v.refusal), start=1)]
+    return [
+        (n, v.text, v.aliases)
+        for n, v in enumerate((v for v in verdicts if v.ok and not v.refusal), start=1)
+    ]
 
 
 def apply_entailment(verdicts: list[Verdict], results: dict[int, tuple[bool, str]]) -> None:
@@ -503,10 +517,17 @@ def apply_entailment(verdicts: list[Verdict], results: dict[int, tuple[bool, str
         if supported:
             v.passed("V6", reason)
         else:
-            v.fail("V6", f"Not supported by the source: {reason}" if reason else "Not supported by the source")
+            v.fail(
+                "V6",
+                f"Not supported by the source: {reason}"
+                if reason
+                else "Not supported by the source",
+            )
 
 
-def recheck_integrity(verdicts: list[Verdict], ledger: dict[str, Source], current: dict[str, str]) -> None:
+def recheck_integrity(
+    verdicts: list[Verdict], ledger: dict[str, Source], current: dict[str, str]
+) -> None:
     """V3 at release: `current` maps chunk_id -> sha256 re-read under RLS immediately before release."""
     for v in verdicts:
         if v.ok and not v.refusal:
@@ -516,7 +537,9 @@ def recheck_integrity(verdicts: list[Verdict], ledger: dict[str, Source], curren
                     break
 
 
-def build_result(answerable: bool, verdicts: list[Verdict], ledger: dict[str, Source]) -> dict[str, Any]:
+def build_result(
+    answerable: bool, verdicts: list[Verdict], ledger: dict[str, Source]
+) -> dict[str, Any]:
     """The released answer: verified sentences, visible markers for removed ones, deterministic citations."""
     numbers_by_alias: dict[str, int] = {}
     highlights: dict[str, set[tuple[int, int]]] = {}
@@ -524,7 +547,9 @@ def build_result(answerable: bool, verdicts: list[Verdict], ledger: dict[str, So
     for v in verdicts:
         checks = [c.as_dict() for c in v.checks]
         if v.refusal and v.ok:
-            segments.append({"type": "refusal", "text": v.text})  # the canonical or a scoped refusal
+            segments.append(
+                {"type": "refusal", "text": v.text}
+            )  # the canonical or a scoped refusal
         elif v.ok:
             for alias in v.aliases:
                 numbers_by_alias.setdefault(alias, len(numbers_by_alias) + 1)
@@ -543,7 +568,9 @@ def build_result(answerable: bool, verdicts: list[Verdict], ledger: dict[str, So
     removed = sum(1 for s in segments if s["type"] == "removed")
     if verified == 0:  # V7: every content sentence failed -> canonical refusal
         outcome = "refused"
-        segments = [{"type": "refusal", "text": CANONICAL_REFUSAL}] + [s for s in segments if s["type"] == "removed"]
+        segments = [{"type": "refusal", "text": CANONICAL_REFUSAL}] + [
+            s for s in segments if s["type"] == "removed"
+        ]
     elif removed or any(s["type"] == "refusal" for s in segments):
         outcome = "partial"
     else:

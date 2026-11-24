@@ -41,7 +41,7 @@ export function ProfileForm({ role }: { role: Role }) {
     api
       .get<Profile>("profile")
       .then(fill)
-      .catch((e) => setError(errorMessage(e)));
+      .catch((e) => { setError(errorMessage(e)); });
   }, []);
 
   const dirty = profile !== null && FIELDS.some(({ key }) => (profile[key] ?? "") !== form[key].trim());

@@ -1,0 +1,129 @@
+# Supply-chain and code scanning (R-85 criteria 3 and 5). Runs on every change and weekly, so a new advisory against
+# unchanged dependencies still fails within the 72-hour (critical) and 7-day (high) windows. Secret scanning stays
+# in secret-scan.yml and in the gate.
+name: security
+
+on:
+  push:
+    branches: [main, beta]
+  pull_request:
+    branches: [main, beta]
+  schedule:
+    - cron: "41 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  SEMGREP_VERSION: "1.186.0"
+
+jobs:
+  dependency-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          enable-cache: true
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: 10
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: pip-audit
+        run: uv run --frozen pip-audit --progress-spinner off --skip-editable
+      - name: pnpm audit
+        run: pnpm --dir frontend audit --prod
+
+  semgrep:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+      - name: semgrep scan
+        run: >-
+          uvx --python 3.13 "semgrep==${SEMGREP_VERSION}" scan
+          --config p/default --error --metrics off
+          --exclude frontend/node_modules --exclude .venv
+
+  trivy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: trivy filesystem scan (vulnerabilities and misconfiguration)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+  sbom-grype:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: CycloneDX SBOM of the source tree
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: sbom.cdx.json
+          upload-artifact: false
+      - name: grype scan of the SBOM
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          sbom: sbom.cdx.json
+          fail-build: true
+          severity-cutoff: high
+          only-fixed: true
+          output-format: table
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sbom-${{ github.sha }}
+          path: sbom.cdx.json
+
+  toolchain-attestations:
+    # R-85 criterion 5: verify the release attestations of the uv and ruff builds the lockfile resolves to.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      attestations: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+      - name: gh attestation verify (uv, ruff)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          asset="x86_64-unknown-linux-gnu.tar.gz"
+          dir="$RUNNER_TEMP/attest"
+          uv_version="$(uv --version | awk '{print $2}')"
+          ruff_version="$(uv run --frozen ruff --version | awk '{print $2}')"
+          gh release download "$uv_version" --repo astral-sh/uv --pattern "uv-$asset" --dir "$dir"
+          gh release download "$ruff_version" --repo astral-sh/ruff --pattern "ruff-$asset" --dir "$dir"
+          gh attestation verify "$dir/uv-$asset" --repo astral-sh/uv
+          gh attestation verify "$dir/ruff-$asset" --repo astral-sh/ruff

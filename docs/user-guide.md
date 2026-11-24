@@ -358,7 +358,8 @@ Questions and answers are recorded as hashes, never as text. Titles of documents
 
 ### Verify hash chain
 
-Select **Verify hash chain** to recompute every event of your organization from the first one.
+Select **Verify hash chain** to recompute every audit chain of your organization (one per workspace and one for
+the organization) from its start.
 
 - **Chain intact** means nothing has been changed or removed.
 - **Tampering detected** means an event no longer matches its hash. Contact Onekami at help@onekami.site.

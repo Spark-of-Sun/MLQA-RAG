@@ -9,7 +9,7 @@ from dataclasses import dataclass
 class Membership:
     id: str
     role: str  # super_admin | admin | tenant
-    status: str  # pending | active | rejected | suspended
+    status: str  # pending_approval | active | rejected | suspended | removed (6.2)
     org_id: str
     org_name: str
     org_kind: str

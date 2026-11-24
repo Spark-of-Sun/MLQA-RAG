@@ -34,7 +34,19 @@ function toTurns(answers: Answer[]): Turn[] {
   return answers.map((a) => ({ key: a.id, question: a.question, answer: a }));
 }
 
-export function Chat({ conversationId, kind }: { conversationId: string | null; kind: "legal" | "medical" | "both" }) {
+/**
+ * `chats` is the frozen MVP-only chats feature (DEV-21): while it is off every question stands alone, nothing is
+ * read from or sent to `/conversations`, and the thread on screen is not kept anywhere.
+ */
+export function Chat({
+  conversationId,
+  chats,
+  kind,
+}: {
+  conversationId: string | null;
+  chats: boolean;
+  kind: "legal" | "medical" | "both";
+}) {
   const router = useRouter();
   const cached = conversationId ? threadCache.get(conversationId) : undefined;
   const [turns, setTurns] = useState<Turn[]>(cached?.turns ?? []);
@@ -72,17 +84,19 @@ export function Chat({ conversationId, kind }: { conversationId: string | null; 
     if (conversationId) {
       void loadThread(conversationId);
     } else {
-      api
-        .get<ChatSummary[]>("conversations?limit=1")
-        .then((list) => setLastChat(list[0] ?? null))
-        .catch(() => setLastChat(null));
+      if (chats) {
+        api
+          .get<ChatSummary[]>("conversations?limit=1")
+          .then((list) => { setLastChat(list[0] ?? null); })
+          .catch(() => { setLastChat(null); });
+      }
       api
         .get<{ status: string }[]>("documents")
-        .then((docs) => setDocCount(docs.filter((d) => d.status === "ready").length))
-        .catch(() => setDocCount(null));
+        .then((docs) => { setDocCount(docs.filter((d) => d.status === "ready").length); })
+        .catch(() => { setDocCount(null); });
     }
     input.current?.focus();
-  }, [conversationId, loadThread]);
+  }, [conversationId, chats, loadThread]);
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -91,8 +105,8 @@ export function Chat({ conversationId, kind }: { conversationId: string | null; 
   useEffect(() => {
     if (!busy) return;
     setElapsed(0);
-    const t = setInterval(() => setElapsed((s) => s + 1), 1000);
-    return () => clearInterval(t);
+    const t = setInterval(() => { setElapsed((s) => s + 1); }, 1000);
+    return () => { clearInterval(t); };
   }, [busy]);
 
   async function ask(text: string) {
@@ -104,10 +118,12 @@ export function Chat({ conversationId, kind }: { conversationId: string | null; 
     setBusy(true);
     setSelected(null);
     try {
-      const answer = await api.post<Answer>("queries", { question: q, conversation_id: conversationId ?? undefined });
+      const body = chats && conversationId ? { question: q, conversation_id: conversationId } : { question: q };
+      const answer = await api.post<Answer>("queries", body);
       const id = answer.conversation_id;
       const next = turnsRef.current.map((turn) => (turn.key === key ? { ...turn, answer } : turn));
       setTurns(next);
+      if (!chats || !id) return; // a single question: no chat to remember or open again
       threadCache.set(id, { title: answer.conversation_title ?? title, turns: next });
       notifyChatsChanged();
       if (!conversationId) {
@@ -152,8 +168,9 @@ export function Chat({ conversationId, kind }: { conversationId: string | null; 
                 </div>
                 <h1 className="text-2xl font-semibold tracking-tight text-ink-950">Ask your documents</h1>
                 <p className="mx-auto mt-2 max-w-lg text-sm text-ink-500">
-                  Answers use only the documents you can access. Ask follow-up questions in the same chat; every
-                  sentence is checked against the passage it cites, and anything unverified is removed.
+                  {chats
+                    ? "Answers use only the documents you can access. Ask follow-up questions in the same chat; every sentence is checked against the passage it cites, and anything unverified is removed."
+                    : "Answers use only the documents you can access. Each question is answered on its own; every sentence is checked against the passage it cites, and anything unverified is removed."}
                 </p>
                 {docCount === 0 && (
                   <div className="mx-auto mt-6 max-w-md">
@@ -214,7 +231,7 @@ export function Chat({ conversationId, kind }: { conversationId: string | null; 
                         )}
                       </div>
                     )}
-                    {turn.answer && <AnswerView answer={turn.answer} selected={selected} onSelect={(c) => setSelected(c)} />}
+                    {turn.answer && <AnswerView answer={turn.answer} selected={selected} onSelect={(c) => { setSelected(c); }} />}
                     {turn.error && <Alert>{turn.error}</Alert>}
                     {!turn.answer && !turn.error && <Working elapsed={elapsed} />}
                   </div>
@@ -240,7 +257,7 @@ export function Chat({ conversationId, kind }: { conversationId: string | null; 
               id="question"
               ref={input}
               value={question}
-              onChange={(e) => setQuestion(e.target.value)}
+              onChange={(e) => { setQuestion(e.target.value); }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
@@ -250,7 +267,7 @@ export function Chat({ conversationId, kind }: { conversationId: string | null; 
               rows={1}
               maxLength={2000}
               disabled={loading}
-              placeholder={turns.length ? "Ask a follow-up…" : "Ask a question about your documents…"}
+              placeholder={chats && turns.length ? "Ask a follow-up…" : "Ask a question about your documents…"}
               className="max-h-40 min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none placeholder:text-ink-400"
             />
             <button
@@ -268,7 +285,7 @@ export function Chat({ conversationId, kind }: { conversationId: string | null; 
         </form>
       </div>
 
-      {selected && <CitationPanel citation={selected} onClose={() => setSelected(null)} />}
+      {selected && <CitationPanel citation={selected} onClose={() => { setSelected(null); }} />}
     </div>
   );
 }

@@ -1,0 +1,126 @@
+# Feature flags bound to gates (blueprint 18, 19.6). A disabled feature's endpoints answer 404. A flag may be set to
+# `enabled = true` only when every gate in `gates` has a passing attestation in gates/ for the current commit;
+# `make features` (tools/gatekeeper.py features) checks this, and the gate runs it.
+#
+# The list mirrors the deviations in docs/mvp.md: each is production scope that is not yet proven.
+
+[feature.qdrant_vectors]
+description = "Vectors in Qdrant behind lmqa_vectorstore, PostgreSQL as final authority (MVP: pgvector)"
+gates = ["G5.1", "G5.2", "G5.4"]
+enabled = false
+
+[feature.self_hosted_models]
+description = "Self-hosted embedding, re-ranking and NLI models; no document text leaves the boundary"
+gates = ["G4.12", "G5.3", "G7.3"]
+enabled = false
+
+[feature.pinned_nli_validator]
+description = "V6 entailment with a pinned, calibrated NLI model (MVP: LLM entailment that can only remove)"
+gates = ["G7.3", "G7.4"]
+enabled = false
+
+[feature.sentence_streaming]
+description = "Sentence-gated SSE delivery with signed verdicts and resume (MVP: buffered)"
+gates = ["G7.7", "G7.9", "G7.11", "G8.4"]
+enabled = false
+
+[feature.envelope_encryption]
+description = "KeyGuard and crypto-shredding (column encryption under per-organization keys is always on since task 3.7)"
+gates = ["G1.10", "G1.11", "G1.12"]
+enabled = false
+
+[feature.auth0_organizations]
+description = "Auth0 Organizations, passkeys, step-up and a separate onboarding audience"
+gates = ["G2.3", "G2.6", "G2.7"]
+enabled = false
+
+[feature.server_side_sessions]
+description = "Valkey-backed server-side session store with an opaque session ID"
+gates = ["G8.5"]
+enabled = false
+
+[feature.context_tokens]
+description = "Context tokens with KMS-certified signer keys and revocation pub/sub"
+gates = ["G3.3", "G3.4", "G3.5"]
+enabled = false
+
+[feature.matters_walls_tiers]
+description = "Matters, confidentiality tiers, ethical walls, emergency access and break-glass"
+gates = ["G5.5", "G5.6", "G5.7", "G9.8"]
+enabled = false
+
+[feature.governance_requests]
+description = "Two-person governance requests, co-owner, successor transfer and owner recovery"
+gates = ["G2.10", "G9.11"]
+enabled = false
+
+[feature.operator_plane]
+description = "Operator plane with JIT access"
+gates = ["G9.7"]
+enabled = false
+
+[feature.malware_scan_ocr]
+description = "ClamAV scanning, OCR with confidence and the quarantine path"
+gates = ["G4.1", "G4.5"]
+enabled = false
+
+[feature.object_store]
+description = "Originals in the S3-compatible object store with application-level encryption (MVP: local disk)"
+gates = ["G4.1", "G4.11"]
+enabled = false
+
+# --- Frozen MVP-only features (DEV-21, KD-13) ------------------------------------------------------------------
+# Not in the design. Kept, not deleted, until Q-04 (and Q-39 for chats) is answered. `pending` lists the open
+# questions: the gatekeeper rejects `enabled = true` while `pending` is non-empty, whatever the attestations say.
+# While off, the feature's gateway routes answer 404 like an unlisted route, its request fields are refused, its
+# screens are hidden and its background work does not run. None of them may add an allow path to a read: rules 7a
+# and 7b in `app_can_read` are removed by task 3.4, and until then no code path can create a share or a
+# `workspace` document.
+
+[feature.chats]
+description = "Chats (conversations) with LLM query planning: follow-up rewriting and alternative phrasings sent to an LLM before retrieval"
+gates = ["G5.3", "G6.4", "G6.6"]
+pending = ["Q-04", "Q-39"]
+enabled = false
+
+[feature.profiles]
+description = "Member profiles (job title, department, phone) edited on the Profile page and shown to the admin"
+gates = ["G1.11", "G8.3"]
+pending = ["Q-04"]
+enabled = false
+
+[feature.named_shares]
+description = "Named document shares (document_shares, MVP rule 7b): a member with their admin, the admin with chosen members"
+gates = ["G1.4", "G5.4", "G5.6"]
+pending = ["Q-04", "Q-05"]
+enabled = false
+
+[feature.workspace_visibility]
+description = "Document visibility `workspace` (MVP rule 7a): the admin shares a document with every member"
+gates = ["G1.4", "G5.4", "G5.6"]
+pending = ["Q-04", "Q-05"]
+enabled = false
+
+[feature.usage_counts]
+description = "Usage counts per member and per workspace (documents, questions, tokens) in Manage members and Manage admins"
+gates = ["G8.3"]
+pending = ["Q-04"]
+enabled = false
+
+[feature.public_site]
+description = "Public marketing website and role-gated docs under frontend/src/app/(site)"
+gates = ["G8.1", "G8.9"]
+pending = ["Q-04"]
+enabled = false
+
+[feature.llm_reranker]
+description = "Re-ranking by the answer LLM chain (RERANK_MODEL=llm) instead of the local cross-encoder"
+gates = ["G5.3", "G5.11", "G6.4"]
+pending = ["Q-04"]
+enabled = false
+
+[feature.quota_rotation]
+description = "Multi-key Gemini quota rotation (GEMINI_API_KEYS) with the local quota counter (data/usage/quota.json)"
+gates = ["G6.8", "G9.4"]
+pending = ["Q-04"]
+enabled = false

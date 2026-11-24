@@ -33,8 +33,8 @@ export function FlowSteps() {
 
   useEffect(() => {
     if (paused || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const t = setTimeout(() => setActive((a) => (a + 1) % STEPS.length), STEP_MS);
-    return () => clearTimeout(t);
+    const t = setTimeout(() => { setActive((a) => (a + 1) % STEPS.length); }, STEP_MS);
+    return () => { clearTimeout(t); };
   }, [active, paused]);
 
   return (

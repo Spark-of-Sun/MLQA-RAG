@@ -3,9 +3,10 @@ name = "identity"
 version = "0.1.0"
 description = "Identity service: principals, onboarding paths A/B/C, join codes, approvals (blueprint 7)."
 requires-python = ">=3.14"
-dependencies = ["lmqa-models", "lmqa-db", "lmqa-audit", "lmqa-security"]
+dependencies = ["lmqa-models", "lmqa-db", "lmqa-audit", "lmqa-security", "lmqa-keys", "httpx>=0.28", "valkey>=6.2"]
 
 [tool.uv.sources]
+lmqa-keys = { workspace = true }
 lmqa-models = { workspace = true }
 lmqa-db = { workspace = true }
 lmqa-audit = { workspace = true }

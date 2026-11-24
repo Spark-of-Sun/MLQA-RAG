@@ -1,16 +1,11 @@
 -- Row-level security policies (blueprint 5.4). Re-applied on every migrate.
 --
--- MVP access decision, in order:
---   1. membership, workspace or organization not active             -> deny (app_active_workspace() is NULL)
---   3. the document is the caller's own                               -> allow
---   4/5. visibility 'workspace' (shared with the whole workspace)     -> allow for its admin and members
---   5'. an explicit share to the caller (document_shares)             -> allow
---   8. anything else, including another member's private document    -> deny
--- Admins do NOT read members' private documents unless the member shared that document with them (rule 7 needs a
--- break-glass session, a later stage). Matters, walls, tiers and emergency access (rules 2, 5, 6) are later stages;
--- see docs/mvp.md.
+-- The access decision is app_can_read() in 11_access.sql: rules 1 to 8 of blueprint 5.4 and nothing else (KD-3).
+-- The MVP rules 7a (visibility 'workspace') and 7b (document_shares) were migrated out (DEV-14, 0011_access_rules).
+-- document_shares stays as a table for the frozen named_shares feature (task 3.6); no content policy reads it.
 
--- Shares: the owner sees every share of their documents, a recipient sees only their own share.
+-- Shares: the owner sees every share of their documents, a recipient sees only their own share. A share row grants
+-- no access to the document.
 drop policy if exists document_shares_read on document_shares;
 create policy document_shares_read on document_shares for select using (
     workspace_id = (select app_active_workspace())
@@ -28,34 +23,27 @@ create policy document_shares_insert on document_shares for insert with check (
 
 drop policy if exists documents_read on documents;
 create policy documents_read on documents for select using (
-    workspace_id = (select app_active_workspace())
-    and (visibility = 'workspace' or owner_id = (select app_user_id())
-         or exists (select 1 from document_shares s where s.document_id = documents.id
-                    and s.user_id = (select app_user_id())))
+    app_can_read(workspace_id, owner_id, visibility, matter_id, tier, id)
 );
 
--- Members may add only private documents; the admin may also share with the workspace.
+-- 5.5 upload tier ceiling (R-5.3): the uploader's own ceiling on the target (app_upload_ceiling in 11_access.sql).
 drop policy if exists documents_insert on documents;
 create policy documents_insert on documents for insert with check (
     workspace_id = (select app_active_workspace())
     and owner_id = (select app_user_id())
-    and (visibility = 'private' or (select app_active_role()) = 'admin')
+    and tier <= coalesce(app_upload_ceiling(visibility, matter_id), 0)
 );
 
--- The owner may delete; the admin may also delete shared workspace documents. A recipient of a share may not.
+-- The owner may delete their own document. A recipient of a share may not.
 drop policy if exists documents_delete on documents;
 create policy documents_delete on documents for delete using (
     workspace_id = (select app_active_workspace())
-    and (owner_id = (select app_user_id())
-         or (visibility = 'workspace' and (select app_active_role()) = 'admin'))
+    and owner_id = (select app_user_id())
 );
 
 drop policy if exists chunks_read on chunks;
 create policy chunks_read on chunks for select using (
-    workspace_id = (select app_active_workspace())
-    and (visibility = 'workspace' or owner_id = (select app_user_id())
-         or exists (select 1 from document_shares s where s.document_id = chunks.document_id
-                    and s.user_id = (select app_user_id())))
+    app_can_read(workspace_id, owner_id, visibility, matter_id, tier, document_id)
 );
 
 drop policy if exists queries_own on queries;
@@ -74,3 +62,9 @@ drop policy if exists retrieval_records_own on retrieval_records;
 create policy retrieval_records_own on retrieval_records for all
     using (exists (select 1 from queries q where q.id = query_id))
     with check (exists (select 1 from queries q where q.id = query_id));
+
+-- Released segments follow their query: only the asker reads them (DEF-63).
+drop policy if exists query_segments_own on query_segments;
+create policy query_segments_own on query_segments for all
+    using (user_id = (select app_user_id()) and workspace_id = (select app_active_workspace()))
+    with check (user_id = (select app_user_id()) and workspace_id = (select app_active_workspace()));

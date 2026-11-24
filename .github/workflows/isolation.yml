@@ -1,0 +1,39 @@
+# The cross-scope isolation suite (pytest marker `isolation`, blueprint 21; R-93, R-95) on every pull request and
+# push, against the real Compose stack. A failure here is an isolation incident under R-93 criterion 9.
+name: isolation
+
+on:
+  push:
+    branches: [main, beta]
+  pull_request:
+    branches: [main, beta]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: isolation-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  isolation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          enable-cache: true
+      - name: Install Python dependencies
+        run: uv sync --frozen
+      - name: Generate throwaway local secrets for the runner's stack
+        run: uv run --frozen python tools/gen_env.py
+      - run: make up
+      - name: pytest -m isolation (no live lanes)
+        run: uv run --frozen pytest -m "isolation and not live_auth0 and not live_kms and not live_llm"
+      - name: Stop the stack
+        if: always()
+        run: make down

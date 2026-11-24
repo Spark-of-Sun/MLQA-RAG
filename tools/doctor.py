@@ -14,6 +14,7 @@ import psycopg
 
 from generation.llm_client import LLMClient, LLMError
 from generation.rerank import LLMReranker
+from lmqa_db import connect_role as connect
 from lmqa_models.envfile import merged_env
 from lmqa_models.quota import rotate
 from lmqa_models.settings import EMBEDDING_DIM, LLM_RERANK, Settings, load_settings
@@ -31,7 +32,7 @@ def report(status: str, what: str, detail: str = "") -> None:
 
 
 def check_settings(env: dict[str, str]) -> None:
-    print("\nSettings (.env / .secrets / .secrets.generated)")
+    print("\nSettings (.env and the shell environment)")
     required = {
         "AUTH0_DOMAIN": "Auth0 tenant domain",
         "AUTH0_CLIENT_ID_BFF": "Auth0 Regular Web Application client id",
@@ -43,21 +44,29 @@ def check_settings(env: dict[str, str]) -> None:
         "GEMINI_API_KEY": "Google AI Studio key (embeddings always; answers when LLM_PROVIDER=gemini)",
     }
     for key, what in required.items():
-        present = bool(env.get(key)) or (key == "GEMINI_API_KEY" and bool(env.get("GOOGLE_API_KEY")))
+        present = bool(env.get(key)) or (
+            key == "GEMINI_API_KEY" and bool(env.get("GOOGLE_API_KEY"))
+        )
         report(OK if present else FAIL, key, "set" if present else f"missing ({what})")
     s = load_settings()
     report(OK, "LLM_PROVIDER", s.llm_provider)
-    report(OK if s.llm_models else FAIL, "answer models", " -> ".join(s.llm_models) or "LLM_MODEL is not set")
+    report(
+        OK if s.llm_models else FAIL,
+        "answer models",
+        " -> ".join(s.llm_models) or "LLM_MODEL is not set",
+    )
 
 
 def check_database() -> None:
     print("\nDatabase")
     s = load_settings()
     try:
-        with psycopg.connect(s.dsn("lmqa_owner"), connect_timeout=5) as conn:
+        with connect(s, "lmqa_owner", connect_timeout=5) as conn:
             version = conn.execute("show server_version").fetchone()
-            vec = conn.execute("select extversion from pg_extension where extname = 'vector'").fetchone()
-            applied = conn.execute("select count(*) from schema_migrations").fetchone()
+            vec = conn.execute(
+                "select extversion from pg_extension where extname = 'vector'"
+            ).fetchone()
+            applied = conn.execute("select version_num from alembic_version").fetchone()
             forced = conn.execute(
                 "select count(*) from pg_class where relname in"
                 " ('documents', 'chunks', 'queries', 'retrieval_records', 'conversations', 'document_shares')"
@@ -68,17 +77,29 @@ def check_database() -> None:
             ).fetchall()
         report(OK, "PostgreSQL", f"{version[0] if version else '?'} on {s.db_host}:{s.db_port}")
         report(OK if vec else FAIL, "pgvector", vec[0] if vec else "extension missing")
-        report(OK, "migrations", f"{applied[0] if applied else 0} applied")
+        report(
+            OK if applied else FAIL,
+            "migrations",
+            f"alembic revision {applied[0]}" if applied else "not applied",
+        )
         report(
             OK if forced and forced[0] == 6 else FAIL,
             "row-level security",
             f"FORCE RLS on {forced[0] if forced else 0}/6 content tables",
         )
         app_ok = any(r[0] == "lmqa_app" and not r[1] and not r[2] for r in roles)
-        report(OK if app_ok else FAIL, "lmqa_app role", "non-superuser, NOBYPASSRLS" if app_ok else "misconfigured")
-        with psycopg.connect(s.dsn("lmqa_app"), connect_timeout=5) as conn:
+        report(
+            OK if app_ok else FAIL,
+            "lmqa_app role",
+            "non-superuser, NOBYPASSRLS" if app_ok else "misconfigured",
+        )
+        with connect(s, "lmqa_app", connect_timeout=5) as conn:
             leaked = conn.execute("select count(*) from documents").fetchone()
-        report(OK if leaked and leaked[0] == 0 else FAIL, "fail closed", "lmqa_app without a context sees 0 rows")
+        report(
+            OK if leaked and leaked[0] == 0 else FAIL,
+            "fail closed",
+            "lmqa_app without a context sees 0 rows",
+        )
     except psycopg.OperationalError as exc:
         report(FAIL, "PostgreSQL", f"{type(exc).__name__}: run `make db` and `make migrate`")
     except psycopg.errors.UndefinedTable:
@@ -101,7 +122,11 @@ def check_auth0(env: dict[str, str]) -> None:
             f"issuer {issuer}" if issuer else f"HTTP {disc.status_code}",
         )
         jwks = httpx.get(s.auth0_jwks_url, timeout=15)
-        report(OK if jwks.status_code == 200 and jwks.json().get("keys") else FAIL, "JWKS", f"HTTP {jwks.status_code}")
+        report(
+            OK if jwks.status_code == 200 and jwks.json().get("keys") else FAIL,
+            "JWKS",
+            f"HTTP {jwks.status_code}",
+        )
     except httpx.HTTPError as exc:
         report(FAIL, "Auth0 reachable", type(exc).__name__)
         return
@@ -120,11 +145,15 @@ def check_auth0(env: dict[str, str]) -> None:
             },
         )
         err = resp.json().get("error") if "json" in resp.headers.get("content-type", "") else None
-        if resp.status_code == 200 or (resp.status_code == 403 and err in {"unauthorized_client", "access_denied"}):
+        if resp.status_code == 200 or (
+            resp.status_code == 403 and err in {"unauthorized_client", "access_denied"}
+        ):
             report(OK, "web app credentials", "client id and secret accepted")
         else:
             report(
-                FAIL, "web app credentials", f"HTTP {resp.status_code} {err or ''} (check AUTH0_CLIENT_ID_BFF / SECRET)"
+                FAIL,
+                "web app credentials",
+                f"HTTP {resp.status_code} {err or ''} (check AUTH0_CLIENT_ID_BFF / SECRET)",
             )
 
     token = None
@@ -142,7 +171,9 @@ def check_auth0(env: dict[str, str]) -> None:
         )
         token = r.json().get("access_token") if r.status_code == 200 else None
     if token is None:
-        report(WARN, "Management API", "not available; check the dashboard settings in README by hand")
+        report(
+            WARN, "Management API", "not available; check the dashboard settings in README by hand"
+        )
         return
     headers = {"Authorization": f"Bearer {token}"}
     rs = httpx.get(f"https://{domain}/api/v2/resource-servers", headers=headers, timeout=15)
@@ -154,7 +185,11 @@ def check_auth0(env: dict[str, str]) -> None:
             "exists" if found else f"create an API with identifier {s.auth0_audience}",
         )
     else:
-        report(WARN, "API audience", f"cannot read (HTTP {rs.status_code}; M2M app needs read:resource_servers)")
+        report(
+            WARN,
+            "API audience",
+            f"cannot read (HTTP {rs.status_code}; M2M app needs read:resource_servers)",
+        )
     if cid:
         app = httpx.get(
             f"https://{domain}/api/v2/clients/{cid}",
@@ -166,11 +201,21 @@ def check_auth0(env: dict[str, str]) -> None:
             data: dict[str, Any] = app.json()
             callback = f"{s.app_base_url}/auth/callback"
             ok_cb = callback in (data.get("callbacks") or [])
-            report(OK if ok_cb else FAIL, "Allowed Callback URLs", "ok" if ok_cb else f"add {callback}")
+            report(
+                OK if ok_cb else FAIL, "Allowed Callback URLs", "ok" if ok_cb else f"add {callback}"
+            )
             ok_lo = s.app_base_url in (data.get("allowed_logout_urls") or [])
-            report(OK if ok_lo else FAIL, "Allowed Logout URLs", "ok" if ok_lo else f"add {s.app_base_url}")
+            report(
+                OK if ok_lo else FAIL,
+                "Allowed Logout URLs",
+                "ok" if ok_lo else f"add {s.app_base_url}",
+            )
         else:
-            report(WARN, "application settings", f"cannot read (HTTP {app.status_code}; M2M app needs read:clients)")
+            report(
+                WARN,
+                "application settings",
+                f"cannot read (HTTP {app.status_code}; M2M app needs read:clients)",
+            )
 
 
 def check_models() -> None:
@@ -180,7 +225,9 @@ def check_models() -> None:
     for name, provider in client.providers.items():
         missing = provider.missing()
         report(
-            OK if missing is None else FAIL, f"provider {name}", "configured" if missing is None else f"set {missing}"
+            OK if missing is None else FAIL,
+            f"provider {name}",
+            "configured" if missing is None else f"set {missing}",
         )
     gemini = client.gemini()
     if gemini is not None and gemini.configured:
@@ -191,7 +238,11 @@ def check_models() -> None:
             for p, model in chain:
                 if p == "gemini":
                     listed = model in available
-                    report(OK if listed else WARN, f"model {model}", "listed" if listed else "not listed for this key")
+                    report(
+                        OK if listed else WARN,
+                        f"model {model}",
+                        "listed" if listed else "not listed for this key",
+                    )
         except LLMError as exc:
             report(WARN, "Gemini model list", str(exc))
     if client.configured:
@@ -199,9 +250,15 @@ def check_models() -> None:
             out = client.generate_json(
                 system="Reply with JSON only.",
                 user='Return {"ok": true}.',
-                schema={"type": "OBJECT", "properties": {"ok": {"type": "BOOLEAN"}}, "required": ["ok"]},
+                schema={
+                    "type": "OBJECT",
+                    "properties": {"ok": {"type": "BOOLEAN"}},
+                    "required": ["ok"],
+                },
             )
-            report(OK if out.data.get("ok") is True else FAIL, "generation", f"answered by {out.model}")
+            report(
+                OK if out.data.get("ok") is True else FAIL, "generation", f"answered by {out.model}"
+            )
         except LLMError as exc:
             report(FAIL, "generation", str(exc))
     else:
@@ -210,10 +267,14 @@ def check_models() -> None:
     for i, model in enumerate(embedder.models):
         # The primary model must work; a fallback that fails only lowers resilience.
         try:
-            vec = embedder.embed_query("Either party may terminate this Agreement on thirty (30) days notice.", model)
+            vec = embedder.embed_query(
+                "Either party may terminate this Agreement on thirty (30) days notice.", model
+            )
             ok = len(vec) == EMBEDDING_DIM
             report(
-                OK if ok else FAIL, f"embeddings {model}", f"{len(vec)} dimensions" + ("" if i == 0 else " (fallback)")
+                OK if ok else FAIL,
+                f"embeddings {model}",
+                f"{len(vec)} dimensions" + ("" if i == 0 else " (fallback)"),
             )
         except EmbeddingError as exc:
             report(FAIL if i == 0 else WARN, f"embeddings {model}", str(exc))
@@ -237,37 +298,68 @@ def check_keys(s: Settings) -> None:
                 timeout=15,
             )
             ok = r.status_code == 200
-            report(OK if ok else FAIL, f"key {fp} ({where})", "accepted" if ok else f"rejected (HTTP {r.status_code})")
+            report(
+                OK if ok else FAIL,
+                f"key {fp} ({where})",
+                "accepted" if ok else f"rejected (HTTP {r.status_code})",
+            )
         except httpx.HTTPError as exc:
             report(WARN, f"key {fp} ({where})", f"could not check ({type(exc).__name__})")
     q = s.quota()
     if q is None:
-        report(WARN, "local quota counter", "off (QUOTA_TRACKING=off): refused requests are found out by sending them")
+        why = (
+            "QUOTA_TRACKING=off"
+            if s.quota_tracking is False
+            else "frozen: FEATURE_QUOTA_ROTATION off"
+        )
+        report(
+            WARN,
+            "local quota counter",
+            f"off ({why}): refused requests are found out by sending them",
+        )
         return
     n = q.questions
     if len(keys) > 1:
         nxt = rotate([fp for fp, _ in keys], n + 1)[0]
-        print(f"   questions so far: {n}; the next one starts on key {nxt} (one key per question, in turn)")
+        print(
+            f"   questions so far: {n}; the next one starts on key {nxt} (one key per question, in turn)"
+        )
     rows = q.snapshot()
     if not rows:
         print("   no requests counted today")
     for row in rows:
         limit = f"/{row['rpd']}" if row["rpd"] else ""
-        blocked = f", skipped for {int(row['blocked_for_s']) // 60} min" if row["blocked_for_s"] else ""
+        blocked = (
+            f", skipped for {int(row['blocked_for_s']) // 60} min" if row["blocked_for_s"] else ""
+        )
         calls = row["calls"]
-        outcomes = "  " + ", ".join(f"{k} {v}" for k, v in calls.items()) if isinstance(calls, dict) and calls else ""
-        print(f"   key {row['key']}  {row['model']:28} {row['today']}{limit} today{blocked}{outcomes}")
+        outcomes = (
+            "  " + ", ".join(f"{k} {v}" for k, v in calls.items())
+            if isinstance(calls, dict) and calls
+            else ""
+        )
+        print(
+            f"   key {row['key']}  {row['model']:28} {row['today']}{limit} today{blocked}{outcomes}"
+        )
 
 
 def check_reranker(s: Settings) -> None:
     """A local re-ranker is loaded and tried if downloaded (missing ones are fetched on first start); the LLM
     re-ranker (RERANK_MODEL=llm) is tried with one request on its chain."""
     if not s.rerank_model:
-        report(WARN, "re-ranker", "off (RERANK_MODEL=off): passages are not re-ranked or filtered by relevance")
+        report(
+            WARN,
+            "re-ranker",
+            "off (RERANK_MODEL=off): passages are not re-ranked or filtered by relevance",
+        )
         return
     if s.rerank_model == LLM_RERANK:
         reranker = LLMReranker(s)
-        report(OK if reranker.models else FAIL, "re-ranker llm", f"chain {' -> '.join(reranker.models) or 'empty'}")
+        report(
+            OK if reranker.models else FAIL,
+            "re-ranker llm",
+            f"chain {' -> '.join(reranker.models) or 'empty'}",
+        )
         try:
             scores = reranker.score(
                 "When must the severance benefit be paid?",
@@ -277,14 +369,20 @@ def check_reranker(s: Settings) -> None:
                 ],
             )
             ok = scores[0] > scores[1]
-            report(OK if ok else FAIL, "re-ranker llm", f"relevant {scores[0]:.2f} vs unrelated {scores[1]:.2f}")
+            report(
+                OK if ok else FAIL,
+                "re-ranker llm",
+                f"relevant {scores[0]:.2f} vs unrelated {scores[1]:.2f}",
+            )
         except RerankError as exc:
             report(FAIL, "re-ranker llm", str(exc))
         return
     cached = (s.model_cache_dir / f"models--{s.rerank_model.replace('/', '--')}").is_dir()
     if not cached:
         report(
-            OK, f"re-ranker {s.rerank_model}", f"not downloaded yet; fetched into {s.model_cache_dir} on first start"
+            OK,
+            f"re-ranker {s.rerank_model}",
+            f"not downloaded yet; fetched into {s.model_cache_dir} on first start",
         )
         return
     try:
@@ -297,16 +395,111 @@ def check_reranker(s: Settings) -> None:
         )
         ok = scores[0] > scores[1]
         report(
-            OK if ok else FAIL, f"re-ranker {s.rerank_model}", f"relevant {scores[0]:.2f} vs unrelated {scores[1]:.2f}"
+            OK if ok else FAIL,
+            f"re-ranker {s.rerank_model}",
+            f"relevant {scores[0]:.2f} vs unrelated {scores[1]:.2f}",
         )
     except RerankError as exc:
         report(FAIL, "re-ranker", str(exc))
+
+
+def check_infrastructure() -> None:
+    """G0.4: every local server reachable with its own credentials, versions equal the ledger, store capabilities."""
+    print("\nInfrastructure (make up)")
+    from lmqa_testing import infra as probes
+    from lmqa_testing.tools import load_tool
+
+    s = load_settings()
+    try:
+        with connect(s, "lmqa_app", via_pooler=True, connect_timeout=5) as conn:
+            conn.execute("select 1")
+        report(OK, "PgBouncer", "lmqa_app connects through the transaction pooler")
+    except psycopg.Error as exc:
+        report(FAIL, "PgBouncer", type(exc).__name__)
+    ledger = load_tool("gen_versions").read_ledger().get("Servers", {})
+    probes_by_name = {
+        "valkey": probes.valkey_version,
+        "qdrant": probes.qdrant_version,
+        "openbao": probes.openbao_version,
+    }
+    for name, probe in probes_by_name.items():
+        try:
+            version = probe()
+            same = version == ledger.get(name)
+            report(
+                OK if same else FAIL,
+                name,
+                version if same else f"{version}, ledger says {ledger.get(name)}",
+            )
+        except Exception as exc:
+            report(FAIL, name, f"unreachable ({type(exc).__name__}); run make up")
+    try:
+        caps = probes.object_store_capabilities()
+        detail = "versioning, presigned URLs, multipart, checksums, scoped credentials"
+        report(
+            OK if caps.all_ok else FAIL,
+            "object store (SeaweedFS)",
+            detail if caps.all_ok else str(caps.errors),
+        )
+    except Exception as exc:
+        report(FAIL, "object store (SeaweedFS)", f"unreachable ({type(exc).__name__}); run make up")
+    try:
+        reply = probes.clamd_command(b"VERSION")
+        report(OK, "ClamAV", reply.split("/", 2)[-1] if "/" in reply else reply)
+    except OSError:
+        report(
+            WARN, "ClamAV", "not running (make up-scan); needed from Stage 4 (G0.9 signature check)"
+        )
+
+
+def check_compatibility() -> None:
+    """R-87 cross-component constraints the doctor can prove against the running stack (make up), without any
+    extra live dependency: the Qdrant client stays pinned to the server's minor version, and Pydantic v2 is the
+    only major version installed (`pydantic.v1` is banned by ruff, TID251; this is the runtime half of that)."""
+    from importlib import metadata
+
+    print("\nCross-component compatibility (R-87)")
+    try:
+        from lmqa_testing import infra as probes
+
+        client_version = metadata.version("qdrant-client")
+        server_version = probes.qdrant_version()
+        client_minor = ".".join(client_version.split(".")[:2])
+        server_minor = ".".join(server_version.split(".")[:2])
+        same = client_minor == server_minor
+        report(
+            OK if same else FAIL,
+            "qdrant-client pinned to the server minor",
+            client_minor if same else f"client {client_version} vs server {server_version}",
+        )
+    except Exception as exc:
+        report(
+            FAIL, "qdrant-client / server minor", f"unreachable ({type(exc).__name__}); run make up"
+        )
+    pydantic_version = metadata.version("pydantic")
+    major = int(pydantic_version.split(".")[0])
+    report(OK if major >= 2 else FAIL, "Pydantic v2 only", pydantic_version)
+
+
+def check_external(env: dict[str, str]) -> None:
+    """G0.9 external dependencies. Credentials come from the AWS SDK chain; only presence is reported here."""
+    print("\nExternal dependencies (G0.7, G0.9)")
+    for key, what in {
+        "KMS_TRUST_ROOT_ID": "AWS KMS (dev account) trust root key",
+        "AUDIT_ANCHOR_BUCKET": "S3 bucket with Object Lock for audit anchors",
+        "IMAP_HOST": "test mailbox (IMAP)",
+        "SMTP_HOST": "outgoing mail (SMTP)",
+    }.items():
+        report(OK if env.get(key) else FAIL, key, "set" if env.get(key) else f"missing ({what})")
 
 
 def main() -> int:
     env = merged_env()
     check_settings(env)
     check_database()
+    check_infrastructure()
+    check_compatibility()
+    check_external(env)
     check_auth0(env)
     check_models()
     check_keys(load_settings())

@@ -48,7 +48,9 @@ class Reranker:
         self._cache_dir = cache_dir
         self._encoder: object | None = None
         self._load_lock = threading.Lock()
-        self._run_lock = threading.Lock()  # one inference at a time: the ONNX session already uses every core
+        self._run_lock = (
+            threading.Lock()
+        )  # one inference at a time: the ONNX session already uses every core
 
     def warm(self) -> None:
         """Load the model in a background thread so the first question does not wait for it."""
@@ -68,9 +70,13 @@ class Reranker:
 
                     self._cache_dir.mkdir(parents=True, exist_ok=True)
                     log.info("loading re-ranker %s (first run downloads it)", self.model)
-                    self._encoder = TextCrossEncoder(model_name=self.model, cache_dir=str(self._cache_dir))
+                    self._encoder = TextCrossEncoder(
+                        model_name=self.model, cache_dir=str(self._cache_dir)
+                    )
                 except Exception as exc:  # unknown model name, download failure, broken cache
-                    raise RerankError(f"re-ranker {self.model} could not be loaded ({type(exc).__name__})") from exc
+                    raise RerankError(
+                        f"re-ranker {self.model} could not be loaded ({type(exc).__name__})"
+                    ) from exc
             return self._encoder
 
     def score(self, query: str, passages: list[str]) -> list[float]:

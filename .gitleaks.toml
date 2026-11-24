@@ -1,0 +1,10 @@
+# Gitleaks config: the default rules plus reviewed false positives. Keep each allowlist as narrow as possible.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Auth0 password_policy takes a strength name (none, low, fair, good, excellent), not a password"
+targetRules = ["hashicorp-tf-password"]
+paths = ['''^(.*/)?infra/auth0/main\.tf$''']
+regexTarget = "line"
+regexes = ['''^\s*password_policy\s*=\s*"(none|low|fair|good|excellent)"\s*$''']

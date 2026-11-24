@@ -1,0 +1,91 @@
+# Fast feedback on every push and pull request (R-85, R-93; blueprint 19.6). The signed, cumulative gate is in
+# gates.yml; this workflow runs the same Makefile targets a developer runs locally and adds nothing of its own.
+name: ci
+
+on:
+  push:
+    branches: [main, beta]
+  pull_request:
+    branches: [main, beta]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  paths:
+    # Gatekeeper rule 1: changed paths must be owned by stages <= STAGE + 1.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          enable-cache: true
+      - name: make paths
+        env:
+          BASE: origin/${{ github.base_ref }}
+        run: make paths
+
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          enable-cache: true
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: 10
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: make install
+      - name: make lint (ruff format, ruff check, import-linter, frontend type check)
+        run: make lint
+      - name: pyright
+        run: uv run --frozen pyright
+      - name: frontend lint
+        run: pnpm --dir frontend lint
+      - name: frontend unit tests
+        run: pnpm --dir frontend test
+
+  test:
+    # pytest for stages 0..STAGE without the live lanes, against the real Compose stack.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          enable-cache: true
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: 10
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: make install
+      - name: Generate throwaway local secrets for the runner's stack
+        run: uv run --frozen python tools/gen_env.py
+      - run: make up
+      - run: make test
+      - name: Stop the stack
+        if: always()
+        run: make down

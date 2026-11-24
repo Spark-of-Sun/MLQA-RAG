@@ -1,8 +1,13 @@
 # secrets: only the template is tracked
 .env
 .env.*
+!.env.example
+.env.example
 .secrets
 .secrets.*
+# retired settings files, merged into .env (only .env is read now)
+.secrets.bak-merged
+.secrets.generated.bak-merged
 *.pem
 *.key
 # python
@@ -10,6 +15,7 @@ __pycache__/
 *.pyc
 .venv/
 .pytest_cache/
+.hypothesis/
 .ruff_cache/
 dist/
 *.egg-info/
@@ -24,16 +30,26 @@ data/
 corpus/data/*
 !corpus/data/.gitkeep
 
-# folders outside the product
+# folders outside the product (.kiro/ and project-blueprint/ are versioned: spec and design, Q-15)
 agent_work
-project-blueprint
-
-lmqa.json
-.kiro
-
 # build output that embeds server secrets
 .next-verify/
 **/.next-*/
 .env*.local
 example-env.txt
 temp.py
+
+# gate run artifacts (attestations gates/stage-*.json are kept)
+gates/*.junit.xml
+gates/coverage.json
+
+# OpenTofu/Terraform state and provider caches (state can hold client secrets)
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl.bak
+*.tfplan
+crash.log
+
+#kiro sensetive infor probably
+.kiro/specs/legal-medical-qa/reports

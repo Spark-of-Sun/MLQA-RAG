@@ -3,9 +3,10 @@ name = "citation-validator"
 version = "0.1.0"
 description = "Deterministic citation validator V1-V8 (blueprint 11.6). Imports no LLM client."
 requires-python = ">=3.14"
-dependencies = ["lmqa-models"]
+dependencies = ["lmqa-models", "lmqa-auth", "pyjwt[crypto]>=2.10"]
 
 [tool.uv.sources]
+lmqa-auth = { workspace = true }
 lmqa-models = { workspace = true }
 
 [build-system]

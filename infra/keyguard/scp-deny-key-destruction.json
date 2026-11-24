@@ -1,0 +1,26 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "LmqaDenyKeyDestructionOutsideKeyGuard",
+      "Effect": "Deny",
+      "Action": ["kms:ScheduleKeyDeletion", "kms:DisableKey", "kms:PutKeyPolicy", "kms:DeleteImportedKeyMaterial"],
+      "Resource": "*",
+      "Condition": {
+        "ArnNotLike": {
+          "aws:PrincipalArn": ["arn:aws:iam::*:role/keyguard-destroyer", "arn:aws:iam::*:role/key-admin"]
+        }
+      }
+    },
+    {
+      "Sid": "LmqaDenyShortDeletionWindows",
+      "Effect": "Deny",
+      "Action": "kms:ScheduleKeyDeletion",
+      "Resource": "*",
+      "Condition": {
+        "NumericLessThan": {"kms:ScheduleKeyDeletionPendingWindowInDays": "30"},
+        "StringNotEquals": {"aws:ResourceTag/drill": "true"}
+      }
+    }
+  ]
+}

@@ -93,8 +93,9 @@ function summary(e: AuditEvent): string {
   return "";
 }
 
-function chatLink(e: AuditEvent): string | null {
-  if (!e.actor_is_me || e.action === "conversation.deleted") return null;
+// Chats are a frozen MVP-only feature (DEV-21): with `chats` off there is no chat page to link to.
+function chatLink(e: AuditEvent, chats: boolean): string | null {
+  if (!chats || !e.actor_is_me || e.action === "conversation.deleted") return null;
   const id = e.action.startsWith("conversation.") ? e.target_id : (e.payload.conversation_id as string | undefined);
   return id ? `/chat/${id}` : null;
 }
@@ -126,7 +127,7 @@ function syncUrl(f: AuditFilters) {
 const INPUT =
   "rounded-lg border border-ink-200 bg-surface px-2.5 py-1.5 text-sm text-ink-800 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 focus:outline-none";
 
-export function AuditLog({ role, initial }: { role: Role; initial: AuditFilters }) {
+export function AuditLog({ role, initial, chats }: { role: Role; initial: AuditFilters; chats: boolean }) {
   const sections = SECTIONS[role];
   const [filters, setFilters] = useState<AuditFilters>(() => ({
     ...initial,
@@ -177,21 +178,21 @@ export function AuditLog({ role, initial }: { role: Role; initial: AuditFilters 
 
   // Free-text search waits for a pause in typing.
   useEffect(() => {
-    const t = setTimeout(() => setFilters((f) => (f.q === search ? f : { ...f, q: search })), 350);
-    return () => clearTimeout(t);
+    const t = setTimeout(() => { setFilters((f) => (f.q === search ? f : { ...f, q: search })); }, 350);
+    return () => { clearTimeout(t); };
   }, [search]);
 
   useEffect(() => {
     if (role === "admin") {
       api
         .get<MemberRow[]>("workspace/members")
-        .then((rows) => setPeople(rows.map((r) => ({ id: r.user_id, label: r.name || r.email || "Member" }))))
-        .catch(() => setPeople([]));
+        .then((rows) => { setPeople(rows.map((r) => ({ id: r.user_id, label: r.name || r.email || "Member" }))); })
+        .catch(() => { setPeople([]); });
     } else if (role === "super_admin") {
       api
         .get<AdminRow[]>("org/admins")
-        .then((rows) => setPeople(rows.map((r) => ({ id: r.user_id, label: r.name || r.email || "Admin" }))))
-        .catch(() => setPeople([]));
+        .then((rows) => { setPeople(rows.map((r) => ({ id: r.user_id, label: r.name || r.email || "Admin" }))); })
+        .catch(() => { setPeople([]); });
     }
   }, [role]);
 
@@ -255,7 +256,7 @@ export function AuditLog({ role, initial }: { role: Role; initial: AuditFilters 
             type="button"
             role="tab"
             aria-selected={filters.category === s.key}
-            onClick={() => set("category", s.key)}
+            onClick={() => { set("category", s.key); }}
             className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
               filters.category === s.key
                 ? "border-brand-600 text-brand-700"
@@ -275,14 +276,14 @@ export function AuditLog({ role, initial }: { role: Role; initial: AuditFilters 
             <Search className="pointer-events-none absolute top-2.5 left-2.5 size-4 text-ink-400" aria-hidden />
             <input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); }}
               placeholder="Search person, document title, outcome…"
               className={`${INPUT} w-full pl-8`}
             />
           </label>
           <label className="text-xs text-ink-500">
             <span className="mb-0.5 block">Event</span>
-            <select value={filters.action} onChange={(e) => set("action", e.target.value)} className={INPUT}>
+            <select value={filters.action} onChange={(e) => { set("action", e.target.value); }} className={INPUT}>
               <option value="">All events</option>
               {actions.map((a) => (
                 <option key={a} value={a}>
@@ -293,7 +294,7 @@ export function AuditLog({ role, initial }: { role: Role; initial: AuditFilters 
           </label>
           <label className="text-xs text-ink-500">
             <span className="mb-0.5 block">Person</span>
-            <select value={filters.actor} onChange={(e) => set("actor", e.target.value)} className={INPUT}>
+            <select value={filters.actor} onChange={(e) => { set("actor", e.target.value); }} className={INPUT}>
               <option value="">Anyone</option>
               <option value="me">Me</option>
               <option value="others">{role === "tenant" ? "My admin" : "Everyone but me"}</option>
@@ -306,11 +307,11 @@ export function AuditLog({ role, initial }: { role: Role; initial: AuditFilters 
           </label>
           <label className="text-xs text-ink-500">
             <span className="mb-0.5 block">From</span>
-            <input type="date" value={filters.from} max={filters.to || undefined} onChange={(e) => set("from", e.target.value)} className={INPUT} />
+            <input type="date" value={filters.from} max={filters.to || undefined} onChange={(e) => { set("from", e.target.value); }} className={INPUT} />
           </label>
           <label className="text-xs text-ink-500">
             <span className="mb-0.5 block">To</span>
-            <input type="date" value={filters.to} min={filters.from || undefined} onChange={(e) => set("to", e.target.value)} className={INPUT} />
+            <input type="date" value={filters.to} min={filters.from || undefined} onChange={(e) => { set("to", e.target.value); }} className={INPUT} />
           </label>
           <Button variant="ghost" onClick={reset} disabled={active === 0 && !search}>
             <RotateCcw className="size-4" aria-hidden /> Reset
@@ -337,12 +338,12 @@ export function AuditLog({ role, initial }: { role: Role; initial: AuditFilters 
             {events.map((e) => {
               const expanded = open === e.id;
               const cat = filters.category === "all" ? categoryOf(role, e.action) : undefined;
-              const link = chatLink(e);
+              const link = chatLink(e, chats);
               return (
                 <li key={e.id}>
                   <button
                     type="button"
-                    onClick={() => setOpen(expanded ? null : e.id)}
+                    onClick={() => { setOpen(expanded ? null : e.id); }}
                     aria-expanded={expanded}
                     className="flex w-full items-start gap-4 px-5 py-3 text-left hover:bg-surface-hover"
                   >

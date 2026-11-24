@@ -2,7 +2,8 @@
 
 Questions over legal and medical documents, answered only with machine-verified, page- and clause-level citations.
 Unsupported sentences are removed before anyone sees them; when the documents do not answer, the system refuses.
-Design: `project-blueprint/` (v3.0). What this MVP builds, and what it defers, is in [docs/mvp.md](docs/mvp.md).
+Design: `project-blueprint/` (v3.1). What this MVP builds, and what it defers, is in [docs/mvp.md](docs/mvp.md);
+the production build and its status (written, switched on, proven) is in [docs/production.md](docs/production.md).
 The product is called **Cyte** (by Onekami); the customer guide is [docs/user-guide.md](docs/user-guide.md).
 The public website (Home, Product, Industries, Security, Pricing, Docs, Company, Contact) is served by the same
 Next.js app, in `frontend/src/app/(site)/`. The docs at `/docs` are written from the blueprint
@@ -73,9 +74,18 @@ make eval       # retrieval quality on the public corpus (recall@k, MRR, nDCG, a
 make lint       # ruff format + ruff check + TypeScript
 ```
 
-Only the Auth0 login is simulated in these two scripts (tokens signed by a throwaway local key, verified by the
-same gateway code). Everything else is real: PostgreSQL row-level security, the public corpus, Gemini and the
-citation validator.
+Nothing is simulated, sign-in included. `make demo`, `make demo-web` and `make eval` use real accounts in the
+Auth0 tenant; no local key signs tokens. They need `AUTH0_DOMAIN`, `AUTH0_AUDIENCE_MAIN`, `AUTH0_CLIENT_ID_HARNESS`
+and `AUTH0_CLIENT_SECRET_HARNESS`, and each account signed in once through Universal Login with the auth harness:
+
+```sh
+uv run python tools/auth_harness.py serve &
+uv run python tools/auth_harness.py url --label demo-alice   # open the URL and sign in as that account
+```
+
+Labels: `demo-alice`, `demo-bob`, `demo-carol`, `demo-dave`, `demo-erin`, `demo-frank` (`make demo`),
+`demo-newcomer` (`make demo-web`), `eval-owner`, `eval-admin` (`make eval`). The stored refresh token keeps each
+session alive (`tools/real_identity.py`); a missing variable or label stops the command with a message naming it.
 
 ## Layout (blueprint 18)
 
@@ -88,7 +98,7 @@ prompts/        templates/, few_shot_examples/, registry.toml (hashed into every
 frontend/       Next.js 16: src/proxy.ts, src/app/(site) public website, (onboarding|app|account|super-admin|
                 workspace-admin) product screens, api/backend (BFF); public/ icons and the Onekami logo
 corpus/         manifest.toml (URL, licence, SHA-256) and fetchers.py; data/ is fetched, not committed
-tools/          doctor, gen_env, db_migrate, load_corpus, dev, demo, demo_web, withenv
+tools/          doctor, gen_env, db_migrate, load_corpus, dev, demo, demo_web, real_identity, auth_harness, withenv
 ```
 
 `make help` lists every target. `make db-reset` deletes all local data and starts with an empty database.

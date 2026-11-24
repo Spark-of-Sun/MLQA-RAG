@@ -15,17 +15,65 @@ import time
 
 from lmqa_models.envfile import ROOT, apply_to_process
 
-COLORS = {"api": "\033[36m", "web": "\033[35m"}
+COLORS = {
+    "api": "\033[36m",
+    "web": "\033[35m",
+    "idw": "\033[33m",
+    "aud": "\033[32m",
+    "ing": "\033[34m",
+    "idx": "\033[94m",
+    "rec": "\033[95m",
+}
 RESET = "\033[0m"
 
 
 def _pump(name: str, proc: subprocess.Popen[bytes]) -> None:
     assert proc.stdout is not None
     for raw in iter(proc.stdout.readline, b""):
-        print(f"{COLORS[name]}{name:>3}{RESET} | {raw.decode(errors='replace').rstrip()}", flush=True)
+        print(
+            f"{COLORS[name]}{name:>3}{RESET} | {raw.decode(errors='replace').rstrip()}", flush=True
+        )
+
+
+# Production background processes (`make workers`): each its own process, as in the deployed system (4.2).
+WORKERS = {
+    "idw": [sys.executable, "-m", "identity.worker"],
+    "aud": [sys.executable, "-m", "audit.worker"],
+    "ing": [sys.executable, "-m", "ingestion.production", "worker"],
+    "idx": [sys.executable, "-m", "ingestion.production", "indexer"],
+    "rec": [sys.executable, "-m", "ingestion.production", "reconciler"],
+}
+
+
+def run_workers() -> int:
+    apply_to_process()
+    procs = {
+        n: subprocess.Popen(  # noqa: S603 - fixed argv, no user input
+            cmd,
+            cwd=ROOT,
+            env=dict(os.environ),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        for n, cmd in WORKERS.items()
+    }
+    for name, proc in procs.items():
+        threading.Thread(target=_pump, args=(name, proc), daemon=True).start()
+    try:
+        while any(p.poll() is None for p in procs.values()):
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        for proc in procs.values():
+            if proc.poll() is None:
+                proc.terminate()
+    return 0
 
 
 def main() -> int:
+    if "--workers" in sys.argv:
+        return run_workers()
     prod = "--prod" in sys.argv
     apply_to_process()
     env = dict(os.environ)
@@ -33,7 +81,11 @@ def main() -> int:
     env.setdefault("LMQA_API_INTERNAL_URL", "http://127.0.0.1:8000")
     procs = {
         "api": subprocess.Popen(
-            [sys.executable, "-m", "gateway"], cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+            [sys.executable, "-m", "gateway"],
+            cwd=ROOT,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
         ),
         "web": subprocess.Popen(  # noqa: S603 - fixed argv, no user input
             ["pnpm", "start" if prod else "dev"],  # noqa: S607 - pnpm resolved from PATH on purpose
@@ -46,7 +98,9 @@ def main() -> int:
     }
     for name, proc in procs.items():
         threading.Thread(target=_pump, args=(name, proc), daemon=True).start()
-    print("\n  App:  http://localhost:3000   (use this address, not 127.0.0.1: Auth0 returns to localhost)")
+    print(
+        "\n  App:  http://localhost:3000   (use this address, not 127.0.0.1: Auth0 returns to localhost)"
+    )
     print("  API:  http://127.0.0.1:8000/docs\n  Ctrl+C stops both\n", flush=True)
     code = 0
     try:

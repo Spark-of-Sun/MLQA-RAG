@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from urllib.parse import quote
 
+from lmqa_models.contracts import feature_enabled
 from lmqa_models.envfile import ROOT, merged_env
-from lmqa_models.quota import DEFAULT_LIMITS, Limits, QuotaTracker, fingerprint, parse_limits, tracker_for
+from lmqa_models.quota import (
+    DEFAULT_LIMITS,
+    Limits,
+    QuotaTracker,
+    fingerprint,
+    parse_limits,
+    tracker_for,
+)
 
 EMBEDDING_DIM = 768  # fixed by the schema: chunks.embedding vector(768)
 # Answer and verification chain on the Gemini free tier: the strongest models first (about 20 requests a day each),
@@ -40,18 +48,52 @@ RERANK_TIMEOUT_SECONDS = 20.0
 # Answer providers (blueprint 11.8 provider boundary). Embeddings always use Gemini (GEMINI_EMBEDDING_MODEL).
 # kind: the wire protocol. base: default endpoint, overridable with <PROVIDER>_BASE_URL. key: the API key setting.
 PROVIDERS: dict[str, dict[str, str | None]] = {
-    "gemini": {"kind": "gemini", "base": "https://generativelanguage.googleapis.com/v1beta", "key": "GEMINI_API_KEY"},
-    "anthropic": {"kind": "anthropic", "base": "https://api.anthropic.com/v1", "key": "ANTHROPIC_API_KEY"},
+    "gemini": {
+        "kind": "gemini",
+        "base": "https://generativelanguage.googleapis.com/v1beta",
+        "key": "GEMINI_API_KEY",
+    },
+    "anthropic": {
+        "kind": "anthropic",
+        "base": "https://api.anthropic.com/v1",
+        "key": "ANTHROPIC_API_KEY",
+    },
     "openai": {"kind": "openai", "base": "https://api.openai.com/v1", "key": "OPENAI_API_KEY"},
     "groq": {"kind": "openai", "base": "https://api.groq.com/openai/v1", "key": "GROQ_API_KEY"},
-    "openrouter": {"kind": "openai", "base": "https://openrouter.ai/api/v1", "key": "OPENROUTER_API_KEY"},
-    "deepseek": {"kind": "openai", "base": "https://api.deepseek.com/v1", "key": "DEEPSEEK_API_KEY"},
+    "openrouter": {
+        "kind": "openai",
+        "base": "https://openrouter.ai/api/v1",
+        "key": "OPENROUTER_API_KEY",
+    },
+    "deepseek": {
+        "kind": "openai",
+        "base": "https://api.deepseek.com/v1",
+        "key": "DEEPSEEK_API_KEY",
+    },
     "mistral": {"kind": "openai", "base": "https://api.mistral.ai/v1", "key": "MISTRAL_API_KEY"},
-    "together": {"kind": "openai", "base": "https://api.together.xyz/v1", "key": "TOGETHER_API_KEY"},
+    "together": {
+        "kind": "openai",
+        "base": "https://api.together.xyz/v1",
+        "key": "TOGETHER_API_KEY",
+    },
     "ollama": {"kind": "openai", "base": "http://127.0.0.1:11434/v1", "key": None},
     # Any other OpenAI-compatible server (LM Studio, vLLM, a gateway): LLM_BASE_URL and LLM_API_KEY.
     "openai_compatible": {"kind": "openai", "base": None, "key": "LLM_API_KEY"},
 }
+
+
+DB_SERVICE_ROLES = (
+    "svc_gateway",
+    "svc_identity",
+    "svc_ingestion",
+    "svc_retrieval",
+    "svc_generation",
+    "svc_validator",
+    "svc_audit_reader",
+    "svc_reconciler",
+    "svc_ops",
+    "ops_metadata_ro",
+)
 
 
 class ConfigError(RuntimeError):
@@ -68,19 +110,20 @@ class Settings:
 
     # Auth0 authenticates; PostgreSQL authorizes (blueprint 1.2)
     auth0_domain: str | None = None
-    auth0_audience: str | None = None
+    auth0_audience: str | None = None  # API `main`: organization required once Organizations are on
+    auth0_audience_onboarding: str | None = None  # API `onboarding`: organization denied
+    auth0_organizations: bool = False  # AUTH0_ORGANIZATIONS=on: `main` tokens must carry an org_id
     auth0_claims_namespace: str = "https://claims.onekami.site"
-    auth0_issuer_override: str | None = None  # local simulation only
-    auth0_jwks_url_override: str | None = None  # local simulation only
 
-    # PostgreSQL: one container, three roles (lmqa_owner, lmqa_app, lmqa_system)
+    # PostgreSQL: one container; roles lmqa_owner, lmqa_app and one svc_* role per service (no BYPASSRLS role)
     db_host: str = "localhost"
     db_port: int = 5434
     db_name: str = "lmqa"
     db_superuser_password: str | None = None
     db_owner_password: str | None = None
     db_app_password: str | None = None
-    db_system_password: str | None = None
+    # Per-service roles (LMQA_DB_SVC_<NAME>_PASSWORD); pairs so the dataclass stays hashable and the repr stays clean.
+    db_role_passwords: tuple[tuple[str, str], ...] = field(default=(), repr=False)
 
     # Join codes (blueprint 7.6)
     code_pepper_id: str = "v1"
@@ -91,15 +134,21 @@ class Settings:
     # One key per Google Cloud project, each with its own quota; requests rotate across them (GEMINI_API_KEYS).
     gemini_api_keys: tuple[str, ...] = ()
     model_limits: tuple[tuple[str, Limits], ...] = tuple(DEFAULT_LIMITS.items())
-    quota_tracking: bool = True  # count requests locally and skip a key/model before the provider refuses it
+    quota_tracking: bool = (
+        True  # count requests locally and skip a key/model before the provider refuses it
+    )
     quota_file: Path = ROOT / "data" / "usage" / "quota.json"
     llm_provider: str = "gemini"
     llm_model: str = DEFAULT_MODEL
     # Each entry is a model of llm_provider, or "provider:model" for another provider.
     llm_fallback_models: tuple[str, ...] = DEFAULT_FALLBACK_MODELS
-    llm_keys: tuple[tuple[str, str], ...] = ()  # provider -> API key (pairs, so the dataclass stays hashable)
+    llm_keys: tuple[
+        tuple[str, str], ...
+    ] = ()  # provider -> API key (pairs, so the dataclass stays hashable)
     llm_base_urls: tuple[tuple[str, str], ...] = ()  # provider -> endpoint
-    llm_temperature: float | None = None  # unset: the provider's default (some reasoning models accept no other)
+    llm_temperature: float | None = (
+        None  # unset: the provider's default (some reasoning models accept no other)
+    )
     llm_thinking_level: str | None = "low"  # Gemini only
     llm_max_output_tokens: int = 8192
     llm_timeout_seconds: float = 40.0
@@ -111,13 +160,25 @@ class Settings:
 
     # RAG (blueprint 11.3, 11.4)
     retrieval_top_k: int = 12  # passages kept for the answer, at most
-    retrieval_prefetch: int = 100  # candidates per search channel and query (dense, full text, exact terms)
-    retrieval_neighbors: int = 1  # adjacent passages of the same section added around the best hits (0: off)
-    query_expansion: bool = True  # also search with model-written alternative phrasings of the question
-    rerank_model: str | None = "BAAI/bge-reranker-v2-m3"  # local cross-encoder, LLM_RERANK, or None: fused ranking
-    rerank_llm_models: tuple[str, ...] = ()  # chain for LLM_RERANK; empty: the answer chain in reverse
+    retrieval_prefetch: int = (
+        100  # candidates per search channel and query (dense, full text, exact terms)
+    )
+    retrieval_neighbors: int = (
+        1  # adjacent passages of the same section added around the best hits (0: off)
+    )
+    query_expansion: bool = (
+        True  # also search with model-written alternative phrasings of the question
+    )
+    rerank_model: str | None = (
+        "BAAI/bge-reranker-v2-m3"  # local cross-encoder, LLM_RERANK, or None: fused ranking
+    )
+    rerank_llm_models: tuple[
+        str, ...
+    ] = ()  # chain for LLM_RERANK; empty: the answer chain in reverse
     rerank_candidates: int = 40  # fused candidates the cross-encoder scores
-    rerank_min_score: float = 0.05  # relevance probability a passage needs to be used (calibrate with make eval)
+    rerank_min_score: float = (
+        0.05  # relevance probability a passage needs to be used (calibrate with make eval)
+    )
     model_cache_dir: Path = ROOT / "data" / "models"
     context_budget_tokens: int = 12000
 
@@ -127,32 +188,39 @@ class Settings:
     data_dir: Path = ROOT / "data"
 
     def __repr__(self) -> str:  # never print secrets
-        return f"Settings(app_env={self.app_env!r}, db={self.db_host}:{self.db_port}/{self.db_name})"
+        return (
+            f"Settings(app_env={self.app_env!r}, db={self.db_host}:{self.db_port}/{self.db_name})"
+        )
 
-    def dsn(self, role: str, *, database: str | None = None) -> str:
+    def dsn(
+        self,
+        role: str,
+        *,
+        database: str | None = None,
+        host: str | None = None,
+        port: int | None = None,
+    ) -> str:
         passwords = {
             "postgres": self.db_superuser_password,
             "lmqa_owner": self.db_owner_password,
             "lmqa_app": self.db_app_password,
-            "lmqa_system": self.db_system_password,
+            **dict(self.db_role_passwords),
         }
-        password = passwords[role]
+        password = passwords.get(role)
         if not password:
             raise ConfigError(f"Database password for role {role} is not set. Run: make setup")
         db = database or (self.db_name if role != "postgres" else "postgres")
-        return f"postgresql://{role}:{quote(password, safe='')}@{self.db_host}:{self.db_port}/{db}"
+        return f"postgresql://{role}:{quote(password, safe='')}@{host or self.db_host}:{port or self.db_port}/{db}"
 
     @property
     def auth0_issuer(self) -> str:
-        if self.auth0_issuer_override:
-            return self.auth0_issuer_override
         if not self.auth0_domain:
             raise ConfigError("AUTH0_DOMAIN is not set")
         return f"https://{self.auth0_domain}/"
 
     @property
     def auth0_jwks_url(self) -> str:
-        return self.auth0_jwks_url_override or f"{self.auth0_issuer}.well-known/jwks.json"
+        return f"{self.auth0_issuer}.well-known/jwks.json"
 
     @property
     def llm_chain(self) -> list[tuple[str, str]]:
@@ -161,7 +229,9 @@ class Settings:
         for entry in self.llm_fallback_models:
             head, sep, rest = entry.partition(":")
             # "ollama:llama3.1:8b" names a provider; "llama3.1:8b" is a model of the primary provider.
-            pairs.append((head, rest) if sep and head in PROVIDERS and rest else (self.llm_provider, entry))
+            pairs.append(
+                (head, rest) if sep and head in PROVIDERS and rest else (self.llm_provider, entry)
+            )
         return list(dict.fromkeys(pairs))
 
     @property
@@ -186,9 +256,15 @@ class Settings:
         if not self.query_model:
             return None
         head, sep, rest = self.query_model.partition(":")
-        provider, model = (head, rest) if sep and head in PROVIDERS and rest else (self.llm_provider, self.query_model)
+        provider, model = (
+            (head, rest)
+            if sep and head in PROVIDERS and rest
+            else (self.llm_provider, self.query_model)
+        )
         others = [*self.query_fallback_models, *(f"{p}:{m}" for p, m in self.llm_chain)]
-        return replace(self, llm_provider=provider, llm_model=model, llm_fallback_models=tuple(others))
+        return replace(
+            self, llm_provider=provider, llm_model=model, llm_fallback_models=tuple(others)
+        )
 
     def reranker_settings(self) -> Settings:
         """Settings for the LLM re-ranking client: RERANK_LLM_MODELS, or the answer chain from the weakest model."""
@@ -196,7 +272,9 @@ class Settings:
         if not entries:
             return self
         head, sep, rest = entries[0].partition(":")
-        provider, model = (head, rest) if sep and head in PROVIDERS and rest else (self.llm_provider, entries[0])
+        provider, model = (
+            (head, rest) if sep and head in PROVIDERS and rest else (self.llm_provider, entries[0])
+        )
         return replace(
             self,
             llm_provider=provider,
@@ -206,12 +284,19 @@ class Settings:
         )
 
     def quota(self) -> QuotaTracker | None:
-        """The process-wide local rate-limit tracker, or None when QUOTA_TRACKING is off."""
-        return tracker_for(dict(self.model_limits), self.quota_file) if self.quota_tracking else None
+        """The process-wide local rate-limit tracker, or None when QUOTA_TRACKING is off or the frozen
+        `quota_rotation` feature is off (DEV-21): then no counter file is read, written or flushed at exit."""
+        if not self.quota_tracking or not feature_enabled("quota_rotation"):
+            return None
+        return tracker_for(dict(self.model_limits), self.quota_file)
 
     def gemini_keys(self) -> list[tuple[str, str]]:
-        """(fingerprint, key) for every configured Gemini key, primary first. Fingerprints are safe to log."""
-        return [(fingerprint(k), k) for k in self.gemini_api_keys]
+        """(fingerprint, key) for every configured Gemini key, primary first. Fingerprints are safe to log. With the
+        frozen `quota_rotation` feature off, only the primary key (GEMINI_API_KEY) is used."""
+        keys = (
+            self.gemini_api_keys if feature_enabled("quota_rotation") else self.gemini_api_keys[:1]
+        )
+        return [(fingerprint(k), k) for k in keys]
 
     def with_overrides(self, **kwargs: object) -> Settings:
         return replace(self, **kwargs)  # type: ignore[arg-type]
@@ -264,15 +349,23 @@ def load_settings() -> Settings:
     provider = (_secret(env, "LLM_PROVIDER") or "gemini").lower()
     if provider not in PROVIDERS:
         raise ConfigError(f"LLM_PROVIDER must be one of: {', '.join(PROVIDERS)}")
-    model = (_secret(env, "LLM_MODEL") or (DEFAULT_MODEL if provider == "gemini" else "")).removeprefix("models/")
+    model = (
+        _secret(env, "LLM_MODEL") or (DEFAULT_MODEL if provider == "gemini" else "")
+    ).removeprefix("models/")
     if fallbacks is not None:
-        fallback_models = tuple(m.strip().removeprefix("models/") for m in fallbacks.split(",") if m.strip())
+        fallback_models = tuple(
+            m.strip().removeprefix("models/") for m in fallbacks.split(",") if m.strip()
+        )
     else:  # the built-in list is Gemini models; other providers fall back only to what you list
         fallback_models = DEFAULT_FALLBACK_MODELS if provider == "gemini" else ()
     keys = tuple(
-        (name, value) for name, spec in PROVIDERS.items() if name != "gemini" and (value := _secret(env, spec["key"]))
+        (name, value)
+        for name, spec in PROVIDERS.items()
+        if name != "gemini" and (value := _secret(env, spec["key"]))
     )
-    bases = {name: value for name in PROVIDERS if (value := _secret(env, f"{name.upper()}_BASE_URL"))}
+    bases = {
+        name: value for name in PROVIDERS if (value := _secret(env, f"{name.upper()}_BASE_URL"))
+    }
     if value := _secret(env, "LLM_BASE_URL"):
         bases.setdefault("openai_compatible", value)
     rerank = (_secret(env, "RERANK_MODEL") or "BAAI/bge-reranker-v2-m3").strip()
@@ -293,7 +386,9 @@ def load_settings() -> Settings:
             limits.update(parse_limits(extra))
         except ValueError as exc:
             raise ConfigError(str(exc)) from exc
-    query_model = _secret(env, "QUERY_MODEL") or (DEFAULT_QUERY_MODEL if provider == "gemini" else None)
+    query_model = _secret(env, "QUERY_MODEL") or (
+        DEFAULT_QUERY_MODEL if provider == "gemini" else None
+    )
     if query_model and query_model.lower() in {"off", "none", "same"}:
         query_model = None
     temperature = _secret(env, "LLM_TEMPERATURE")
@@ -308,14 +403,22 @@ def load_settings() -> Settings:
         log_level=env.get("LOG_LEVEL", "INFO"),
         auth0_domain=(env.get("AUTH0_DOMAIN") or "").removeprefix("https://").rstrip("/") or None,
         auth0_audience=env.get("AUTH0_AUDIENCE_MAIN"),
-        auth0_claims_namespace=env.get("AUTH0_CLAIMS_NAMESPACE", "https://claims.onekami.site").rstrip("/"),
+        auth0_audience_onboarding=env.get("AUTH0_AUDIENCE_ONBOARDING") or None,
+        auth0_organizations=(env.get("AUTH0_ORGANIZATIONS") or "off").strip().lower() == "on",
+        auth0_claims_namespace=env.get(
+            "AUTH0_CLAIMS_NAMESPACE", "https://claims.onekami.site"
+        ).rstrip("/"),
         db_host=env.get("LMQA_DB_HOST", "localhost"),
         db_port=_int(env, "LMQA_DB_PORT", 5434),
         db_name=env.get("LMQA_DB_NAME", "lmqa"),
         db_superuser_password=env.get("LMQA_DB_SUPERUSER_PASSWORD"),
         db_owner_password=env.get("LMQA_DB_OWNER_PASSWORD"),
         db_app_password=env.get("LMQA_DB_APP_PASSWORD"),
-        db_system_password=env.get("LMQA_DB_SYSTEM_PASSWORD"),
+        db_role_passwords=tuple(
+            (role, value)
+            for role in DB_SERVICE_ROLES
+            if (value := _secret(env, f"LMQA_DB_{role.upper()}_PASSWORD"))
+        ),
         code_pepper_id=env.get("CODE_PEPPER_ID", "v1"),
         code_pepper=env.get(f"CODE_PEPPER_{env.get('CODE_PEPPER_ID', 'v1').upper()}"),
         gemini_api_key=keys[0] if keys else None,
@@ -332,11 +435,17 @@ def load_settings() -> Settings:
         llm_thinking_level=None if thinking in {"", "off", "none"} else thinking,
         llm_max_output_tokens=_int(env, "LLM_MAX_OUTPUT_TOKENS", 8192),
         llm_timeout_seconds=float(env.get("LLM_TIMEOUT_SECONDS", "40")),
-        embedding_model=env.get("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001").removeprefix("models/"),
-        embedding_fallback_models=_models(env, "GEMINI_EMBEDDING_FALLBACK_MODELS", DEFAULT_EMBEDDING_FALLBACK_MODELS),
+        embedding_model=env.get("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001").removeprefix(
+            "models/"
+        ),
+        embedding_fallback_models=_models(
+            env, "GEMINI_EMBEDDING_FALLBACK_MODELS", DEFAULT_EMBEDDING_FALLBACK_MODELS
+        ),
         query_model=query_model,
         query_fallback_models=_models(
-            env, "QUERY_FALLBACK_MODELS", DEFAULT_QUERY_FALLBACK_MODELS if provider == "gemini" else ()
+            env,
+            "QUERY_FALLBACK_MODELS",
+            DEFAULT_QUERY_FALLBACK_MODELS if provider == "gemini" else (),
         ),
         verify_entailment=_on(env, "VERIFY_ENTAILMENT"),
         retrieval_top_k=_int(env, "RETRIEVAL_TOP_K", 12),

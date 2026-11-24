@@ -3,7 +3,7 @@ name = "lmqa-security"
 version = "0.1.0"
 description = "Join-code generation and keyed hashing (blueprint 7.6)."
 requires-python = ">=3.14"
-dependencies = []
+dependencies = ["cryptography>=46"]
 
 [build-system]
 requires = ["hatchling"]

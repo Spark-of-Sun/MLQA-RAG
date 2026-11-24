@@ -87,13 +87,13 @@ export function LiveDemo() {
     if (still) return;
     let t: ReturnType<typeof setTimeout>;
     if (phase === "typing") {
-      if (typed < s.question.length) t = setTimeout(() => setTyped((c) => c + 1), 32);
-      else t = setTimeout(() => setPhase("searching"), 350);
+      if (typed < s.question.length) t = setTimeout(() => { setTyped((c) => c + 1); }, 32);
+      else t = setTimeout(() => { setPhase("searching"); }, 350);
     } else if (phase === "searching") {
-      t = setTimeout(() => setPhase("checking"), DURATION.searching);
+      t = setTimeout(() => { setPhase("checking"); }, DURATION.searching);
     } else if (phase === "checking") {
-      if (checks < CHECKS.length) t = setTimeout(() => setChecks((c) => c + 1), DURATION.checking / CHECKS.length);
-      else t = setTimeout(() => setPhase("answer"), 250);
+      if (checks < CHECKS.length) t = setTimeout(() => { setChecks((c) => c + 1); }, DURATION.checking / CHECKS.length);
+      else t = setTimeout(() => { setPhase("answer"); }, 250);
     } else {
       t = setTimeout(() => {
         setN((x) => x + 1);
@@ -102,7 +102,7 @@ export function LiveDemo() {
         setPhase("typing");
       }, DURATION.answer);
     }
-    return () => clearTimeout(t);
+    return () => { clearTimeout(t); };
   }, [phase, typed, checks, s.question.length, still]);
 
   const active = PHASES.findIndex((p) => p.key === phase);

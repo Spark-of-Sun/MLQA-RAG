@@ -23,10 +23,10 @@ export function Reveal() {
       },
       { rootMargin: "0px 0px -8% 0px", threshold: 0.1 },
     );
-    document.querySelectorAll("[data-reveal]:not([data-shown])").forEach((el) => io.observe(el));
-    return () => io.disconnect();
+    document.querySelectorAll("[data-reveal]:not([data-shown])").forEach((el) => { io.observe(el); });
+    return () => { io.disconnect(); };
   }, [pathname]);
 
-  useEffect(() => () => document.documentElement.classList.remove("reveal-ready"), []);
+  useEffect(() => () => { document.documentElement.classList.remove("reveal-ready"); }, []);
   return null;
 }

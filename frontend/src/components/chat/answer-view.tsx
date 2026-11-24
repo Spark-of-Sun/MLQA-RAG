@@ -90,7 +90,7 @@ export function AnswerView({
             <button
               key={c.n}
               type="button"
-              onClick={() => onSelect(c)}
+              onClick={() => { onSelect(c); }}
               className={`flex items-start gap-2.5 rounded-xl border px-3 py-2 text-left hover:border-brand-200 hover:bg-brand-50/40 ${
                 selected?.chunk_id === c.chunk_id ? "border-brand-300 bg-brand-50/60" : "border-ink-200"
               }`}
@@ -110,7 +110,7 @@ export function AnswerView({
       <div className="mt-4 border-t border-ink-100 pt-3">
         <button
           type="button"
-          onClick={() => setDetails((d) => !d)}
+          onClick={() => { setDetails((d) => !d); }}
           className="flex w-full items-center gap-2 text-left text-xs text-ink-500 hover:text-ink-700"
           aria-expanded={details}
         >

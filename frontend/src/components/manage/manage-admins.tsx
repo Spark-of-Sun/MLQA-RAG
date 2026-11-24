@@ -9,7 +9,8 @@ import { api, errorMessage } from "@/lib/api-client";
 import { timeAgo } from "@/lib/format";
 import type { AdminRow } from "@/lib/types";
 
-export function ManageAdmins({ orgName }: { orgName: string }) {
+/** `usage` is the frozen `usage_counts` feature (DEV-21): while it is off the gateway sends no counts. */
+export function ManageAdmins({ orgName, usage }: { orgName: string; usage: boolean }) {
   const [rows, setRows] = useState<AdminRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,8 +43,8 @@ export function ManageAdmins({ orgName }: { orgName: string }) {
         title="Manage admins"
         subtitle={
           <>
-            Each admin runs one isolated workspace in {orgName}. As Super Admin you approve and suspend admins and see usage
-            totals, but never their documents, members or questions.
+            Each admin runs one isolated workspace in {orgName}. As Super Admin you approve and suspend admins
+            {usage ? " and see usage totals" : ""}, but never their documents, members or questions.
           </>
         }
       />
@@ -72,8 +73,8 @@ export function ManageAdmins({ orgName }: { orgName: string }) {
                     <th className="px-3 py-3 font-medium">Workspace</th>
                     <th className="px-3 py-3 font-medium">Status</th>
                     <th className="px-3 py-3 text-right font-medium">Members</th>
-                    <th className="px-3 py-3 text-right font-medium">Documents</th>
-                    <th className="px-3 py-3 text-right font-medium">Questions (30 d)</th>
+                    {usage && <th className="px-3 py-3 text-right font-medium">Documents</th>}
+                    {usage && <th className="px-3 py-3 text-right font-medium">Questions (30 d)</th>}
                     <th className="px-3 py-3 font-medium">Last active</th>
                     <th className="px-5 py-3" />
                   </tr>
@@ -93,8 +94,8 @@ export function ManageAdmins({ orgName }: { orgName: string }) {
                         {r.tenants}
                         {r.tenants_pending > 0 && <span className="text-xs text-amber-700"> +{r.tenants_pending}</span>}
                       </td>
-                      <td className="px-3 py-3 text-right tabular-nums text-ink-700">{r.documents}</td>
-                      <td className="px-3 py-3 text-right tabular-nums text-ink-700">{r.queries_30d}</td>
+                      {usage && <td className="px-3 py-3 text-right tabular-nums text-ink-700">{r.documents ?? 0}</td>}
+                      {usage && <td className="px-3 py-3 text-right tabular-nums text-ink-700">{r.queries_30d ?? 0}</td>}
                       <td className="px-3 py-3 text-xs text-ink-500">{timeAgo(r.last_seen_at)}</td>
                       <td className="px-5 py-3">
                         <div className="flex justify-end gap-2">

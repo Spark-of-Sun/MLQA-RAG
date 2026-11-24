@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lmqa/contracts/authz-matrix.schema.json",
+  "title": "Role x route allow-list (blueprint 5.2, 15, 17.1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "routes"],
+  "properties": {
+    "version": {"const": 1},
+    "routes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["method", "path", "roles"],
+        "properties": {
+          "method": {"enum": ["GET", "POST", "PUT", "PATCH", "DELETE"]},
+          "path": {"type": "string", "pattern": "^/v1(/[a-z0-9_.{}-]+)+$"},
+          "roles": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"enum": ["public", "authenticated", "super_admin", "admin", "tenant"]}
+          },
+          "step_up": {"type": "boolean"},
+          "feature": {"type": "string"}
+        }
+      }
+    }
+  }
+}

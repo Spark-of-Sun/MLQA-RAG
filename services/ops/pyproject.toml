@@ -1,0 +1,19 @@
+[project]
+name = "ops"
+version = "0.1.0"
+description = "Operator plane: JIT access, KeyGuard approvals, recovery, security holds (blueprint 14)."
+requires-python = ">=3.14"
+dependencies = ["lmqa-models", "lmqa-db", "lmqa-audit", "lmqa-auth", "lmqa-keys", "identity", "fastapi>=0.165",
+                "uvicorn[standard]>=0.54", "pyjwt[crypto]>=2.10"]
+
+[tool.uv.sources]
+lmqa-models = { workspace = true }
+lmqa-db = { workspace = true }
+lmqa-audit = { workspace = true }
+lmqa-auth = { workspace = true }
+lmqa-keys = { workspace = true }
+identity = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

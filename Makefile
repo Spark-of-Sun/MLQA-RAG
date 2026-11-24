@@ -12,23 +12,39 @@ install: hooks ## install Python (uv workspace) and frontend (pnpm) dependencies
 hooks: ## enable the repo's git hooks (blocks commits that contain secrets)
 	git config core.hooksPath .githooks
 
-setup: install ## first run: dependencies, local secrets, database, migrations
+setup: install ## first run: dependencies, local secrets, infrastructure, migrations
 	$(PY) python tools/gen_env.py
-	$(MAKE) db migrate
+	$(MAKE) up
 
-db: ## start PostgreSQL 18 + pgvector in Docker (127.0.0.1:5434)
+infra-config: ## render the credential files compose.yaml mounts (data/infra/, never printed)
+	$(PY) python tools/infra_config.py
+
+up: infra-config ## start the local stack: PostgreSQL, PgBouncer, Valkey, Qdrant, SeaweedFS, OpenBao; then migrate
+	$(WITHENV) docker compose up -d --wait postgres openbao
+	$(MAKE) migrate
 	$(WITHENV) docker compose up -d --wait
 
-db-stop: ## stop the database (data is kept)
-	$(WITHENV) docker compose stop
+up-scan: infra-config ## also start ClamAV (profile scan, about 1.2 GB of memory)
+	$(WITHENV) docker compose --profile scan up -d --wait clamav
 
-db-reset: ## DELETE all local data (database volume and uploaded files) and start empty
-	$(WITHENV) docker compose down -v
+down: ## stop every container (data is kept)
+	$(WITHENV) docker compose --profile scan --profile observability stop
+
+db: infra-config ## start PostgreSQL 18 + pgvector alone (127.0.0.1:5434)
+	$(WITHENV) docker compose up -d --wait postgres
+
+db-stop: down ## alias of down
+
+db-reset: ## DELETE all local data (database, vectors, objects, keys, uploaded files) and start empty
+	$(WITHENV) docker compose --profile scan --profile observability down -v
 	rm -rf data/objects
-	$(MAKE) db migrate
+	$(MAKE) up
 
-migrate: ## create roles, apply db/migrations, db/policies and db/roles
+migrate: ## create roles, alembic upgrade head (db/migrations), re-apply db/policies and db/roles
 	$(PY) python tools/db_migrate.py
+
+reencrypt: ## provision keys and encrypt any plaintext content and contact columns (normally run by migrate)
+	$(PY) python tools/reencrypt_fields.py
 
 doctor: ## check settings, database, Auth0 and Gemini (prints names, never values)
 	$(PY) python tools/doctor.py
@@ -48,22 +64,58 @@ corpus: ## download the real public corpus and verify every SHA-256
 load-corpus: ## index the corpus into an admin's workspace: make load-corpus EMAIL=you@x.com [DOMAIN=legal]
 	$(PY) python tools/load_corpus.py --email "$(EMAIL)" --domain "$(or $(DOMAIN),all)"
 
-demo: ## simulate the whole workflow end to end through the API (separate lmqa_demo database, real Gemini)
+demo: ## run the whole workflow end to end through the API as real Auth0 accounts (lmqa_demo database, real Gemini)
 	$(PY) python tools/demo.py
 
 eval: ## retrieval metrics on the public corpus vs eval/floors.toml (ARGS="--answers" adds end-to-end answers)
 	$(PY) python eval/harness/run.py $(ARGS)
 
-demo-web: ## simulate signed-in browsers against the built frontend (run `make build` first)
+demo-web: ## drive the built frontend as real Auth0 accounts (run `make build` first)
 	$(PY) python tools/demo_web.py
 
-lint: ## ruff format check + ruff lint + frontend type check
-	$(PY) ruff format --check libs services tools eval
-	$(PY) ruff check libs services tools eval
+PYSRC := libs services tools eval corpus tests conftest.py
+
+lint: ## ruff format check + ruff lint + import contracts + frontend type check
+	$(PY) ruff format --check $(PYSRC)
+	$(PY) ruff check $(PYSRC)
+	$(PY) lint-imports
 	cd frontend && pnpm typecheck
 
 format: ## apply ruff formatting and safe fixes
-	$(PY) ruff format libs services tools eval
-	$(PY) ruff check --fix libs services tools eval
+	$(PY) ruff format $(PYSRC)
+	$(PY) ruff check --fix $(PYSRC)
 
-.PHONY: help install hooks setup db db-stop db-reset migrate doctor dev build start corpus load-corpus demo demo-web eval lint format
+STAGE_NOW := $(shell cat STAGE 2>/dev/null || echo 0)
+STAGE_MARKS := $(shell for n in $$(seq 0 $(STAGE_NOW)); do printf 'stage%s or ' $$n; done | sed 's/ or $$//')
+
+test: ## pytest for stages 0..STAGE without the live lanes (needs make up)
+	$(PY) pytest -m "($(STAGE_MARKS)) and not live_auth0 and not live_kms and not live_llm"
+
+gate: ## run the cumulative gate and write gates/stage-N.json: make gate [STAGE=n] [PROFILE=full]
+	$(PY) python tools/gatekeeper.py gate $(if $(STAGE),--stage $(STAGE)) --profile $(or $(PROFILE),full)
+
+advance: ## move STAGE forward; requires a passing full-profile attestation on this exact commit
+	$(PY) python tools/gatekeeper.py advance
+
+paths: ## rule 1: changed paths must belong to stages <= STAGE + 1: make paths [BASE=origin/beta]
+	$(PY) python tools/gatekeeper.py paths --base $(or $(BASE),origin/beta)
+
+versions: ## regenerate docs/versions.md from the lockfiles and the running servers
+	$(PY) python tools/gen_versions.py --servers
+
+contracts: ## regenerate contracts/openapi/gateway.json and the frontend's typed client
+	$(PY) python tools/export_openapi.py
+	pnpm --dir frontend gen:api
+
+
+.PHONY: test gate advance paths versions contracts state-machines workers ops
+
+state-machines: ## check the generated transitions revision; REVISION=NNNN_name writes a new one after the head
+	$(PY) python tools/state_machine_gen.py $(if $(REVISION),--revision $(REVISION),--check)
+
+workers: ## run the production background processes (identity, audit, ingestion worker, indexer, reconciler)
+	$(PY) python tools/dev.py --workers
+
+ops: ## run the operator plane API on 127.0.0.1:8006 (operator ingress only)
+	$(PY) uvicorn ops.asgi:app --host 127.0.0.1 --port 8006
+.PHONY: help install hooks setup infra-config up up-scan down db db-stop db-reset migrate doctor dev build start corpus load-corpus demo demo-web eval lint format

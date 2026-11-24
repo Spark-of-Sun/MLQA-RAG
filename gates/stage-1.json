@@ -1,0 +1,129 @@
+{
+  "stage": 1,
+  "profile": "full",
+  "commit": "71b1628672efe4d0835791e3691390c399b5ea45",
+  "dirty_tree": true,
+  "created_at": "2026-11-23T06:16:06+00:00",
+  "tool_versions": {
+    "python": "3.14.4",
+    "uv": "0.13.9",
+    "ruff": "0.17.6",
+    "pyright": "1.1.414",
+    "node": "24.21.0",
+    "pnpm": "10.34.9",
+    "pytest": "9.2.0"
+  },
+  "ruff_config_sha256": "aed79b016edb5eb29fe65fc8f2aa93b5a428646987c6e91278afbee7c6467fae",
+  "steps": [
+    {
+      "name": "uv sync --frozen",
+      "result": "pass",
+      "exit": 0,
+      "seconds": 0.07
+    },
+    {
+      "name": "ruff format --check",
+      "result": "pass",
+      "exit": 0,
+      "seconds": 0.07
+    },
+    {
+      "name": "ruff check",
+      "result": "pass",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "name": "pyright",
+      "result": "fail",
+      "exit": 1,
+      "seconds": 86.58
+    },
+    {
+      "name": "frontend type check",
+      "result": "pass",
+      "exit": 0,
+      "seconds": 16.02
+    },
+    {
+      "name": "import-linter",
+      "result": "pass",
+      "exit": 0,
+      "seconds": 1.31
+    },
+    {
+      "name": "contracts: OpenAPI export is current",
+      "result": "pass",
+      "exit": 0,
+      "seconds": 8.76
+    },
+    {
+      "name": "contracts: version ledger is current",
+      "result": "pass",
+      "exit": 0,
+      "seconds": 3.89
+    },
+    {
+      "name": "feature flags bound to attested gates",
+      "result": "pass",
+      "exit": 0,
+      "seconds": 0.42
+    },
+    {
+      "name": "gitleaks",
+      "result": "pass",
+      "exit": 0,
+      "seconds": 6.74
+    },
+    {
+      "name": "pip-audit",
+      "result": "pass",
+      "exit": 0,
+      "seconds": 4.61
+    },
+    {
+      "name": "pnpm audit",
+      "result": "pass",
+      "exit": 0,
+      "seconds": 4.02
+    },
+    {
+      "name": "pytest",
+      "result": "fail",
+      "exit": 1,
+      "seconds": 119.24
+    },
+    {
+      "name": "coverage floors",
+      "result": "fail",
+      "exit": 1,
+      "seconds": 0.29
+    }
+  ],
+  "tests": {
+    "passed": 192,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 1,
+    "by_marker": {
+      "asyncio": 1,
+      "contract": 69,
+      "control": 7,
+      "hypothesis": 8,
+      "integration": 71,
+      "stage0": 67,
+      "stage1": 126,
+      "unit": 53
+    }
+  },
+  "coverage": {
+    "line_percent": 45.22,
+    "branches_covered": 321,
+    "branches_total": 1796
+  },
+  "live_lanes": {},
+  "missing_live_lanes": [],
+  "waivers": [],
+  "signed": false,
+  "result": "fail"
+}

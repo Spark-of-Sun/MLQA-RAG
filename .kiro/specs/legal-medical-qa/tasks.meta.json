@@ -1,0 +1,926 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Tighten ruff and fix findings": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388853929
+      },
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388872018
+      },
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388928979
+      },
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388993315
+      },
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795389051033
+      },
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795389123912
+      },
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795389551155
+      }
+    ],
+    "1.2 Make pyright blocking and add coverage and test-taxonomy settings": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388853984
+      },
+      {
+        "executionId": "3e6c2532-b3ce-48d7-8d4e-b23c9587d9f1",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795389871841
+      },
+      {
+        "executionId": "3e6c2532-b3ce-48d7-8d4e-b23c9587d9f1",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795395595271
+      }
+    ],
+    "1.3 Move migrations to Alembic": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388854025
+      },
+      {
+        "executionId": "3e6c2532-b3ce-48d7-8d4e-b23c9587d9f1",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795395621844
+      },
+      {
+        "executionId": "3e6c2532-b3ce-48d7-8d4e-b23c9587d9f1",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795396148375
+      }
+    ],
+    "1.4 Add CI workflows `ci`, `gates`, `isolation`, `nightly-live`, `security`, `release` under `.github/workflows` (pending Q-03)": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388854048
+      },
+      {
+        "executionId": "3e6c2532-b3ce-48d7-8d4e-b23c9587d9f1",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795389871919
+      },
+      {
+        "executionId": "3e6c2532-b3ce-48d7-8d4e-b23c9587d9f1",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795395595584
+      }
+    ],
+    "1.5 Pin every image in `compose.yaml` by digest, including `grafana/otel-lgtm`, and add a static check that fails on an unpinned image": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388854074
+      },
+      {
+        "executionId": "3e6c2532-b3ce-48d7-8d4e-b23c9587d9f1",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795389872823
+      },
+      {
+        "executionId": "3e6c2532-b3ce-48d7-8d4e-b23c9587d9f1",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795395595636
+      }
+    ],
+    "1.6 Bring the corpus to Appendix B minimums": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388854092
+      },
+      {
+        "executionId": "3e6c2532-b3ce-48d7-8d4e-b23c9587d9f1",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795389873472
+      },
+      {
+        "executionId": "3e6c2532-b3ce-48d7-8d4e-b23c9587d9f1",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795396428518
+      }
+    ],
+    "1.7 Remove the demo token signer from `make demo` and `make demo-web` and any local path that signs identity tokens": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388854107
+      },
+      {
+        "executionId": "3e6c2532-b3ce-48d7-8d4e-b23c9587d9f1",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795389874097
+      },
+      {
+        "executionId": "3e6c2532-b3ce-48d7-8d4e-b23c9587d9f1",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795395595710
+      }
+    ],
+    "1.8 Extend `tools/gatekeeper.py` and `make doctor`": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388854123
+      },
+      {
+        "executionId": "3e6c2532-b3ce-48d7-8d4e-b23c9587d9f1",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795396437991
+      },
+      {
+        "executionId": "3e6c2532-b3ce-48d7-8d4e-b23c9587d9f1",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795397029648
+      }
+    ],
+    "1.9 Repository hygiene": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388854142
+      },
+      {
+        "executionId": "3e6c2532-b3ce-48d7-8d4e-b23c9587d9f1",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795395629486
+      },
+      {
+        "executionId": "3e6c2532-b3ce-48d7-8d4e-b23c9587d9f1",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795396148502
+      }
+    ],
+    "1.11 Close Stage 0: run the Stage 0 gate under `full`, record the attestation, keep `STAGE = 0` as the attested baseline": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388854193
+      },
+      {
+        "executionId": "3e6c2532-b3ce-48d7-8d4e-b23c9587d9f1",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795397037816
+      },
+      {
+        "executionId": "3e6c2532-b3ce-48d7-8d4e-b23c9587d9f1",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795397296430
+      },
+      {
+        "executionId": "ed69c984-1f5b-4ba2-8c36-2ab689dcf6b4",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795397544717
+      },
+      {
+        "executionId": "1fa8b6e1-2f57-4d82-bafa-5b38e3ee07c5",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795475016801
+      },
+      {
+        "executionId": "1fa8b6e1-2f57-4d82-bafa-5b38e3ee07c5",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795475029566
+      },
+      {
+        "executionId": "4932e935-9207-4079-aa77-fe0abd2747d6",
+        "chatSessionId": "sess_f66b2ce6-332a-4b07-ba13-9cac094b5e55",
+        "timestamp": 1795476880046
+      }
+    ],
+    "2. Checkpoint - Stage 0": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388854234
+      }
+    ],
+    "3.1 Apply migrations 0006 to 0008 as Alembic revisions and create the role model": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388854254
+      },
+      {
+        "executionId": "ed69c984-1f5b-4ba2-8c36-2ab689dcf6b4",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795397563411
+      },
+      {
+        "executionId": "ed69c984-1f5b-4ba2-8c36-2ab689dcf6b4",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795399094579
+      }
+    ],
+    "3.2 Tenancy and membership schema": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388854291
+      },
+      {
+        "executionId": "ed69c984-1f5b-4ba2-8c36-2ab689dcf6b4",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795399104304
+      },
+      {
+        "executionId": "ed69c984-1f5b-4ba2-8c36-2ab689dcf6b4",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795399477760
+      },
+      {
+        "executionId": "5784576c-f97f-4caa-be42-bd4911a2ea7d",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795399532984
+      },
+      {
+        "executionId": "5784576c-f97f-4caa-be42-bd4911a2ea7d",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795399781271
+      },
+      {
+        "executionId": "b8178680-a37f-4c6e-a95a-33e22e11b386",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795399834536
+      },
+      {
+        "executionId": "b8178680-a37f-4c6e-a95a-33e22e11b386",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795401941390
+      }
+    ],
+    "3.3 Lifecycle machines as data": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388854315
+      },
+      {
+        "executionId": "b8178680-a37f-4c6e-a95a-33e22e11b386",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795401942045
+      },
+      {
+        "executionId": "b8178680-a37f-4c6e-a95a-33e22e11b386",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795404258884
+      }
+    ],
+    "3.4 Access decision rules 1 to 8 (pending Q-05, Q-37)": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388854342
+      },
+      {
+        "executionId": "b8178680-a37f-4c6e-a95a-33e22e11b386",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795404259056
+      },
+      {
+        "executionId": "b8178680-a37f-4c6e-a95a-33e22e11b386",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795405418024
+      }
+    ],
+    "3.5 Align `lmqa_testing.oracle.can_read` to rules 1 to 8 and add `lmqa_testing.strategies` (worlds, principals, codes, sentences with numbers and tags, audit event sequences, timed attempt sequences)": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388854357
+      },
+      {
+        "executionId": "ed69c984-1f5b-4ba2-8c36-2ab689dcf6b4",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795397588466
+      },
+      {
+        "executionId": "ed69c984-1f5b-4ba2-8c36-2ab689dcf6b4",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795399094637
+      }
+    ],
+    "3.6 Freeze MVP-only features (chats with LLM query planning, profiles, named shares, workspace visibility, usage counts, public site, LLM re-ranker, quota rotation) behind flags that stay off and outside the access decision (pending Q-04, Q-39)": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388854371
+      },
+      {
+        "executionId": "ed69c984-1f5b-4ba2-8c36-2ab689dcf6b4",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795399105355
+      },
+      {
+        "executionId": "ed69c984-1f5b-4ba2-8c36-2ab689dcf6b4",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795399477202
+      },
+      {
+        "executionId": "5784576c-f97f-4caa-be42-bd4911a2ea7d",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795399533046
+      },
+      {
+        "executionId": "5784576c-f97f-4caa-be42-bd4911a2ea7d",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795399780745
+      },
+      {
+        "executionId": "b8178680-a37f-4c6e-a95a-33e22e11b386",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795399836194
+      },
+      {
+        "executionId": "b8178680-a37f-4c6e-a95a-33e22e11b386",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795401941457
+      }
+    ],
+    "3.7 Field encryption through `lmqa_keys` (pending Q-36)": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388854382
+      },
+      {
+        "executionId": "b8178680-a37f-4c6e-a95a-33e22e11b386",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795405418110
+      },
+      {
+        "executionId": "b8178680-a37f-4c6e-a95a-33e22e11b386",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795409991635
+      }
+    ],
+    "3.8 Audit chains": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388854396
+      },
+      {
+        "executionId": "b8178680-a37f-4c6e-a95a-33e22e11b386",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795409991718
+      },
+      {
+        "executionId": "b8178680-a37f-4c6e-a95a-33e22e11b386",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795412490844
+      }
+    ],
+    "3.9 Redaction: `lmqa_security.redact` covers code, token and content fields; audit metadata builders accept no free text": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388854471
+      },
+      {
+        "executionId": "ed69c984-1f5b-4ba2-8c36-2ab689dcf6b4",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795397588537
+      },
+      {
+        "executionId": "ed69c984-1f5b-4ba2-8c36-2ab689dcf6b4",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795399094760
+      }
+    ],
+    "3.20 Close Stage 1: enable Stage 1 flags, delete the replaced MVP access paths, attest twice and advance `STAGE`": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388854973
+      },
+      {
+        "executionId": "b8178680-a37f-4c6e-a95a-33e22e11b386",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795412490907
+      },
+      {
+        "executionId": "b8178680-a37f-4c6e-a95a-33e22e11b386",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795414817888
+      },
+      {
+        "executionId": "1fa8b6e1-2f57-4d82-bafa-5b38e3ee07c5",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795475016817
+      }
+    ],
+    "4. Checkpoint - Stage 1": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388855100
+      }
+    ],
+    "5.1 Auth0 configuration as code in `infra/auth0`": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388855149
+      },
+      {
+        "executionId": "52c3477b-c5cc-4bea-bebd-4ad20dac268a",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795437889210
+      },
+      {
+        "executionId": "52c3477b-c5cc-4bea-bebd-4ad20dac268a",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795438860888
+      },
+      {
+        "executionId": "4932e935-9207-4079-aa77-fe0abd2747d6",
+        "chatSessionId": "sess_f66b2ce6-332a-4b07-ba13-9cac094b5e55",
+        "timestamp": 1795475776824
+      },
+      {
+        "executionId": "4932e935-9207-4079-aa77-fe0abd2747d6",
+        "chatSessionId": "sess_f66b2ce6-332a-4b07-ba13-9cac094b5e55",
+        "timestamp": 1795476865066
+      }
+    ],
+    "5.2 Organization creation and provisioning saga": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388855285
+      }
+    ],
+    "5.3 Join code generation, storage and verification": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388855365
+      }
+    ],
+    "5.6 Move code-attempt limits and the per-lookup-ID breaker to Valkey (Q-33 defaults: 5 per user per 15 min, 20 per IP per hour, breaker 10 in 15 min)": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388855443
+      }
+    ],
+    "5.10 Onboarding flows": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388855532
+      }
+    ],
+    "5.11 Lifecycle events and cascades: admin suspension moves active tenants to `suspended` with `workspace_frozen`": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388855787
+      }
+    ],
+    "5.13 Per-role step-up in `contracts/authz-matrix.yaml` and a Gateway step-up decision (300 s, required strength) for code generation and rotation, approvals, removals, policy changes and governance approvals": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388855866
+      }
+    ],
+    "5.15 Frontend BFF sessions in Valkey by default with an opaque session ID; privileged 15 min idle / 8 h, tenants 30 min / 12 h": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388855939
+      }
+    ],
+    "5.17 Close Stage 2: enable Stage 2 flags, delete replaced MVP paths, attest twice and advance `STAGE`": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388855986
+      }
+    ],
+    "6. Checkpoint - Stage 2": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388856028
+      }
+    ],
+    "7.1 Split the Gateway process into the nine deployables on Compose": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388856077
+      }
+    ],
+    "7.2 Remove the `gateway` exclusion from the import-linter contract and add contracts: no Qdrant client outside `lmqa_vectorstore`, no generative LLM client in the Validator": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388856154
+      }
+    ],
+    "7.3 Context tokens and signer certificates in `lmqa_auth`": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388856214
+      }
+    ],
+    "7.5 Gateway token verification: check `azp`, `org_id` against the active membership, deny and alert on role-claim mismatch (Q-10)": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388856265
+      }
+    ],
+    "7.6 Replace the in-process `Services` object with HTTP clients that send a Context_Token per call; Gateway DB access limited to `principal_v` and `audit_append`; scope taken only from the verified token and the database": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388856318
+      }
+    ],
+    "7.8 §15 API paths": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388856359
+      }
+    ],
+    "7.10 Valkey rate limits, hierarchical quotas (organization, workspace, user) and idempotency keys in the Gateway": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388856404
+      }
+    ],
+    "7.13 Revocation pub/sub subscriber that closes open streams, with the 5 s / 15 s fallback; `GET /v1/health` returns liveness only; fail closed when KMS, Valkey, Qdrant or PostgreSQL is down": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388856482
+      }
+    ],
+    "7.15 Close Stage 3: enable Stage 3 flags, delete the in-process wiring, attest twice and advance `STAGE`": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388856567
+      }
+    ],
+    "8. Checkpoint - Stage 3": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388856706
+      }
+    ],
+    "9.1 `lmqa_objectstore` S3 adapter (SeaweedFS locally) replacing local disk; per-document key encryption; quarantine prefix; `presign_put`, `get`, `promote`": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388856790
+      }
+    ],
+    "9.3 Two-step presigned upload owned by ingestion into the quarantine prefix; remove storage access from the Gateway": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388856846
+      }
+    ],
+    "9.4 Procrastinate worker with signed job envelopes and fair-share slots, replacing the `Ingestor` thread pool": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388856906
+      }
+    ],
+    "9.6 Document lifecycle `uploading → scanning → parsing → (ocr_review) → indexing → indexed` with side exits; ClamAV and OCR enabled; malware to `quarantined`, low OCR confidence to `ocr_review`": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388857118
+      }
+    ],
+    "9.7 Token-based chunker (40 / 300 to 700 / 1,200) with §11.2 chunk kinds, page range, section and span": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388857341
+      }
+    ],
+    "9.8 Self-hosted embedding adapter as default in `lmqa_vectorstore` (pending Q-06); third-party provider only when the organization configures it; `embedding_cache` keyed by `(org_id, workspace_id, model, text_sha256)`": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388857398
+      }
+    ],
+    "9.10 `index_outbox` trigger in the same transaction as scope changes; indexer and reconciler on Qdrant through `lmqa_vectorstore.update_payload` and `delete_by_filter`": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388857589
+      }
+    ],
+    "9.14 Close Stage 4: enable Stage 4 flags, delete the thread pool and local-disk paths, attest twice and advance `STAGE`": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388857649
+      }
+    ],
+    "10. Checkpoint - Stage 4": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388857695
+      }
+    ],
+    "11.1 `lmqa_vectorstore.build_filter(principal)` mirroring rules 1 to 8, always constraining `org_id` and `workspace_id`, excluding walled matters, raising `NoFilter`; the >256-grant fallback (pending Q-07)": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388857739
+      }
+    ],
+    "11.3 Retrieval service on Qdrant": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388857797
+      }
+    ],
+    "11.6 Close Stage 5: enable Stage 5 flags, delete the pgvector request path, attest twice and advance `STAGE`": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388857897
+      }
+    ],
+    "12. Checkpoint - Stage 5": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388858011
+      }
+    ],
+    "13.1 `[chunk_N]` citation tag formatter and parser as one shared module; prompt templates use aliases `chunk_1..n` (pending Q-12)": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388858104
+      }
+    ],
+    "13.3 Generation reads ledger and chunks under RLS and puts only request-local aliases in prompts": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388858237
+      }
+    ],
+    "13.5 Provider tokenizer counts and guarded compression; per-organization provider, key and budget; 1,500-token output cap; no cross-provider fallback unless configured; remove global `LLM_FALLBACK_MODELS`": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388858378
+      }
+    ],
+    "13.7 Scoped semantic answer cache keyed by scope hash": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388858439
+      }
+    ],
+    "13.9 Remove the `entailment` and `plan_query` LLM calls from the query path; prompt and model lifecycle (versioned, pinned); prompt-injection controls": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388858498
+      }
+    ],
+    "13.11 Close Stage 6: enable Stage 6 flags, delete `[S1]` tags and estimated token counts, attest twice and advance `STAGE`": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388858563
+      }
+    ],
+    "14. Checkpoint - Stage 6": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388858604
+      }
+    ],
+    "15.1 Validator V1 to V8 only (pending Q-13)": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388858667
+      }
+    ],
+    "15.6 Sign verdicts with the KMS-certified ephemeral key over (`request_id`, `sentence_sha256`, `outcome`, `checks`)": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388858735
+      }
+    ],
+    "15.7 Gateway `sentence_gated` delivery as default": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388858824
+      }
+    ],
+    "15.10 SSE serializer and `Last-Event-ID` resume buffer in Valkey": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388858898
+      }
+    ],
+    "15.13 Close Stage 7: enable Stage 7 flags, delete whole-answer in-process validation, attest twice and advance `STAGE`": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388858952
+      }
+    ],
+    "16. Checkpoint - Stage 7": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388859026
+      }
+    ],
+    "17.1 Replace custom SSE parsing with `eventsource-parser` (Q-17) and add a typed client from `openapi-typescript` plus `openapi-fetch`": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388859082
+      }
+    ],
+    "17.2 Adopt shadcn/ui and implement the §17.1 route table and role routing, including key surfaces": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388859127
+      }
+    ],
+    "17.3 Strict CSP without `unsafe-inline`, Trusted Types, no inline scripts; invite codes in the URL fragment; `Referrer-Policy: no-referrer`": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388859167
+      }
+    ],
+    "17.5 Close Stage 8: enable Stage 8 flags, attest twice and advance `STAGE`": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388859240
+      }
+    ],
+    "18. Checkpoint - Stage 8": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388859275
+      }
+    ],
+    "19.1 Governance requests with two-person approval, step-up, waiting windows, expiry and sealing; KeyGuard as the only disable or destroy path": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388859366
+      }
+    ],
+    "19.3 Successor transfer and owner recovery effects registered in `worker.build`": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388859426
+      }
+    ],
+    "19.4 Ops service on its own ingress and identity provider: operator roles, JIT access types and limits, prohibitions, reaching identity only through the internal API": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388859546
+      }
+    ],
+    "19.5 Audit service reads with read scopes; audit-anchor writes the hourly Merkle root of chain heads to the Object Lock bucket with inclusion proofs": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388859606
+      }
+    ],
+    "19.7 Retention worker, shredding and tombstone ledger, organization destruction ritual, backup, restore and escrow drills as automated jobs": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388859730
+      }
+    ],
+    "19.8 Detection signals and alert rules": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388859821
+      }
+    ],
+    "19.10 Close Stage 9: enable Stage 9 flags, attest twice and advance `STAGE`": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388859848
+      }
+    ],
+    "20. Checkpoint - Stage 9": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388859880
+      }
+    ],
+    "21.1 Isolation suite across every output channel (responses, SSE, cache, logs, audit, errors)": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388859908
+      }
+    ],
+    "21.2 k6 load test scripts for the §20 budgets": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388859940
+      }
+    ],
+    "21.3 Chaos tests that stop real dependencies and revoke keys, plus recurring-control checks": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388859976
+      }
+    ],
+    "21.4 Evaluation sets from the corpus and floors in `eval/floors.toml`": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388860031
+      }
+    ],
+    "21.5 Configuration catalog and a check for production policy minimums": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388860082
+      }
+    ],
+    "21.6 Close Stages 10 and 11: attest twice and advance `STAGE`": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388860160
+      }
+    ],
+    "22. Final checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "a770ce61-2800-4009-8150-85802a5cf4ff",
+        "chatSessionId": "sess_ccc34780-ba30-4434-83da-1ccd99d3d860",
+        "timestamp": 1795388860244
+      }
+    ]
+  }
+}

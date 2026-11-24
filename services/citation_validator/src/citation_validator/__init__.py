@@ -9,4 +9,11 @@ from citation_validator.validator import (
     validate,
 )
 
-__all__ = ["Verdict", "apply_entailment", "build_result", "entailment_claims", "recheck_integrity", "validate"]
+__all__ = [
+    "Verdict",
+    "apply_entailment",
+    "build_result",
+    "entailment_claims",
+    "recheck_integrity",
+    "validate",
+]

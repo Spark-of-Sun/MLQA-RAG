@@ -27,7 +27,10 @@ ANSWER_SCHEMA = {
                         "type": "ARRAY",
                         "items": {
                             "type": "OBJECT",
-                            "properties": {"source": {"type": "STRING"}, "quote": {"type": "STRING"}},
+                            "properties": {
+                                "source": {"type": "STRING"},
+                                "quote": {"type": "STRING"},
+                            },
                             "required": ["source", "quote"],
                         },
                     },
@@ -104,7 +107,9 @@ class PromptSet:
     query_system: str
     sha256: str  # of the answer, verify and query prompts (recorded with every query)
     versions: dict[str, int]
-    rerank_system: str = ""  # chooses passages only; not part of `sha256`, so earlier answers keep their hash
+    rerank_system: str = (
+        ""  # chooses passages only; not part of `sha256`, so earlier answers keep their hash
+    )
 
 
 @cache
@@ -118,7 +123,9 @@ def load_prompts() -> PromptSet:
     query = (PROMPTS / registry["query"]["system"]).read_text(encoding="utf-8").strip()
     digest = hashlib.sha256(f"{answer}\x00{verify}\x00{query}".encode()).hexdigest()
     rerank = (PROMPTS / registry["rerank"]["system"]).read_text(encoding="utf-8").strip()
-    return PromptSet(answer, verify, query, digest, {k: int(v["version"]) for k, v in registry.items()}, rerank)
+    return PromptSet(
+        answer, verify, query, digest, {k: int(v["version"]) for k, v in registry.items()}, rerank
+    )
 
 
 def _source_block(s: Source) -> str:
@@ -179,14 +186,17 @@ def answer_user_prompt(
 def verify_user_prompt(claims: list[tuple[int, str, list[str]]], sources: dict[str, Source]) -> str:
     used = sorted({a for _, _, aliases in claims for a in aliases}, key=lambda a: int(a[1:]))
     blocks = "\n".join(_source_block(sources[a]) for a in used)
-    lines = "\n".join(f"Claim {n} (cites {', '.join(aliases)}): {text}" for n, text, aliases in claims)
+    lines = "\n".join(
+        f"Claim {n} (cites {', '.join(aliases)}): {text}" for n, text, aliases in claims
+    )
     return f"<sources>\n{blocks}\n</sources>\n\nClaims:\n{lines}"
 
 
 def rerank_user_prompt(question: str, passages: list[str]) -> str:
     """Passages get request-local ids P1, P2, ...; a passage cannot close its own delimiter."""
     blocks = "\n".join(
-        f'<passage id="P{i}">\n{p.replace("</passage", "</ passage")}\n</passage>' for i, p in enumerate(passages, 1)
+        f'<passage id="P{i}">\n{p.replace("</passage", "</ passage")}\n</passage>'
+        for i, p in enumerate(passages, 1)
     )
     q = " ".join(question.split()).replace("</passages", "</ passages")
     return f"Question: {q}\n\n<passages>\n{blocks}\n</passages>"

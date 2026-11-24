@@ -32,6 +32,11 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
   if (contentType) headers["content-type"] = contentType;
   const forwardedFor = request.headers.get("x-forwarded-for");
   if (forwardedFor) headers["x-forwarded-for"] = forwardedFor;
+  // Streaming resume (G7.11) and idempotent retries (15) pass through; nothing else from the browser does.
+  for (const name of ["last-event-id", "x-query-id", "idempotency-key", "accept"]) {
+    const value = request.headers.get(name);
+    if (value) headers[name] = value;
+  }
 
   let upstream: Response;
   try {
@@ -44,10 +49,12 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
   } catch {
     return NextResponse.json({ detail: "The API is not reachable." }, { status: 502 });
   }
-  return new NextResponse(upstream.status === 204 ? null : upstream.body, {
-    status: upstream.status,
-    headers: { "content-type": upstream.headers.get("content-type") ?? "application/json", "cache-control": "no-store" },
-  });
+  const type = upstream.headers.get("content-type") ?? "application/json";
+  const out: Record<string, string> = { "content-type": type, "cache-control": "no-store, no-transform" };
+  if (type.startsWith("text/event-stream")) out["x-accel-buffering"] = "no"; // never buffer or compress SSE (4.8)
+  const challenge = upstream.headers.get("www-authenticate");
+  if (challenge) out["www-authenticate"] = challenge; // RFC 9470 step-up challenge
+  return new NextResponse(upstream.status === 204 ? null : upstream.body, { status: upstream.status, headers: out });
 }
 
 export { forward as GET, forward as POST, forward as PATCH, forward as DELETE };

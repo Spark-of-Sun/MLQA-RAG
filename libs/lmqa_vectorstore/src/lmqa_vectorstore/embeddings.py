@@ -85,7 +85,9 @@ class Embedder:
         Recent query vectors are kept in memory (a repeated or re-phrased question is common); never passages."""
         model = model or self.model
         with self._lock:
-            found = {t: self._query_cache[(model, t)] for t in texts if (model, t) in self._query_cache}
+            found = {
+                t: self._query_cache[(model, t)] for t in texts if (model, t) in self._query_cache
+            }
         missing = [t for t in dict.fromkeys(texts) if t not in found]
         if missing:
             fresh = self._embed(missing, "RETRIEVAL_QUERY", model, budget_seconds=25)
@@ -97,7 +99,9 @@ class Embedder:
                     self._query_cache.popitem(last=False)
         return [found[t] for t in texts]
 
-    def _embed(self, texts: list[str], task: str, model_name: str, *, budget_seconds: float) -> list[list[float]]:
+    def _embed(
+        self, texts: list[str], task: str, model_name: str, *, budget_seconds: float
+    ) -> list[list[float]]:
         if not self._s.gemini_api_keys:
             raise EmbeddingError("GEMINI_API_KEY is not set")
         model = f"models/{model_name}"
@@ -117,14 +121,18 @@ class Embedder:
                 ]
             }
             tokens = sum(len(t[:MAX_CHARS]) for t in batch) // 4
-            data = self._post(model_name, f"{model}:batchEmbedContents", body, len(batch), tokens, deadline)
+            data = self._post(
+                model_name, f"{model}:batchEmbedContents", body, len(batch), tokens, deadline
+            )
             items = data.get("embeddings") or []
             if len(items) != len(batch):
                 raise EmbeddingError("wrong number of embeddings returned")
             for item in items:
                 values = [float(v) for v in item.get("values", [])]
                 if len(values) != EMBEDDING_DIM:
-                    raise EmbeddingError(f"embedding has {len(values)} dimensions, expected {EMBEDDING_DIM}")
+                    raise EmbeddingError(
+                        f"embedding has {len(values)} dimensions, expected {EMBEDDING_DIM}"
+                    )
                 norm = math.sqrt(sum(v * v for v in values)) or 1.0
                 out.append([v / norm for v in values])
             if len(texts) > BATCH:
@@ -144,8 +152,14 @@ class Embedder:
             return keys
         return sorted(keys, key=lambda k: q.used_today(k[0], model))
 
-    def _post(
-        self, model: str, path: str, body: dict[str, object], items: int, tokens: int, deadline: float
+    def _post(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 - one linear flow; splitting it is a DEV-33 follow-up
+        self,
+        model: str,
+        path: str,
+        body: dict[str, object],
+        items: int,
+        tokens: int,
+        deadline: float,
     ) -> dict[str, object]:
         """One batch request on the first key with room for it. Each passage counts as one request toward the
         model's per-minute and per-day limits, so the local counter reserves `items` requests and `tokens`."""
@@ -165,7 +179,11 @@ class Embedder:
                     resp = self._client.post(f"{BASE}/{path}", headers=headers, json=body)
                 except httpx.HTTPError as exc:
                     if q is not None:
-                        q.record(key_id, model, "timeout" if isinstance(exc, httpx.TimeoutException) else "unavailable")
+                        q.record(
+                            key_id,
+                            model,
+                            "timeout" if isinstance(exc, httpx.TimeoutException) else "unavailable",
+                        )
                     if time.monotonic() + delay > deadline:
                         raise EmbeddingError(f"Gemini unreachable ({type(exc).__name__})") from exc
                     soonest = delay if soonest is None else min(soonest, delay)
@@ -199,7 +217,9 @@ class Embedder:
                     delay = min(delay * 2, 30)
                     log.warning("embedding with %s returned %d; retrying", model, resp.status_code)
                     break
-                raise EmbeddingError(f"Gemini embeddings returned {resp.status_code}: {_message(resp)}")
+                raise EmbeddingError(
+                    f"Gemini embeddings returned {resp.status_code}: {_message(resp)}"
+                )
             if soonest is None:
                 raise QuotaExhausted(
                     f"the daily quota of {model} is used up on every key; it resets at midnight Pacific time, or add "
@@ -207,7 +227,11 @@ class Embedder:
                 )
             if time.monotonic() + soonest > deadline:
                 raise EmbeddingError(f"{model} is rate limited on every key; try again in a minute")
-            log.info("embedding with %s: every key is at its per-minute limit; waiting %.0fs", model, soonest)
+            log.info(
+                "embedding with %s: every key is at its per-minute limit; waiting %.0fs",
+                model,
+                soonest,
+            )
             time.sleep(soonest)
 
 

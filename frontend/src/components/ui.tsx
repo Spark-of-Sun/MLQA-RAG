@@ -115,7 +115,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     ref.current?.focus();
-    return () => window.removeEventListener("keydown", onKey);
+    return () => { window.removeEventListener("keydown", onKey); };
   }, [onClose]);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4 backdrop-blur-[2px]" onMouseDown={onClose}>
@@ -125,7 +125,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
-        onMouseDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => { e.stopPropagation(); }}
         className="w-full max-w-lg rounded-2xl border border-transparent bg-raised shadow-xl outline-none dark:border-ink-200"
       >
         <div className="flex items-center justify-between border-b border-ink-100 px-5 py-4">
@@ -156,8 +156,8 @@ export function ConfirmButton({
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!armed) return;
-    const t = setTimeout(() => setArmed(false), 4000);
-    return () => clearTimeout(t);
+    const t = setTimeout(() => { setArmed(false); }, 4000);
+    return () => { clearTimeout(t); };
   }, [armed]);
   return (
     <Button
@@ -165,7 +165,7 @@ export function ConfirmButton({
       busy={busy}
       className="px-2.5 py-1.5 text-xs"
       onClick={async () => {
-        if (!armed) return setArmed(true);
+        if (!armed) { setArmed(true); return; }
         setBusy(true);
         try {
           await onConfirm();
