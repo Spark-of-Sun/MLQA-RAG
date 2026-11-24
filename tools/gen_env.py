@@ -48,7 +48,7 @@ def main() -> int:
     missing = [k for k in GENERATORS if is_placeholder(effective.get(k))]
     added = fill_missing(ENV_FILE, {k: GENERATORS[k]() for k in missing})
     if added:
-        print(f"generated local secrets into .env: {', '.join(added)}")
+        print(f"generated local secrets into {ENV_FILE.name}: {', '.join(added)}")
     else:
         print("local secrets: already present")
     if is_placeholder(effective.get("AUTH0_DOMAIN")):

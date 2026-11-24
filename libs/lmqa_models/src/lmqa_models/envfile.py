@@ -2,7 +2,9 @@
 
 Layers, lowest to highest precedence:
   .env                 the only settings file: your values (Auth0, Gemini) and the local-only secrets that
-                       `make setup` adds when missing (database passwords, code pepper, session secret)
+                       `make setup` adds when missing (database passwords, code pepper, session secret).
+                       LMQA_ENV_FILE names another file in the repo root instead, for example `.env.deployed`
+                       on the onekami.site server (docs/deploy.md); `make setup` then writes its secrets there.
   process environment  the shell; overrides .env
 A value that is empty or still a template placeholder such as `<AUTH0_BFF_CLIENT_ID>` counts as unset, so a
 half-filled file never leaks placeholder text into a running service. Values are never printed.
@@ -27,7 +29,7 @@ def _find_root() -> Path:
 
 
 ROOT = _find_root()
-ENV_FILE = ROOT / ".env"
+ENV_FILE = ROOT / (os.environ.get("LMQA_ENV_FILE") or ".env").strip()
 _PLACEHOLDER = re.compile(r"^<[^<>]*>$")
 
 

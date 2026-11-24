@@ -30,7 +30,7 @@ from lmqa_db import Claims, Database
 from lmqa_keys import Field, FieldCipher
 from lmqa_models.contracts import feature_enabled
 from lmqa_objectstore import ObjectStore
-from lmqa_vectorstore import Embedder, EmbeddingError, vector_literal
+from lmqa_vectorstore import EmbeddingError, TextEmbedder, vector_literal
 
 log = logging.getLogger(__name__)
 EMBED_BATCH = 50  # passages per embedding request, and per cache write
@@ -75,7 +75,7 @@ class Ingestor:
         self,
         db: Database,
         store: ObjectStore,
-        embedder: Embedder,
+        embedder: TextEmbedder,
         keys: FieldCipher,
         *,
         workers: int = 2,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from lmqa_db import Database
 from lmqa_models.settings import Settings
-from lmqa_vectorstore import Embedder, EmbeddingError
+from lmqa_vectorstore import EmbeddingError, create_embedder
 from retrieval.rerank import PassageScorer, Reranker, RerankError
 from retrieval.service import ChunkOpener, RetrievalService, Retrieved
 
@@ -14,7 +14,7 @@ def create_retrieval(
 ) -> RetrievalService:
     """`keys`: the process's field cipher (lmqa_keys.FieldCipher), which opens sealed chunk text. `reranker`: an
     injected scorer (the LLM re-ranker); None builds the local one RERANK_MODEL names, if any."""
-    return RetrievalService(settings, db, Embedder(settings), keys, reranker)
+    return RetrievalService(settings, db, create_embedder(settings), keys, reranker)
 
 
 __all__ = [

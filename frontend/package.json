@@ -12,10 +12,14 @@
     "typecheck": "tsc --noEmit",
     "gen:api": "openapi-typescript ../contracts/openapi/gateway.json -o src/lib/api-schema.d.ts",
     "lint": "eslint --max-warnings 0 src",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:cf": "opennextjs-cloudflare build",
+    "preview:cf": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy:cf": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
   },
   "dependencies": {
     "@auth0/nextjs-auth0": "4.33.0",
+    "critters": "file:shims/critters",
     "iovalkey": "0.3.3",
     "lucide-react": "1.77.0",
     "next": "16.4.6",
@@ -24,6 +28,7 @@
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "16.4.6",
+    "@opennextjs/cloudflare": "1.20.18",
     "@tailwindcss/postcss": "4.3.5",
     "@types/node": "24.19.2",
     "@types/react": "19.3.0",
@@ -33,6 +38,14 @@
     "tailwindcss": "4.3.5",
     "typescript": "6.0.3",
     "typescript-eslint": "8.73.0",
-    "vitest": "5.1.1"
+    "vitest": "5.1.1",
+    "wrangler": "4.168.0"
+  },
+  "packageManager": "pnpm@10.34.9",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "workerd"
+    ]
   }
 }

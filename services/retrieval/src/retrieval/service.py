@@ -33,10 +33,10 @@ from lmqa_models.principal import Principal
 from lmqa_models.rag import Dropped, Source
 from lmqa_models.settings import LLM_RERANK, Settings
 from lmqa_vectorstore import (
-    Embedder,
     EmbeddingError,
     QuotaExhausted,
     SearchQuery,
+    TextEmbedder,
     hybrid_candidates,
 )
 from lmqa_vectorstore.qdrant import VectorReader
@@ -94,7 +94,7 @@ class RetrievalService:
         self,
         settings: Settings,
         db: Database,
-        embedder: Embedder,
+        embedder: TextEmbedder,
         keys: ChunkOpener,
         reranker: PassageScorer | None = None,
     ) -> None:

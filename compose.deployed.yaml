@@ -1,0 +1,86 @@
+# onekami.site server (docs/deploy.md): adds the API and the Cloudflare Tunnel to the stack in compose.yaml.
+#   make deploy-up     (= docker compose -f compose.yaml -f compose.deployed.yaml up -d, settings from .env.deployed)
+#
+# Sized for the Linode in docs/deploy.md: 2 vCPU, 3.8 GiB RAM, one organization with up to 20 members and 10 to 15
+# people active at once. The web app runs on Cloudflare Workers (frontend/wrangler.jsonc) and reaches the API only
+# through the tunnel (api.onekami.site, protected by a Cloudflare Access service token). No port is opened to the
+# internet: every host port stays on 127.0.0.1, and cloudflared makes an outbound connection to Cloudflare.
+#
+# Memory budget (limits; idle use is lower): postgres ~500 MB, pgbouncer 64 MB, valkey 256 MB, qdrant 512 MB,
+# seaweedfs 512 MB, openbao 256 MB, cloudflared 128 MB, gateway 1.6 GB (the local embedding model ~0.45 GB, the
+# re-ranker ~0.25 GB, PDF parsing and OCR peaks). ClamAV (1.6 GB) and observability (1 GB) stay off on this machine.
+services:
+  gateway:
+    <<: &hardening
+      restart: unless-stopped
+      security_opt: [no-new-privileges:true]
+    build:
+      context: .
+      dockerfile: infra/docker/service.Dockerfile
+      args:
+        SERVICE: gateway
+        PORT: "8000"
+    image: lmqa-gateway:deployed
+    container_name: lmqa-gateway
+    # Every setting from .env.deployed; the lines under `environment` replace the host addresses with the
+    # containers' names on the Compose network.
+    env_file:
+      - path: ${LMQA_ENV_FILE:-.env.deployed}
+        required: true
+    environment:
+      LMQA_DB_HOST: postgres
+      LMQA_DB_PORT: "5432"
+      PGBOUNCER_HOST: pgbouncer
+      PGBOUNCER_PORT: "6432"
+      VALKEY_URL: redis://valkey:6379/0
+      QDRANT_URL: http://qdrant:6333
+      OBJECT_STORE_ENDPOINT: http://seaweedfs:8333
+      OPENBAO_ADDR: http://openbao:8200
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: "3310"
+      LMQA_DATA_DIR: /app/data
+      MODEL_CACHE_DIR: /app/data/models
+      QUOTA_FILE: /app/data/usage/quota.json
+      HF_HOME: /app/data/hf
+      # Requests arrive from cloudflared on the Compose network; trust its X-Forwarded-For.
+      FORWARDED_ALLOW_IPS: "*"
+      # The settings file is not inside the image; everything comes from env_file above.
+      LMQA_ENV_FILE: .env.none
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    volumes:
+      # Uploaded originals, downloaded models and usage counters. A named volume, owned by the image's user.
+      - gateway-data:/app/data
+    depends_on:
+      postgres: {condition: service_healthy}
+      pgbouncer: {condition: service_healthy}
+      valkey: {condition: service_healthy}
+      openbao: {condition: service_healthy}
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/v1/health', timeout=5)"
+      interval: 10s
+      timeout: 6s
+      retries: 30
+      start_period: 60s
+    mem_limit: 1600m
+
+  cloudflared:
+    <<: *hardening
+    profiles: [tunnel]
+    image: cloudflare/cloudflared:2026.11.2
+    container_name: lmqa-cloudflared
+    # The tunnel's public hostname (api.onekami.site -> http://gateway:8000) is set in the Cloudflare dashboard.
+    # Started by `make deploy-up` (profile `tunnel`); `make deploy-check` refuses an empty CLOUDFLARE_TUNNEL_TOKEN.
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      gateway: {condition: service_healthy}
+    mem_limit: 128m
+
+volumes:
+  gateway-data:

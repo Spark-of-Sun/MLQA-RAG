@@ -55,3 +55,10 @@ crash.log
 .kiro/specs/legal-medical-qa/reports
 # Local visual checks of the public website (frontend/.screenshots)
 .screenshots/
+# Cloudflare Workers build output and local secrets (frontend/wrangler.jsonc, docs/deploy.md)
+.open-next/
+.wrangler/
+.dev.vars*
+cloudflare-env.d.ts
+# tools/pack-ignored.sh output
+lmqa-ignored-*.zip

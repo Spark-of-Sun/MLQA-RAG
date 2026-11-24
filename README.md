@@ -11,6 +11,9 @@ Next.js app, in `frontend/src/app/(site)/`. The docs at `/docs` are written from
 all; an admin reads admin and member pages; a member reads member pages). Access is decided on the server from the
 gateway's role, and a page you may not read shows a lock on the page itself, nowhere else.
 
+Deploying to https://onekami.site (Cloudflare Workers for the website, a Linode with Docker and a Cloudflare Tunnel
+for the API, local embeddings) is described in [docs/deploy.md](docs/deploy.md), on the `deployed` branch.
+
 ## Run it on localhost
 
 Prerequisites: Docker (your user in the `docker` group), [uv](https://docs.astral.sh/uv/), Node 24 and pnpm.

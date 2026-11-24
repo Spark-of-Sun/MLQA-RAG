@@ -1,0 +1,7 @@
+{
+  "name": "critters",
+  "version": "0.0.0-stub",
+  "private": true,
+  "description": "Stub for Cloudflare Workers builds (docs/deploy.md): Next.js requires critters only with experimental.optimizeCss, which this app does not use. OpenNext's Node.js proxy bundler cannot leave the optional require unresolved.",
+  "main": "index.js"
+}

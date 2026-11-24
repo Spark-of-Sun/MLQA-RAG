@@ -7,6 +7,17 @@ import type { Me } from "@/lib/types";
 
 export const API_URL = process.env.LMQA_API_INTERNAL_URL ?? "http://127.0.0.1:8000";
 
+/**
+ * Headers for every server-side call to the gateway. On onekami.site the web app runs on Cloudflare Workers and
+ * reaches the API through a Cloudflare Tunnel guarded by Cloudflare Access; CF_ACCESS_CLIENT_ID and
+ * CF_ACCESS_CLIENT_SECRET are that Access service token (docs/deploy.md). Unset locally: nothing is added.
+ */
+export function apiHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  const id = process.env.CF_ACCESS_CLIENT_ID;
+  const secret = process.env.CF_ACCESS_CLIENT_SECRET;
+  return id && secret ? { ...extra, "cf-access-client-id": id, "cf-access-client-secret": secret } : extra;
+}
+
 export class BackendUnavailable extends Error {}
 
 async function accessToken(): Promise<string | null> {
@@ -27,7 +38,7 @@ export const requireMe = cache(async (): Promise<Me> => {
   let response: Response;
   try {
     response = await fetch(`${API_URL}/v1/me`, {
-      headers: { authorization: `Bearer ${token}` },
+      headers: apiHeaders({ authorization: `Bearer ${token}` }),
       cache: "no-store",
     });
   } catch {
@@ -44,7 +55,7 @@ export const requireMe = cache(async (): Promise<Me> => {
  */
 export const publicSiteEnabled = cache(async (): Promise<boolean> => {
   try {
-    const response = await fetch(`${API_URL}/v1/health`, { cache: "no-store" });
+    const response = await fetch(`${API_URL}/v1/health`, { headers: apiHeaders(), cache: "no-store" });
     if (!response.ok) return false;
     const body = (await response.json()) as { public_site?: unknown };
     return body.public_site === true;
@@ -72,7 +83,7 @@ export const findMe = cache(async (): Promise<Me | null | "unavailable"> => {
   if (!token) return null;
   try {
     const response = await fetch(`${API_URL}/v1/me`, {
-      headers: { authorization: `Bearer ${token}` },
+      headers: apiHeaders({ authorization: `Bearer ${token}` }),
       cache: "no-store",
     });
     if (response.status === 401) return null;

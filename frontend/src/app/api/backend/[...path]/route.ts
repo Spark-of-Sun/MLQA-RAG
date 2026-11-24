@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { auth0 } from "@/lib/auth0";
-import { API_URL } from "@/lib/backend";
+import { API_URL, apiHeaders } from "@/lib/backend";
 
 // BFF proxy (blueprint 17.1): the browser calls /api/backend/<path>; this handler attaches the user's access token
 // server-side and forwards to the gateway's /v1/<path>. The browser never sees a token.
@@ -30,7 +30,8 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
   const headers: Record<string, string> = { authorization: `Bearer ${token}` };
   const contentType = request.headers.get("content-type");
   if (contentType) headers["content-type"] = contentType;
-  const forwardedFor = request.headers.get("x-forwarded-for");
+  // On Cloudflare Workers the visitor's address is in cf-connecting-ip.
+  const forwardedFor = request.headers.get("x-forwarded-for") ?? request.headers.get("cf-connecting-ip");
   if (forwardedFor) headers["x-forwarded-for"] = forwardedFor;
   // Streaming resume (G7.11) and idempotent retries (15) pass through; nothing else from the browser does.
   for (const name of ["last-event-id", "x-query-id", "idempotency-key", "accept"]) {
@@ -42,7 +43,7 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
   try {
     upstream = await fetch(`${API_URL}/v1/${path.join("/")}${request.nextUrl.search}`, {
       method: request.method,
-      headers,
+      headers: apiHeaders(headers),
       body: request.method === "GET" ? undefined : await request.arrayBuffer(),
       cache: "no-store",
     });

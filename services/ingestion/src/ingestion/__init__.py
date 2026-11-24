@@ -8,7 +8,7 @@ from lmqa_db import Database
 from lmqa_keys import FieldCipher, field_cipher_from_settings
 from lmqa_models.settings import Settings
 from lmqa_objectstore import ObjectStore
-from lmqa_vectorstore import Embedder
+from lmqa_vectorstore import create_embedder
 
 
 def create_ingestion(
@@ -18,7 +18,7 @@ def create_ingestion(
     process's field cipher (titles, file names and chunk text are sealed with document keys)."""
     keys = keys or field_cipher_from_settings()
     store = ObjectStore(settings.data_dir / "objects")
-    ingestor = Ingestor(db, store, Embedder(settings), keys, workers=workers)
+    ingestor = Ingestor(db, store, create_embedder(settings), keys, workers=workers)
     return DocumentService(settings, db, store, ingestor, keys), ingestor
 
 

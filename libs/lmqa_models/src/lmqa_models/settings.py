@@ -38,6 +38,10 @@ DEFAULT_QUERY_FALLBACK_MODELS = ("gemini-3.1-flash-lite", "gemini-2.5-flash-lite
 # Embeddings: each model has its own daily quota. Passages are embedded with the first model that has quota left,
 # and a document always uses one model throughout; search embeds the question with every model in use.
 DEFAULT_EMBEDDING_FALLBACK_MODELS = ("gemini-embedding-2",)
+# EMBEDDING_PROVIDER=local: passages and questions are embedded on this machine (ONNX Runtime through fastembed), so
+# no document text leaves it for this step and no embedding quota applies. The model must return 768 dimensions.
+EMBEDDING_PROVIDERS = ("gemini", "local")
+DEFAULT_LOCAL_EMBEDDING_MODEL = "BAAI/bge-base-en-v1.5"
 # RERANK_MODEL=llm: the answer models score passages instead of a local cross-encoder. By default they are tried in
 # reverse order (Flash-Lite first, the strongest last), so re-ranking spends the high-quota models and leaves the
 # strong models' small daily quota for answers. A shorter timeout: a slow model is skipped instead of stalling search.
@@ -152,6 +156,7 @@ class Settings:
     llm_thinking_level: str | None = "low"  # Gemini only
     llm_max_output_tokens: int = 8192
     llm_timeout_seconds: float = 40.0
+    embedding_provider: str = "gemini"  # gemini | local (EMBEDDING_PROVIDER)
     embedding_model: str = "gemini-embedding-001"
     embedding_fallback_models: tuple[str, ...] = DEFAULT_EMBEDDING_FALLBACK_MODELS
     query_model: str | None = DEFAULT_QUERY_MODEL  # None: query planning uses the answer chain
@@ -391,6 +396,20 @@ def load_settings() -> Settings:
     )
     if query_model and query_model.lower() in {"off", "none", "same"}:
         query_model = None
+    embedding_provider = (_secret(env, "EMBEDDING_PROVIDER") or "gemini").lower()
+    if embedding_provider not in EMBEDDING_PROVIDERS:
+        raise ConfigError(f"EMBEDDING_PROVIDER must be one of: {', '.join(EMBEDDING_PROVIDERS)}")
+    if embedding_provider == "local":
+        # One local model, no fallbacks: a local model has no quota to run out of.
+        embedding_model = _secret(env, "LOCAL_EMBEDDING_MODEL") or DEFAULT_LOCAL_EMBEDDING_MODEL
+        embedding_fallbacks: tuple[str, ...] = ()
+    else:
+        embedding_model = env.get("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001").removeprefix(
+            "models/"
+        )
+        embedding_fallbacks = _models(
+            env, "GEMINI_EMBEDDING_FALLBACK_MODELS", DEFAULT_EMBEDDING_FALLBACK_MODELS
+        )
     temperature = _secret(env, "LLM_TEMPERATURE")
     try:
         temp = float(temperature) if temperature else None
@@ -435,12 +454,9 @@ def load_settings() -> Settings:
         llm_thinking_level=None if thinking in {"", "off", "none"} else thinking,
         llm_max_output_tokens=_int(env, "LLM_MAX_OUTPUT_TOKENS", 8192),
         llm_timeout_seconds=float(env.get("LLM_TIMEOUT_SECONDS", "40")),
-        embedding_model=env.get("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001").removeprefix(
-            "models/"
-        ),
-        embedding_fallback_models=_models(
-            env, "GEMINI_EMBEDDING_FALLBACK_MODELS", DEFAULT_EMBEDDING_FALLBACK_MODELS
-        ),
+        embedding_provider=embedding_provider,
+        embedding_model=embedding_model,
+        embedding_fallback_models=embedding_fallbacks,
         query_model=query_model,
         query_fallback_models=_models(
             env,

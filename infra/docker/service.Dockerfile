@@ -12,7 +12,8 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 COPY libs ./libs
 COPY services ./services
-RUN uv sync --frozen --no-dev --package "${SERVICE}" ${EXTRAS}
+# --no-editable: workspace packages are installed into .venv, which is all the runtime stage copies.
+RUN uv sync --frozen --no-dev --no-editable --package "${SERVICE}" ${EXTRAS}
 
 FROM ${PYTHON_IMAGE}
 ARG SERVICE
@@ -26,7 +27,7 @@ COPY --chown=lmqa:lmqa contracts ./contracts
 COPY --chown=lmqa:lmqa prompts ./prompts
 COPY --chown=lmqa:lmqa db ./db
 COPY --chown=lmqa:lmqa infra/keyguard ./infra/keyguard
-RUN touch /app/Makefile
+RUN touch /app/Makefile && install -d -o lmqa -g lmqa /app/data
 ENV PATH="/app/.venv/bin:${PATH}" LMQA_ROOT=/app SERVICE=${SERVICE} PORT=${PORT} PYTHONUNBUFFERED=1
 USER 10001:10001
 EXPOSE ${PORT}

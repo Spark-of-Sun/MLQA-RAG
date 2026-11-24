@@ -18,7 +18,7 @@ from lmqa_db import connect_role as connect
 from lmqa_models.envfile import merged_env
 from lmqa_models.quota import rotate
 from lmqa_models.settings import EMBEDDING_DIM, LLM_RERANK, Settings, load_settings
-from lmqa_vectorstore import Embedder, EmbeddingError
+from lmqa_vectorstore import EmbeddingError, create_embedder
 from retrieval import Reranker, RerankError
 
 OK, WARN, FAIL = "\033[32m  ok \033[0m", "\033[33mwarn \033[0m", "\033[31mFAIL \033[0m"
@@ -263,7 +263,7 @@ def check_models() -> None:
             report(FAIL, "generation", str(exc))
     else:
         report(FAIL, "generation", f"no usable answer model: set {', '.join(client.missing())}")
-    embedder = Embedder(s)
+    embedder = create_embedder(s)
     for i, model in enumerate(embedder.models):
         # The primary model must work; a fallback that fails only lowers resilience.
         try:

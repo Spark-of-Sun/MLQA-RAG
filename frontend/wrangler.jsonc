@@ -1,0 +1,30 @@
+// Cloudflare Worker for https://onekami.site (docs/deploy.md). Built by OpenNext from the Next.js app:
+//   Workers Builds (git connection): root directory `frontend`, build command `pnpm run build:cf`,
+//   deploy command `npx opennextjs-cloudflare deploy`, production branch `deployed`.
+// Secrets (AUTH0_CLIENT_SECRET_BFF, AUTH0_SESSION_SECRET, CF_ACCESS_CLIENT_SECRET, ...) are set in the dashboard,
+// never here. `keep_vars` keeps variables added in the dashboard when a new version is deployed.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "onekami-site",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "onekami-site" }],
+  // Only the apex: Auth0 returns to APP_BASE_URL, and the sign-in cookie is bound to that host. Send www to the
+  // apex with a Cloudflare redirect rule (docs/deploy.md, step 8).
+  "routes": [{ "pattern": "onekami.site", "custom_domain": true }],
+  "workers_dev": false,
+  "preview_urls": false,
+  "keep_vars": true,
+  "observability": { "enabled": true },
+  "vars": {
+    "APP_BASE_URL": "https://onekami.site",
+    "LMQA_API_INTERNAL_URL": "https://api.onekami.site",
+    "AUTH0_AUDIENCE_MAIN": "https://api.onekami.site",
+    "NEXT_TELEMETRY_DISABLED": "1"
+  }
+}
