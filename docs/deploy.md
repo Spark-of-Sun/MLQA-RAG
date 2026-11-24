@@ -9,7 +9,7 @@ browser ──https──> Cloudflare Worker "onekami-site"  (Next.js via OpenNe
                    api.onekami.site  (Cloudflare Access: service token only)
                         │  Cloudflare Tunnel (outbound connection from the server; no open ports)
                         ▼
-Linode 194.195.112.145 (Ubuntu 24.04, 2 vCPU, 3.8 GiB) ── Docker Compose, project `lmqa`
+Linode (Ubuntu 24.04, 2 vCPU, 3.8 GiB) ── Docker Compose, project `lmqa`
    cloudflared ─> gateway :8000 (API, local embeddings, re-ranker, ingestion)
                   postgres+pgvector, pgbouncer, valkey, qdrant, seaweedfs, openbao  (127.0.0.1 only)
 ```
@@ -31,11 +31,14 @@ The answer model stays on Gemini. Only embeddings (and, as before, the re-ranker
 
 ## 1. On the laptop: push the branch and pack the ignored files
 
+`SERVER` below is your server's address (from the Linode dashboard). It is not written anywhere in the repo.
+
 ```sh
+export SERVER=<server-address>
 cd ~/Downloads/LMQA/legal-medical-qa
 git push -u origin deployed
 tools/pack-ignored.sh                        # writes lmqa-ignored-<date>.zip (mode 600) in the repo root
-scp lmqa-ignored-*.zip root@194.195.112.145:/root/
+scp lmqa-ignored-*.zip root@$SERVER:/root/
 ```
 
 The zip holds every git-ignored file: `.env`, `.env.deployed`, the `.env.bak-*` files, `.secrets.*`, Terraform state,
@@ -45,12 +48,12 @@ rendered credentials) and `corpus/data/`. It leaves out what is rebuilt or downl
 copy it only over SSH.
 
 To move Kiro as well, copy your user-level Kiro folder (steering, agents, settings):
-`scp -r ~/.kiro root@194.195.112.145:/root/`. The project's `.kiro/` comes with the clone and the zip.
+`scp -r ~/.kiro root@$SERVER:/root/`. The project's `.kiro/` comes with the clone and the zip.
 
 ## 2. Prepare the server
 
 ```sh
-ssh root@194.195.112.145
+ssh root@$SERVER
 
 apt update && apt -y upgrade
 apt -y install git make zip unzip curl ca-certificates ufw

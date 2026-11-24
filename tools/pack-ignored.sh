@@ -54,4 +54,4 @@ chmod 600 "$out"
 echo "packed $count files into $out ($(du -h "$out" | cut -f1))"
 echo "top-level entries:"
 cut -d/ -f1 "$list" | sort | uniq -c | sort -rn | awk '{printf "  %6d  %s\n", $1, $2}'
-echo "copy it to the server:  scp \"$out\" root@194.195.112.145:/root/"
+echo "copy it to the server:  scp \"$out\" root@<server-address>:/root/"
