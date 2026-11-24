@@ -1,7 +1,7 @@
 export const BRAND = "Cyte"; // the product
 export const COMPANY = "Onekami"; // the company that makes it
 export const CONTACT_EMAIL = "contact@onekami.site"; // sales, demos and general questions
-export const SUPPORT_EMAIL = "help@onekami.site"; // help for customers using the product
+export const SUPPORT_EMAIL = "info@onekami.site"; // help for customers using the product
 
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return "—";

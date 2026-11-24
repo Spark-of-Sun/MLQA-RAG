@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import localFont from "next/font/local";
 import { cookies, headers } from "next/headers";
 import type { ReactNode } from "react";
 
@@ -6,6 +7,23 @@ import { BRAND, COMPANY } from "@/lib/format";
 import { THEME_COOKIE, parseTheme } from "@/lib/theme";
 
 import "./globals.css";
+
+// Self-hosted fonts (src/fonts, SIL Open Font License): no request leaves the site, so the strict CSP's
+// `font-src 'self'` covers them. Inter for interface text everywhere; Source Serif 4 for the website's headings.
+const inter = localFont({
+  src: "../fonts/inter-latin.woff2",
+  weight: "400 700",
+  display: "swap",
+  variable: "--font-inter",
+});
+const serif = localFont({
+  src: [
+    { path: "../fonts/source-serif-4-latin.woff2", weight: "400 700", style: "normal" },
+    { path: "../fonts/source-serif-4-italic-latin.woff2", weight: "400 600", style: "italic" },
+  ],
+  display: "swap",
+  variable: "--font-source-serif",
+});
 
 export const metadata: Metadata = {
   title: { default: `${BRAND} · cited answers from your documents`, template: `%s · ${BRAND}` },
@@ -26,8 +44,8 @@ export const metadata: Metadata = {
 // The browser's own UI (mobile address bar, window title bar) follows the system setting.
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fcfcfc" },
-    { media: "(prefers-color-scheme: dark)", color: "#0a0b0e" },
+    { media: "(prefers-color-scheme: light)", color: "#fbfaf7" },
+    { media: "(prefers-color-scheme: dark)", color: "#0c0b0a" },
   ],
 };
 
@@ -38,7 +56,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // choice yet: no class, and the stylesheet follows the operating system (globals.css).
   const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
   return (
-    <html lang="en" className={theme ?? undefined}>
+    <html lang="en" className={[theme, inter.variable, serif.variable].filter(Boolean).join(" ")}>
       <body>{children}</body>
     </html>
   );

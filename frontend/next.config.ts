@@ -22,6 +22,24 @@ const config: NextConfig = {
       },
     ];
   },
+  // The old single-product "Industries" section became two named products (Cyte Legal QA, Cyte Medical QA). These
+  // keep every link and bookmark to the old paths working. Order matters: the specific slugs must be listed before
+  // the catch-all, since Next.js redirects in array order and takes the first match.
+  async redirects() {
+    return [
+      { source: "/industries/legal", destination: "/products/legal", permanent: true },
+      { source: "/industries/healthcare", destination: "/products/medical", permanent: true },
+      { source: "/industries/:slug", destination: "/product", permanent: true },
+      { source: "/industries", destination: "/product", permanent: true },
+      // The company page moved to /about; /products alone has no page of its own (the index is /product); /legal
+      // opens its first document.
+      { source: "/company", destination: "/about", permanent: true },
+      // The careers page was removed; old links land on /about.
+      { source: "/careers", destination: "/about", permanent: false },
+      { source: "/products", destination: "/product", permanent: false },
+      { source: "/legal", destination: "/legal/privacy", permanent: false },
+    ];
+  },
 };
 
 export default config;

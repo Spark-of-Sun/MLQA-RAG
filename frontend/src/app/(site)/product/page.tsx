@@ -1,28 +1,20 @@
 import { ArrowRight, Building2, Check, Minus, UserCog, Users, X } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 
-import { ButtonLink, NumberedGrid, PageHero, PointGrid, Questions, Section } from "@/components/site/blocks";
+import { AnswerCard, ButtonLink, NumberedGrid, PageHero, PointGrid, Questions, Section } from "@/components/site/blocks";
+import { VerificationChecks } from "@/components/site/checks";
 import { SIGN_UP } from "@/components/site/links";
-import { LiveDemo } from "@/components/site/live-demo";
+import { faqGroup } from "@/components/site/faq";
+import { PRODUCTS } from "@/components/site/products";
+import { pageMeta } from "@/components/site/seo";
 import { BRAND } from "@/lib/format";
 
-export const metadata: Metadata = {
-  title: "Product",
-  description: `How ${BRAND} turns your documents into verified, cited answers.`,
-};
-
-const CHECKS = [
-  ["Citation format", "The citation points to a real source of this answer."],
-  ["Source was retrieved", "The answer cites only passages found for this question."],
-  ["Source unchanged", "The passage did not change between search and answer."],
-  ["Sentence is cited", "Every sentence that states a fact has a citation."],
-  ["Quote found in source", "The supporting quote appears word for word in the passage."],
-  ["Numbers and dates match", "Every number, date, amount and dosage appears in the passage."],
-  ["Wording supported", "The sentence's key terms come from the passage."],
-  ["Source entails the claim", "A second, stricter review confirms the passage supports the claim."],
-  ["Refusal wording", "A “does not address” reply is exact and stands alone."],
-  ["Resolves to page and section", "The citation leads to a real place in the document."],
-];
+export const metadata: Metadata = pageMeta(
+  "Products",
+  `${BRAND} Legal QA and ${BRAND} Medical QA: how Cyte turns your documents into verified, cited answers.`,
+  "/product",
+);
 
 const ASK = [
   { title: "Ask in plain language", body: "Type a question as you would ask a colleague. Up to 2,000 characters." },
@@ -81,77 +73,82 @@ function MarkCell({ m }: { m: Mark }) {
   return <Minus className="mx-auto size-5 text-ink-400" aria-label="Partly, or depends on the product" />;
 }
 
-const QUESTIONS = [
-  { q: "Does Cyte give legal or medical advice?", a: "No. It reports what your documents say and where. Decisions stay with qualified professionals." },
-  {
-    q: "What if my documents don't contain the answer?",
-    a: "Cyte replies “The provided documents do not address this.” If they answer part of the question, you get that part, followed by the same sentence.",
-  },
-  {
-    q: "Why was a sentence removed from my answer?",
-    a: "It failed one of the checks, for example a number that does not appear in the cited passage. The answer shows that a claim was removed and why; the rest is still verified.",
-  },
-  {
-    q: "Which AI model writes the answers?",
-    a: "Cyte works with several model providers. Whichever model drafts the answer, every sentence goes through the same checks, and the model used is shown in the answer's verification details.",
-  },
-  { q: "Can it read scanned PDFs?", a: "Not yet. Upload PDFs with selectable text, or Word files. Text recognition for scans is on our roadmap." },
-];
+const QUESTIONS = [...faqGroup("product"), ...faqGroup("verification")];
 
 export default function ProductPage() {
   return (
     <>
       <PageHero
-        label="Product"
+        label="Products"
         title="Search, draft and check. In one step."
-        intro={`${BRAND} reads your documents, drafts an answer, and checks every sentence against the passage it cites. You see only what passed.`}
+        intro={`${BRAND} reads your documents, drafts an answer, and checks every sentence against the passage it cites. Choose ${BRAND} Legal QA, ${BRAND} Medical QA, or both. You see only what passed.`}
         actions={
           <>
-            <ButtonLink href={SIGN_UP}>
-              Get started <ArrowRight className="size-4" aria-hidden />
+            <ButtonLink href="/contact">
+              Book a demo <ArrowRight className="size-4" aria-hidden />
             </ButtonLink>
-            <ButtonLink href="/contact" variant="secondary">
-              Book a demo
+            <ButtonLink href={SIGN_UP} variant="secondary">
+              Create your organization
             </ButtonLink>
           </>
         }
-        aside={<LiveDemo />}
+        aside={PRODUCTS[1] && <AnswerCard sample={PRODUCTS[1].sample} />}
       />
+
+      <Section label="Choose" title="Choose your product." intro="Both products run on the same verification engine. Pick the one built for your documents, or run both in the same organization.">
+        <div className="grid gap-6 lg:grid-cols-2">
+          {PRODUCTS.map((p) => (
+            <Link
+              key={p.slug}
+              href={`/products/${p.slug}`}
+              className="group rounded-xl border border-ink-200 bg-surface p-8 transition-colors hover:border-ink-950 md:p-10"
+            >
+              <p className="font-mono text-[11px] tracking-[0.14em] text-ink-500 uppercase">{p.who}</p>
+              <h3 className="display mt-6 text-3xl font-medium text-ink-950 md:text-4xl">{p.fullName}</h3>
+              <p className="mt-3 text-ink-600">{p.intro}</p>
+              <ul className="mt-6 flex flex-wrap gap-2">
+                {p.documents.map((d) => (
+                  <li key={d} className="rounded-md border border-ink-200 bg-page px-2.5 py-1 text-xs text-ink-600">
+                    {d}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-8 flex items-center gap-2 text-sm font-medium text-ink-950">
+                Explore {p.fullName} <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" aria-hidden />
+              </p>
+            </Link>
+          ))}
+        </div>
+      </Section>
 
       <Section
         id="verification"
+        tone="muted"
+        label="Verification"
         title="Ten checks on every sentence."
         intro="A drafted sentence must quote its source. Before you see it, it has to pass all of these. If one fails, the sentence is removed and the answer says so."
       >
-        <ol className="grid border-t border-l border-ink-200 sm:grid-cols-2 lg:grid-cols-5">
-          {CHECKS.map(([title, body], i) => (
-            <li key={title} className="border-r border-b border-ink-200 p-5">
-              <span className="font-mono text-xs text-ink-400">{String(i + 1).padStart(2, "0")}</span>
-              <h3 className="mt-4 text-sm font-semibold text-ink-950">{title}</h3>
-              <p className="mt-1.5 text-xs leading-5 text-ink-600">{body}</p>
-            </li>
-          ))}
-        </ol>
+        <VerificationChecks />
       </Section>
 
-      <Section id="chat" muted title="Ask like you talk to a colleague." intro="Chats work like any chat app, with one difference: every answer is checked against your documents.">
+      <Section id="chat" label="Ask" title="Ask like you talk to a colleague." intro="Chats work like any chat app, with one difference: every answer is checked against your documents.">
         <PointGrid items={ASK} columns={4} />
       </Section>
 
-      <Section id="library" title="A library with clear sharing." intro="Everyone can see at a glance who can use each document.">
+      <Section id="library" tone="muted" label="Library" title="A library with clear sharing." intro="Everyone can see at a glance who can use each document.">
         <PointGrid items={LIBRARY} />
       </Section>
 
-      <Section id="teams" muted title="Built around your teams." intro="One organization, a separate workspace for each team, and people who join with one-time codes and a person's approval.">
+      <Section id="teams" label="Teams" title="Built around your teams." intro="One organization, a separate workspace for each team, and people who join with one-time codes and a person's approval.">
         <PointGrid items={ROLES} />
       </Section>
 
-      <Section id="audit" title="An audit trail you can verify." intro="Every upload, approval, share and answer is chained to the event before it with SHA-256.">
+      <Section id="audit" tone="muted" label="Audit" title="An audit trail you can verify." intro="Every upload, approval, share and answer is chained to the event before it with SHA-256.">
         <NumberedGrid items={AUDIT} />
       </Section>
 
-      <Section id="compare" muted title="Why not a chatbot, or plain search?" intro="Chatbots are fast but hard to check. Search is checkable but slow. Cyte gives you the speed of one with the proof of the other.">
-        <div className="overflow-x-auto rounded-2xl border border-ink-200 bg-surface">
+      <Section id="compare" label="Compare" title="Why not a chatbot, or plain search?" intro="Chatbots are fast but hard to check. Search is checkable but slow. Cyte gives you the speed of one with the proof of the other.">
+        <div className="overflow-x-auto rounded-xl border border-ink-200 bg-surface">
           <table className="w-full min-w-[36rem] text-sm">
             <thead className="border-b border-ink-200 text-ink-600">
               <tr>
@@ -165,7 +162,7 @@ export default function ProductPage() {
               {COMPARISON.map((r) => (
                 <tr key={r.row}>
                   <td className="px-5 py-3 text-ink-700">{r.row}</td>
-                  <td className="bg-ink-50 px-4 py-3">
+                  <td className="bg-page-muted px-4 py-3">
                     <MarkCell m={r.cyte} />
                   </td>
                   <td className="px-4 py-3">
@@ -182,7 +179,7 @@ export default function ProductPage() {
         <p className="mt-3 text-xs text-ink-500">A dash means partly, or that it depends on the product and its settings.</p>
       </Section>
 
-      <Section title="Questions.">
+      <Section tone="muted" label="FAQ" title="Questions.">
         <Questions items={QUESTIONS} />
       </Section>
     </>

@@ -10,7 +10,7 @@ of guessing.
 **Supported browsers:** current Chrome, Edge, Firefox or Safari on a computer. The chat list is hidden on narrow
 screens, so use a window at least 1024 pixels wide.
 
-**Getting help:** email help@onekami.site for help using Cyte. For demos, pilots and other questions, email
+**Getting help:** email info@onekami.site for help using Cyte. For demos, pilots and other questions, email
 contact@onekami.site. The website also explains the product (**Product**), how data is protected (**Security**),
 plans (**Pricing**) and how to reach us (**Contact**). The **Docs** section of the website has this guide's content,
 with the pages for admins and Super Admins open only to those roles.
@@ -362,7 +362,7 @@ Select **Verify hash chain** to recompute every audit chain of your organization
 the organization) from its start.
 
 - **Chain intact** means nothing has been changed or removed.
-- **Tampering detected** means an event no longer matches its hash. Contact Onekami at help@onekami.site.
+- **Tampering detected** means an event no longer matches its hash. Contact Onekami at info@onekami.site.
 
 ---
 
@@ -408,7 +408,7 @@ the organization) from its start.
 | A claim was removed | One sentence failed a check; the rest is verified. Open **verification details** to see why, or ask a narrower question. |
 | "This source is no longer available to you." | The document was deleted, or your access to it changed after the answer was given. |
 | "This chat does not exist or is not yours." | The chat was deleted, or the link belongs to someone else's chat. |
-| An answer takes longer than a minute or shows an error | The answer service may be busy. Try again shortly. If it keeps happening, contact Onekami at help@onekami.site. |
+| An answer takes longer than a minute or shows an error | The answer service may be busy. Try again shortly. If it keeps happening, contact Onekami at info@onekami.site. |
 
 ---
 

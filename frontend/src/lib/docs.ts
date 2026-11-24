@@ -667,7 +667,7 @@ const PAGES: DocPage[] = [
       { t: "h2", id: "verify", text: "Verify the record" },
       {
         t: "p",
-        text: "**Verify hash chain** recomputes every event of your organization from the first one. “Chain intact” means nothing was changed or removed. “Tampering detected” means an event no longer matches its hash; contact help@onekami.site.",
+        text: "**Verify hash chain** recomputes every event of your organization from the first one. “Chain intact” means nothing was changed or removed. “Tampering detected” means an event no longer matches its hash; contact info@onekami.site.",
       },
     ],
   },
@@ -725,7 +725,7 @@ const PAGES: DocPage[] = [
       {
         t: "note",
         tone: "warn",
-        text: "If verification ever reports tampering, do not change anything else; contact help@onekami.site with the time you ran the check.",
+        text: "If verification ever reports tampering, do not change anything else; contact info@onekami.site with the time you ran the check.",
       },
     ],
   },
@@ -780,7 +780,7 @@ const PAGES: DocPage[] = [
           ["A claim … was removed", "One sentence failed a check; the rest is verified. Open verification details to see why."],
         ],
       },
-      { t: "p", text: "Still stuck? Email help@onekami.site." },
+      { t: "p", text: "Still stuck? Email info@onekami.site." },
     ],
   },
   {

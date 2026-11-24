@@ -1,16 +1,17 @@
 import { Ban, Database, EyeOff, Fingerprint, KeyRound, Lock, ScrollText, ShieldCheck, UserCheck } from "lucide-react";
 import type { Metadata } from "next";
 
-import { ButtonLink, PageHero, PointGrid, Questions, Section } from "@/components/site/blocks";
-import { mailto } from "@/components/site/links";
-import { BRAND, COMPANY, CONTACT_EMAIL } from "@/lib/format";
+import { ButtonLink, Container, Label, PointGrid, Questions, Section } from "@/components/site/blocks";
+import { faqGroup } from "@/components/site/faq";
+import { SECURITY_MAIL } from "@/components/site/links";
+import { pageMeta } from "@/components/site/seo";
+import { BRAND, CONTACT_EMAIL } from "@/lib/format";
 
-export const metadata: Metadata = {
-  title: "Security",
-  description: `How ${BRAND} keeps each team's documents, chats and answers apart.`,
-};
-
-const SECURITY_MAIL = mailto(CONTACT_EMAIL, `${BRAND} security`);
+export const metadata: Metadata = pageMeta(
+  "Security",
+  `How ${BRAND} keeps each team's documents, chats and answers apart: database isolation, private-by-default sharing, secure sign-in and a verifiable audit trail.`,
+  "/security",
+);
 
 const CONTROLS = [
   {
@@ -51,19 +52,9 @@ const NOT_YET = [
   { title: "Independent review", body: "No external penetration test or certification has been completed yet." },
 ];
 
+// The shared security answers (processing, admins, owner, certification) and the ones only this page needs.
 const QUESTIONS = [
-  {
-    q: "Where is my data processed?",
-    a: `During early access, ${BRAND} is hosted by ${COMPANY}. Document text is sent to Google to make it searchable, and the passages behind each question are sent to the configured AI model to draft the answer. Before you upload real client or patient records, talk to us about hosting and data agreements.`,
-  },
-  {
-    q: "Can an admin read a member's documents or chats?",
-    a: "Chats, never. Documents, only those the member chose to share with the admin. The admin sees counts, such as how many private documents a member has, but not their content.",
-  },
-  {
-    q: "Can the organization owner read workspace content?",
-    a: "No. The Super Admin's view is limited to admins, codes, organization events and usage totals. The database returns nothing else for that role, even if asked.",
-  },
+  ...faqGroup("security"),
   {
     q: "What does the audit trail record?",
     a: "Who did what and when: joins, approvals, uploads, shares, deletions, chats and answers. Questions and answers are stored as hashes, never as text, and titles of documents a viewer cannot open are hidden.",
@@ -72,32 +63,107 @@ const QUESTIONS = [
     q: "What happens when someone leaves?",
     a: "Their admin suspends them, and access stops on their next request. Their data is kept, not deleted.",
   },
+  {
+    q: "How long does a session last?",
+    a: "Sessions end after 30 minutes without activity, and after 8 hours in any case.",
+  },
+];
+
+const ROLES: [string, string, string, string][] = [
+  ["Read a member's private documents", "No", "No", "Their own only"],
+  ["Read someone else's chats", "No", "No", "No"],
+  ["See members' profiles and usage counts", "No", "Own workspace", "No"],
+  ["Approve and suspend people", "Admins", "Members of own workspace", "No"],
+  ["Verify the audit hash chain", "Yes", "Yes", "Yes"],
 ];
 
 export default function SecurityPage() {
   return (
     <>
-      <PageHero
-        center
-        label="Security"
-        title="Access decided by the database."
-        intro="Every document, passage and answer is checked against who is asking, in PostgreSQL itself, so a mistake in one screen cannot expose another team's work."
-        actions={
-          <>
-            <ButtonLink href="/contact">Bring us your security review</ButtonLink>
-            <ButtonLink href={SECURITY_MAIL} variant="secondary">
-              Report a vulnerability
-            </ButtonLink>
-          </>
-        }
-      />
-      <Section title="Controls in place today.">
+      <section className="site-grid border-b border-ink-200">
+        <Container className="grid gap-14 pt-16 pb-16 md:pt-24 md:pb-24 lg:grid-cols-[1.2fr_1fr] lg:items-end">
+          <div>
+            <div className="rise">
+              <Label>Security</Label>
+            </div>
+            <h1 className="rise d-1 mt-6 text-[2.6rem] leading-[1.05] font-medium text-balance text-ink-950 md:text-6xl md:leading-[1.03]">
+              Access decided by the database.
+            </h1>
+            <p className="rise d-2 mt-6 max-w-2xl text-lg leading-8 text-ink-600">
+              Every document, passage and answer is checked against who is asking, in PostgreSQL itself, so a mistake in
+              one screen cannot expose another team&apos;s work.
+            </p>
+            <div className="rise d-3 mt-9 flex flex-wrap gap-3">
+              <ButtonLink href="/contact">Bring us your security review</ButtonLink>
+              <ButtonLink href={SECURITY_MAIL} variant="secondary">
+                Report a vulnerability
+              </ButtonLink>
+            </div>
+          </div>
+          <div className="rise d-3 rounded-xl border border-ink-200 bg-surface p-6">
+            <p className="font-mono text-[11px] tracking-[0.14em] text-ink-500 uppercase">Where we stand today</p>
+            <ul className="mt-4 space-y-3 text-sm leading-6 text-ink-700">
+              <li className="flex gap-3">
+                <span className="mt-2 size-1.5 shrink-0 rounded-full bg-brush" aria-hidden />
+                Designed for privileged legal and clinical documents.
+              </li>
+              <li className="flex gap-3">
+                <span className="mt-2 size-1.5 shrink-0 rounded-full bg-brush" aria-hidden />
+                No external audit, certification (such as SOC 2 or ISO 27001) or penetration test has been completed yet.
+              </li>
+              <li className="flex gap-3">
+                <span className="mt-2 size-1.5 shrink-0 rounded-full bg-brush" aria-hidden />
+                During early access, document text is sent to Google for search and cited passages to the configured AI
+                model. Talk to us before uploading client or patient records.
+              </li>
+            </ul>
+          </div>
+        </Container>
+      </section>
+
+      <Section label="Controls" title="Controls in place today.">
         <PointGrid items={CONTROLS} />
       </Section>
-      <Section muted title="Not built yet." intro="We describe what Cyte does today, plainly. These are on the roadmap and not available now.">
-        <PointGrid items={NOT_YET} columns={4} />
+
+      <Section tone="muted" label="Roles" title="Who can see what." intro="Three roles with fixed limits. A role can never be raised from inside the product.">
+        <div className="overflow-x-auto rounded-xl border border-ink-200 bg-surface">
+          <table className="w-full min-w-[40rem] text-sm">
+            <caption className="sr-only">What each role can do</caption>
+            <thead className="border-b border-ink-200">
+              <tr>
+                <th scope="col" className="px-5 py-4 text-left font-medium text-ink-500">
+                  Task
+                </th>
+                {["Super Admin", "Admin", "Member"].map((r) => (
+                  <th key={r} scope="col" className="px-4 py-4 text-left font-semibold text-ink-950">
+                    {r}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-ink-200">
+              {ROLES.map(([task, ...cells]) => (
+                <tr key={task}>
+                  <th scope="row" className="px-5 py-3.5 text-left font-normal text-ink-700">
+                    {task}
+                  </th>
+                  {cells.map((c, i) => (
+                    <td key={i} className="px-4 py-3.5 text-ink-900">
+                      {c}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Section>
-      <Section title="Questions reviewers ask.">
+
+      <Section tone="dark" label="Roadmap" title="Not built yet." intro="We describe what Cyte does today, plainly. These are designed but not available now.">
+        <PointGrid items={NOT_YET} columns={4} dark />
+      </Section>
+
+      <Section label="FAQ" title="Questions reviewers ask." intro={`Security questions, reviews and vulnerability reports: ${CONTACT_EMAIL}.`}>
         <Questions items={QUESTIONS} />
       </Section>
     </>

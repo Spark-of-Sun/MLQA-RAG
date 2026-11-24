@@ -53,3 +53,5 @@ crash.log
 
 #kiro sensetive infor probably
 .kiro/specs/legal-medical-qa/reports
+# Local visual checks of the public website (frontend/.screenshots)
+.screenshots/

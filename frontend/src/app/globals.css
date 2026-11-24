@@ -19,136 +19,140 @@
   }
 }
 
+/*
+ * The palette comes from the Cyte product icon (frontend/images/onekami-product.png): sumi ink on warm paper, with
+ * one red, the brush ensō (#AA1C1A, sampled from the file). Neutrals are warm, not blue-grey, so the page reads like
+ * paper. Red is the only accent: citations, focus, the small dot in labels, and solid action fills in the app. The
+ * website's primary buttons are ink (`inverse`), so red stays rare there. The icon's orange star stays in the icon.
+ */
 @theme {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Self-hosted through next/font/local in app/layout.tsx (files in src/fonts, SIL Open Font License). */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-serif: var(--font-source-serif), "Iowan Old Style", "Charter", Georgia, "Times New Roman", serif;
   --font-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
 
-  /* Neutral ramp. Each step has one job in both themes: 50 canvas, 100 subtle fill and hover, 200 border,
+  /* Neutral ramp (warm). Each step has one job in both themes: 50 canvas, 100 subtle fill and hover, 200 border,
      300 strong border and disabled, 400 faint text and icons, 500 muted text, 600 secondary text, 700 body text,
-     800 strong text, 900-950 headings. Surfaces and solid dark fills use the semantic tokens below instead. */
-  --color-ink-50: #f6f7f9;
-  --color-ink-100: #eceef2;
-  --color-ink-200: #d5d9e2;
-  --color-ink-300: #b0b8c7;
-  --color-ink-400: #8590a6;
-  --color-ink-500: #66728a;
-  --color-ink-600: #505b71;
-  --color-ink-700: #42495c;
-  --color-ink-800: #2b3040;
-  --color-ink-900: #1a1e2a;
-  --color-ink-950: #10131b;
+     800 strong text, 900-950 headings. Steps 400 and up pass WCAG AA (4.5:1) on the canvas in both themes. */
+  --color-ink-50: #f7f5f0;
+  --color-ink-100: #efece6;
+  --color-ink-200: #e0dcd3;
+  --color-ink-300: #c6c0b5;
+  --color-ink-400: #7a7368;
+  --color-ink-500: #625c53;
+  --color-ink-600: #4d4842;
+  --color-ink-700: #3a3631;
+  --color-ink-800: #282521;
+  --color-ink-900: #1a1816;
+  --color-ink-950: #0f0e0c;
 
-  /* Brand. 50-200 tints (chips, active items), 300-400 focus and active borders, 500 focus outline, 600 solid
-     fill behind white text, 700-900 text on tints and links. The hover of a solid fill is `accent-hover`. */
-  --color-brand-50: #eef4ff;
-  --color-brand-100: #dbe6fe;
-  --color-brand-200: #bfd3fe;
-  --color-brand-300: #a8c3fc;
-  --color-brand-400: #7da2f9;
-  --color-brand-500: #3b6ff5;
-  --color-brand-600: #2554e6;
-  --color-brand-700: #1d42c9;
-  --color-brand-800: #1a3aa0;
-  --color-brand-900: #172d6e;
-  --color-accent-hover: #1d42c9;
-  --color-link: #2554e6; /* links and brand icons drawn on the canvas or a surface */
+  /* Brand: the ensō red. 50-200 tints (chips, active items), 300-400 active borders, 500 focus outline,
+     600 solid fill behind white text, 700-900 text on tints. The hover of a solid fill is `accent-hover`. */
+  --color-brush: #aa1c1a; /* the exact red of the ensō in the mark */
+  --color-brand-50: #faf0ee;
+  --color-brand-100: #f4deda;
+  --color-brand-200: #e8bdb6;
+  --color-brand-300: #d6928a;
+  --color-brand-400: #c0574f;
+  --color-brand-500: #aa1c1a;
+  --color-brand-600: #a11b19;
+  --color-brand-700: #8e1714;
+  --color-brand-800: #6e120f;
+  --color-brand-900: #4f0e0c;
+  --color-accent-hover: #82130f;
+  --color-link: #9a1a17; /* links and brand icons drawn on the canvas or a surface */
 
   /* Surfaces */
-  --color-page: #fcfcfc; /* the public website's background */
-  --color-page-muted: #f6f7f9; /* its alternating sections */
+  --color-page: #fbfaf7; /* the public website's background: warm paper */
+  --color-page-muted: #f4f1eb; /* its alternating sections */
   --color-surface: #ffffff; /* cards, panels, inputs, the sidebar */
-  --color-surface-hover: #f6f7f9; /* a row or button on a surface, under the pointer */
+  --color-surface-hover: #f6f4ef; /* a row or button on a surface, under the pointer */
   --color-raised: #ffffff; /* dialogs and menus that float above surfaces */
-  --color-overlay: rgb(16 19 27 / 0.45); /* behind dialogs */
+  --color-overlay: rgb(15 14 12 / 0.45); /* behind dialogs */
 
-  /* Inverse: a solid high-contrast fill (primary buttons on the website, the question bubble, the logo mark,
-     a one-time code). Dark on light, light on dark. */
-  --color-inverse: #1a1e2a;
-  --color-inverse-hover: #2b3040;
+  /* Inverse: a solid high-contrast fill (primary buttons on the website, the question bubble, a one-time code).
+     Ink on paper in light mode, paper on ink in dark mode. */
+  --color-inverse: #1a1816;
+  --color-inverse-hover: #3a3631;
   --color-on-inverse: #ffffff;
-  --color-on-inverse-muted: #b0b8c7;
+  --color-on-inverse-muted: #c6c0b5;
 
-  /* Band: the website's dark feature sections. Dark in both themes, so their text colors are fixed too. */
-  --color-band: #10131b;
-  --color-on-band: #ffffff;
-  --color-on-band-muted: #b0b8c7;
-  --color-on-band-subtle: #8590a6;
-  --color-on-band-accent: #bfd3fe;
+  /* Band: the website's ink sections. Dark in both themes, so their text colors are fixed too. */
+  --color-band: #12110f;
+  --color-on-band: #fbfaf7;
+  --color-on-band-muted: #c6c0b5;
+  --color-on-band-subtle: #948d82;
+  --color-on-band-accent: #f08f86;
 
-  /* The highlighted passage behind a citation */
-  --color-highlight: rgb(253 230 138 / 0.85);
-  --color-on-highlight: #10131b;
+  /* The paper plate behind the Cyte and Onekami marks in dark mode, where their deep red and black ink fade. */
+  --color-plate: #f7f5f0;
+
+  /* The highlighted passage behind a citation: a highlighter, not the brand red, so it never reads as an error. */
+  --color-highlight: rgb(253 224 132 / 0.8);
+  --color-on-highlight: #0f0e0c;
 }
 
 /*
- * Dark palette. Designed for each step's job, not inverted: the canvas is near-black with a cool tint, surfaces
- * step up in lightness to show elevation (dark mode has no visible shadows), text steps keep their order and stay
- * at or above WCAG AA on the canvas, tints become deep saturated fills so chips still read as chips, and status
- * colors keep their hue while their text steps lighten.
+ * Dark palette. Designed for each step's job, not inverted: the canvas is warm near-black (wet ink rather than
+ * blue slate), surfaces step up in lightness to show elevation (dark mode has no visible shadows), text steps keep
+ * their order and stay at or above WCAG AA on the canvas, tints become deep fills so chips still read as chips, and
+ * the red lifts slightly so it keeps its strength on black. Status colors keep their hue while their text steps
+ * lighten.
  */
 @layer base {
   :root {
     color-scheme: light;
-    --sheen: rgb(255 255 255 / 0.75);
     --atmosphere: none;
     --grid: none;
-    --edge: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --grid-line: rgb(26 24 22 / 0.06);
+    --edge: 0 1px 2px 0 rgb(26 24 22 / 0.05);
 
     @variant dark {
       color-scheme: dark;
-      --sheen: rgb(255 255 255 / 0.22);
-      /* Soft colored light from the top corners, so the canvas has depth instead of being one flat color. */
-      --atmosphere:
-        radial-gradient(70rem 38rem at 8% -12%, rgb(59 111 245 / 0.16), transparent 62%),
-        radial-gradient(55rem 32rem at 100% -8%, rgb(139 92 246 / 0.1), transparent 60%),
-        radial-gradient(60rem 40rem at 50% 115%, rgb(20 184 166 / 0.06), transparent 65%);
-      /* A faint dot grid for the website's open areas. */
-      --grid: radial-gradient(rgb(255 255 255 / 0.045) 1px, transparent 1.2px);
+      --grid-line: rgb(255 255 255 / 0.05);
       /* Cards: a hairline of light on the top edge instead of a drop shadow, which dark backgrounds swallow. */
-      --edge: inset 0 1px 0 0 rgb(255 255 255 / 0.05), 0 1px 3px 0 rgb(0 0 0 / 0.35);
+      --edge: inset 0 1px 0 0 rgb(255 255 255 / 0.05), 0 1px 3px 0 rgb(0 0 0 / 0.4);
 
-      /* Midnight slate instead of flat black: a cool blue-grey base reads as depth, not as a void, and stays
-         easy on the eyes for long reading. Steps are spaced for clear borders and elevation. */
-      --color-ink-50: #0f131b;
-      --color-ink-100: #1a1f2a;
-      --color-ink-200: #2a3140;
-      --color-ink-300: #3b4354;
-      --color-ink-400: #7a849a;
-      --color-ink-500: #939db1;
-      --color-ink-600: #adb5c6;
-      --color-ink-700: #c7cdd9;
-      --color-ink-800: #e0e4ec;
-      --color-ink-900: #edf0f5;
-      --color-ink-950: #f8fafc;
+      --color-ink-50: #0e0d0c;
+      --color-ink-100: #1a1816;
+      --color-ink-200: #2a2724;
+      --color-ink-300: #3d3935;
+      --color-ink-400: #8c857a;
+      --color-ink-500: #a39c91;
+      --color-ink-600: #bab4aa;
+      --color-ink-700: #d1ccc3;
+      --color-ink-800: #e6e2db;
+      --color-ink-900: #f1eee8;
+      --color-ink-950: #fbfaf7;
 
-      --color-brand-50: #121b31;
-      --color-brand-100: #182544;
-      --color-brand-200: #263c6b;
-      --color-brand-300: #34528f;
-      --color-brand-400: #4c71c9;
-      --color-brand-500: #6d93ff;
-      --color-brand-600: #2f61ee;
-      --color-brand-700: #a3bdff;
-      --color-brand-800: #c0d2ff;
-      --color-brand-900: #dbe6ff;
-      --color-accent-hover: #4f7ef8;
-      --color-link: #8fb0ff;
+      --color-brand-50: #221110;
+      --color-brand-100: #2e1513;
+      --color-brand-200: #4a1c18;
+      --color-brand-300: #6e2620;
+      --color-brand-400: #a8352c;
+      --color-brand-500: #e5544a;
+      --color-brand-600: #b8211e;
+      --color-brand-700: #f59a90;
+      --color-brand-800: #ffc0b8;
+      --color-brand-900: #ffe0db;
+      --color-accent-hover: #cf2e29;
+      --color-link: #f28a80;
 
-      --color-page: #0d1118;
-      --color-page-muted: #121722;
-      --color-surface: #161b25;
-      --color-surface-hover: #1f2531;
-      --color-raised: #1d2330;
-      --color-overlay: rgb(5 8 14 / 0.72);
+      --color-page: #0c0b0a;
+      --color-page-muted: #12110f;
+      --color-surface: #171513;
+      --color-surface-hover: #211f1c;
+      --color-raised: #1f1d1a;
+      --color-overlay: rgb(0 0 0 / 0.7);
 
-      --color-inverse: #eceef2;
-      --color-inverse-hover: #d5d9e2;
-      --color-on-inverse: #10131b;
-      --color-on-inverse-muted: #505b71;
+      --color-inverse: #f1eee8;
+      --color-inverse-hover: #e0dcd3;
+      --color-on-inverse: #0f0e0c;
+      --color-on-inverse-muted: #4d4842;
 
-      --color-band: #131a2a;
+      --color-band: #161412;
 
-      --color-highlight: rgb(250 204 21 / 0.26);
+      --color-highlight: rgb(250 204 21 / 0.24);
       --color-on-highlight: #fff6d1;
 
       --color-emerald-50: #0d241e;
@@ -181,7 +185,7 @@
   }
 
   body {
-    @apply bg-ink-50 text-ink-900 antialiased;
+    @apply bg-ink-50 font-sans text-ink-900 antialiased;
   }
 
   ::selection {
@@ -199,18 +203,22 @@
   }
 }
 
-/* The canvas treatment: nothing in light mode, the colored glow (and, on the website, the dot grid) in dark. */
+/* The canvas treatment. Kept as names the app already uses; the theme has no glow, so both are plain. */
 @utility atmosphere {
   background-image: var(--atmosphere);
-  background-repeat: no-repeat;
-  background-attachment: fixed;
 }
 
 @utility atmosphere-grid {
-  background-image: var(--atmosphere), var(--grid);
-  background-repeat: no-repeat, repeat;
-  background-size: auto, 24px 24px;
-  background-attachment: fixed;
+  background-image: var(--atmosphere);
+}
+
+/* A hairline 64px grid, for the website's hero areas only: the "ruled paper" behind the headline. */
+@utility site-grid {
+  background-image:
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+  background-size: 64px 64px;
+  background-position: -1px -1px;
 }
 
 @utility shadow-edge {
@@ -250,61 +258,19 @@ mark.cite {
   animation: pulse-dot 1.2s infinite ease-in-out;
 }
 
-/* ---------------------------------------------------------------- public website motion */
+/* ---------------------------------------------------------------- public website */
+
+/* Headings on the website are set in the serif; the app keeps the sans throughout. */
+.site :where(h1, h2, .display) {
+  font-family: var(--font-serif);
+  font-optical-sizing: auto;
+  letter-spacing: -0.015em;
+}
 
 @keyframes site-rise {
   from {
     opacity: 0;
-    transform: translateY(14px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes site-marquee {
-  to {
-    transform: translateX(-50%);
-  }
-}
-
-@keyframes site-caret {
-  50% {
-    opacity: 0;
-  }
-}
-
-@keyframes site-sheen {
-  from {
-    background-position: 120% 0;
-  }
-  to {
-    background-position: -20% 0;
-  }
-}
-
-@keyframes site-ping {
-  75%,
-  100% {
-    transform: scale(2.2);
-    opacity: 0;
-  }
-}
-
-@keyframes site-fill {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
-  }
-}
-
-@keyframes site-pop {
-  from {
-    opacity: 0;
-    transform: scale(0.6);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -315,7 +281,7 @@ mark.cite {
 @keyframes site-slide {
   from {
     opacity: 0;
-    transform: translateX(16px);
+    transform: translateY(-4px);
   }
   to {
     opacity: 1;
@@ -323,75 +289,35 @@ mark.cite {
   }
 }
 
-@keyframes site-float {
-  50% {
-    transform: translateY(-6px);
-  }
-}
-
 .site {
   --site-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
-/* Plays once on load, from the server-rendered HTML; no JavaScript needed. */
+/* Plays once on load, from the server-rendered HTML; no JavaScript needed. The stagger comes from a class such as
+   `[--d:120ms]`, never from a style attribute, so the strict CSP needs nothing extra. */
 .site .rise {
-  animation: site-rise 0.9s var(--site-ease) both;
+  animation: site-rise 0.7s var(--site-ease) both;
   animation-delay: var(--d, 0ms);
 }
 
-/* Scroll reveal: hidden only after the observer has started, so content never stays hidden without JavaScript. */
-html.reveal-ready .site [data-reveal] {
-  opacity: 0;
-  transform: translateY(18px);
-  transition:
-    opacity 0.8s var(--site-ease),
-    transform 0.8s var(--site-ease);
-  transition-delay: var(--d, 0ms);
+.site .d-1 {
+  --d: 90ms;
 }
-
-html.reveal-ready .site [data-reveal][data-shown] {
-  opacity: 1;
-  transform: none;
+.site .d-2 {
+  --d: 180ms;
 }
-
-.site .marquee-track {
-  animation: site-marquee 45s linear infinite;
+.site .d-3 {
+  --d: 270ms;
 }
-
-.site .marquee:hover .marquee-track {
-  animation-play-state: paused;
+.site .d-4 {
+  --d: 360ms;
 }
-
-.site .caret {
-  animation: site-caret 1s steps(1) infinite;
-}
-
-.site .ping {
-  animation: site-ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
-}
-
-.site .pop {
-  animation: site-pop 0.35s var(--site-ease) both;
+.site .d-5 {
+  --d: 450ms;
 }
 
 .site .slide-in {
-  animation: site-slide 0.5s var(--site-ease) both;
-}
-
-.site .fill {
-  transform-origin: left;
-  animation: site-fill var(--t, 4s) linear both;
-}
-
-.site .float {
-  animation: site-float 6s ease-in-out infinite;
-}
-
-.site mark.sheen {
-  background-image: linear-gradient(100deg, transparent 30%, var(--sheen) 50%, transparent 70%);
-  background-size: 250% 100%;
-  background-repeat: no-repeat;
-  animation: site-sheen 1.6s ease-out 0.2s both;
+  animation: site-slide 0.25s var(--site-ease) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -400,9 +326,5 @@ html.reveal-ready .site [data-reveal][data-shown] {
   .site *::after {
     animation: none !important;
     transition: none !important;
-  }
-  html.reveal-ready .site [data-reveal] {
-    opacity: 1;
-    transform: none;
   }
 }
