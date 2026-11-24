@@ -6,6 +6,7 @@
 .env.*
 .secrets*
 *.pem
+
 *.key
 .venv
 **/__pycache__
