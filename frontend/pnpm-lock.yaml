@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@opennextjs/aws@4.2.0':
+    hash: 095bf03db796537a8daa1b7ae92df0d6c5c4ae4be39578dc6b8b5e593a404bf6
+    path: patches/@opennextjs__aws@4.2.0.patch
+
 importers:
 
   .:
@@ -3907,7 +3912,7 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.3
 
-  '@opennextjs/aws@4.2.0(next@16.4.6(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))':
+  '@opennextjs/aws@4.2.0(patch_hash=095bf03db796537a8daa1b7ae92df0d6c5c4ae4be39578dc6b8b5e593a404bf6)(next@16.4.6(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))':
     dependencies:
       '@ast-grep/napi': 0.45.3
       '@aws-sdk/client-cloudfront': 3.984.0
@@ -3934,7 +3939,7 @@ snapshots:
     dependencies:
       '@ast-grep/napi': 0.45.3
       '@dotenvx/dotenvx': 2.38.2
-      '@opennextjs/aws': 4.2.0(next@16.4.6(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))
+      '@opennextjs/aws': 4.2.0(patch_hash=095bf03db796537a8daa1b7ae92df0d6c5c4ae4be39578dc6b8b5e593a404bf6)(next@16.4.6(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))
       ci-info: 4.5.0
       cloudflare: 4.5.0
       comment-json: 4.6.2

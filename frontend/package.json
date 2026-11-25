@@ -46,6 +46,9 @@
     "onlyBuiltDependencies": [
       "esbuild",
       "workerd"
-    ]
+    ],
+    "patchedDependencies": {
+      "@opennextjs/aws@4.2.0": "patches/@opennextjs__aws@4.2.0.patch"
+    }
   }
 }
